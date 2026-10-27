@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* Identidad visual FEEL-FACE (RI-01). Pares texto/fondo verificados >= 4.5:1 (WCAG 2.1 AA). */
+@theme {
+    --color-marca: #1f5fbf; /* azul principal: blanco sobre él = 6.2:1 */
+    --color-marca-fuerte: #174a94;
+    --color-marca-suave: #dbe8fb;
+    --color-acento: #ffb30f; /* ámbar: usar con texto tinta */
+    --color-acento-suave: #fff3d1;
+    --color-alerta: #931f1d; /* rojo: blanco sobre él = 8.6:1 */
+    --color-alerta-suave: #fbe3e2;
+    --color-exito: #1e7a46;
+    --color-exito-suave: #dcf3e5;
+    --color-tinta: #1f2937;
+    --color-tinta-suave: #4b5563;
+    --color-fondo: #f6f9fc;
+    --font-sans: "Nunito", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+
+@layer base {
+    html {
+        color: var(--color-tinta);
+        background: var(--color-fondo);
+    }
+    :focus-visible {
+        outline: 3px solid var(--color-acento);
+        outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}
+
+@layer components {
+    .tarjeta {
+        @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+    }
+    .boton {
+        @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-marca px-5 py-2.5 font-bold text-white transition-colors hover:bg-marca-fuerte disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    .boton-secundario {
+        @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-marca bg-white px-5 py-2 font-bold text-marca transition-colors hover:bg-marca-suave disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    .campo {
+        @apply w-full rounded-xl border-2 border-slate-300 bg-white px-3 py-2 text-tinta focus:border-marca;
+    }
+    .etiqueta {
+        @apply mb-1 block text-sm font-bold text-tinta;
+    }
+    .insignia-estado {
+        @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold;
+    }
+}

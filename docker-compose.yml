@@ -1,0 +1,17 @@
+# PostgreSQL local para desarrollo y pruebas de BD (ADR-010).
+# Puerto 5433 para no chocar con otras instancias locales.
+services:
+  db:
+    image: postgres:16
+    container_name: numotion_db
+    environment:
+      POSTGRES_USER: numotion_owner
+      POSTGRES_PASSWORD: numotion_owner
+      POSTGRES_DB: numotion
+      TZ: UTC
+    ports:
+      - "5433:5432"
+    volumes:
+      - numotion_pg:/var/lib/postgresql/data
+volumes:
+  numotion_pg:
