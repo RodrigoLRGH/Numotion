@@ -9,7 +9,8 @@ import { estadoDiagnosticos } from "./modules/alumno/servidor/diagnostico";
 const CABECERAS = cabecerasSeguridad(import.meta.env.PROD);
 
 function conCabeceras(respuesta: Response, privada: boolean): Response {
-    for (const [k, v] of Object.entries(CABECERAS)) respuesta.headers.set(k, v);
+    // Una página puede endurecer una cabecera (p. ej. Referrer-Policy en el enlace del tutor)
+    for (const [k, v] of Object.entries(CABECERAS)) if (!respuesta.headers.has(k)) respuesta.headers.set(k, v);
     if (privada) respuesta.headers.set("Cache-Control", "no-store");
     return respuesta;
 }

@@ -12,13 +12,13 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-01-06 · *(`/api/v1/auth/alumno/grupo/:codigo`, `/api/v1/auth/alumno/login`)* · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
 - [x] T-03-01-07 · *(middleware + `decidirAcceso`; el consentimiento se verifica en cada petición dentro de `fn_sesion_auth`, sin caché)* · Middlewares `requireAuth`, `requireRole`, `requireConsent` (caché 60 s) → P-SEC-01, P-SEC-04
 - [ ] T-03-01-08 · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
-- [~] T-03-01-09 · *(alta de grupo y alumno lista en `/api/v1/docente/grupos[/:id/alumnos]`; falta el envío del correo al tutor: hoy el docente recibe el enlace)* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
-- [ ] T-03-01-10 · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
+- [~] T-03-01-09 · *(alta e invitación por correo listas con `correo.ts`; falta elegir el proveedor de producción. Proveedores actuales: `archivo` (desarrollo) y `memoria` (pruebas))* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
+- [x] T-03-01-10 · *(`/api/v1/consentimiento/:token[/otp|/revocar|/arco]`, migración 0007, reenvío del docente; A-24)* · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
 - [x] T-03-01-11 · *(ADR-010: `shared/cliente/api.ts`; sin refresh; la navegación la resuelve el middleware)* · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
 - [x] T-03-01-12 · *(ADR-010: guardas en servidor con `decidirAcceso`; no hay router SPA)* · Web: router y guardas `RequireRole`, `RedirectIfAuth`, `RequireConsent` → P-ROUTE-01, P-ROUTE-03
 - [x] T-03-01-13 · *(página `/login` + registro; isla `FormularioAcceso`)* · Web: `LoginDocente` → P-E2E-02
 - [x] T-03-01-14 · *(página `/entrar`, isla `EntrarAlumno`; los íconos del PIN no se leen en voz alta)* · Web: `EntrarAlumno` (código → avatar → PIN, con audio) → P-E2E-01, P-A11Y-01
-- [ ] T-03-01-15 · Web: `ConsentimientoTutor` (aviso, OTP, casillas separadas, revocar, ARCO) → P-E2E-01
+- [x] T-03-01-15 · *(página `/consentimiento/:token`, isla `ConsentimientoTutor`; el resumen del aviso es borrador hasta T-01-06)* · Web: `ConsentimientoTutor` (aviso, OTP, casillas separadas, revocar, ARCO) → P-E2E-01
 - [x] T-03-01-16 · *(CSP, HSTS en producción, Permissions-Policy, nosniff, X-Frame-Options en `cabeceras.ts`; CORS innecesario: misma origen)* · Cabeceras de seguridad: helmet, CSP, HSTS, Permissions-Policy, CORS → P-SEC-05
 - [ ] T-03-01-17 · Logger pino con redacción de PII y exclusión de body en `/emociones/frame` → P-SEC-06
 - [ ] T-03-01-18 · Despliegue `dev` en AWS desde IaC (T-02-14) con pipeline → pipeline verde

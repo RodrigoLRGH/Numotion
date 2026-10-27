@@ -104,6 +104,7 @@ Fuente: Matriz de Clasificación (`docs/requerimientos.docx`). Los IDs **no se r
 | A-21 | `05-contratos §3.1` devuelve `{ afectoPositivo, afectoNegativo }` al alumno al finalizar PANAS-C, pero EXP-02 y RF-65 prohíben que el alumno vea sus puntajes. | Gana la privacidad: `POST …/panas/finalizar` responde solo `{ completado: true }`. |
 | A-22 | EXP-02.1 pide una escala "pictográfica de 5 caras", pero una cara feliz en "Muchísimo" contradice los ítems negativos ("¿Qué tan triste…?"). | Se usan círculos de tamaño creciente (intensidad, sin valencia) con etiqueta y audio. A validar con psicopedagogía en T-01-03. |
 | A-23 | El nombre del producto es "Numotion" en los specs y "FEEL-FACE" en el código previo. | Se usa "Numotion" (jerarquía de verdad: specs > código), centralizado en `src/modules/shared/marca.ts`. |
+| A-24 | 03-seguridad §6 da 7 días al enlace del tutor, pero la revocación y los derechos ARCO deben poder ejercerse "desde el mismo enlace" en cualquier momento. | Los 7 días solo limitan la **primera aceptación**. Con el enlace vencido se puede revocar, pedir ARCO y cambiar la preferencia de cámara; siempre con OTP. Revocar es definitivo para ese consentimiento: para volver a autorizar, el docente genera un enlace nuevo. |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).

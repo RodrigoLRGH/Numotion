@@ -3,6 +3,7 @@ import type { APIRoute } from "astro";
 import { z } from "astro/zod";
 import { AVATARES, ICONOS_PIN } from "../../../../../../modules/shared/dominio/acceso";
 import { alumnosDelGrupo, crearAlumno } from "../../../../../../modules/docente/servidor/grupos";
+import { enviarInvitacion } from "../../../../../../modules/shared/servidor/consentimiento";
 import { conContexto } from "../../../../../../modules/shared/servidor/db";
 import { contextoDe, docenteDe, error, json, leerCuerpo } from "../../../../../../modules/shared/servidor/http";
 
@@ -36,13 +37,8 @@ export const POST: APIRoute = async (ctx) => {
     if (datos instanceof Response) return datos;
     const r = await conContexto(contextoDe(docente), (tx) => crearAlumno(tx, id.data, datos));
     if (!r.ok) return error(r.status === 404 ? "NO_ENCONTRADO" : r.status === 409 ? "CONFLICTO" : "VALIDACION", r.message, r.status);
-    // El envío del correo al tutor queda para T-03-01-09; por ahora el docente recibe el enlace
-    return json(
-        {
-            alumno: r.alumno,
-            pin: r.pin,
-            invitacion: { url: `${ctx.url.origin}/consentimiento/${r.invitacion.token}`, expira: r.invitacion.expira },
-        },
-        201,
-    );
+    // El docente recibe el enlace aunque falle el correo, para compartirlo por otro medio
+    const url = `${ctx.url.origin}/consentimiento/${r.invitacion.token}`;
+    const correoEnviado = await enviarInvitacion(datos.tutorEmail, r.alumno.nombre.split(" ")[0], url, r.invitacion.expira);
+    return json({ alumno: r.alumno, pin: r.pin, invitacion: { url, expira: r.invitacion.expira }, correoEnviado }, 201);
 };

@@ -1,6 +1,7 @@
 // Grupos del docente y alta de alumnos (05-contratos §4.1, ADR-004, ADR-009).
 import { useCallback, useEffect, useState } from "react";
 import { AVATARES, ICONOS_PIN } from "../../shared/dominio/acceso";
+import type { EstadoConsentimiento } from "../../shared/dominio/consentimiento";
 import { api, ErrorApi } from "../../shared/cliente/api";
 import { Aviso } from "../../shared/ui/Aviso";
 
@@ -17,13 +18,18 @@ interface Alumno {
     nombre: string;
     apellidos: string;
     avatar: string;
-    estadoConsentimiento: "vigente" | "pendiente" | "revocado" | "por_renovar";
+    estadoConsentimiento: EstadoConsentimiento;
     aceptaCamara: boolean;
+}
+interface Invitacion {
+    url: string;
+    expira: string;
 }
 interface Alta {
     alumno: { id: string; nombre: string; avatar: string };
     pin: string[];
-    invitacion: { url: string; expira: string };
+    invitacion: Invitacion;
+    correoEnviado: boolean;
 }
 
 const ETIQUETA_CONSENTIMIENTO: Record<Alumno["estadoConsentimiento"], [string, string]> = {
@@ -31,7 +37,25 @@ const ETIQUETA_CONSENTIMIENTO: Record<Alumno["estadoConsentimiento"], [string, s
     pendiente: ["Esperando al tutor", "bg-acento-suave text-tinta"],
     revocado: ["Revocado", "bg-alerta-suave text-alerta"],
     por_renovar: ["Por renovar", "bg-acento-suave text-tinta"],
+    vencido: ["Enlace vencido", "bg-alerta-suave text-alerta"],
 };
+
+/** Enlace para el tutor con botón de copiar; avisa si el correo no salió. */
+function EnlaceTutor({ invitacion, correoEnviado }: { invitacion: Invitacion; correoEnviado: boolean }) {
+    return (
+        <>
+            <p className="mb-1 font-bold">Enlace de consentimiento para el tutor</p>
+            <p className="mb-2 text-sm text-tinta-suave">
+                {correoEnviado ? "Se lo enviamos por correo. " : "No se pudo enviar el correo: compártelo por otro medio. "}
+                El alumno podrá entrar cuando su madre, padre o tutor acepte. Vence el {new Date(invitacion.expira).toLocaleDateString("es-MX")}.
+            </p>
+            <div className="flex gap-2">
+                <input readOnly value={invitacion.url} aria-label="Enlace de consentimiento" className="campo font-mono text-sm" onFocus={(e) => e.currentTarget.select()} />
+                <button type="button" className="boton-secundario" onClick={() => navigator.clipboard?.writeText(invitacion.url)}>Copiar</button>
+            </div>
+        </>
+    );
+}
 
 const emoji = (lista: readonly { id: string; emoji: string }[], id: string) => lista.find((x) => x.id === id)?.emoji ?? "?";
 const nombreIcono = (id: string) => ICONOS_PIN.find((i) => i.id === id)?.nombre ?? id;
@@ -46,6 +70,7 @@ export default function GestionGrupos() {
     const [elegido, setElegido] = useState<string | null>(null);
     const [alumnos, setAlumnos] = useState<Alumno[] | null>(null);
     const [alta, setAlta] = useState<Alta | null>(null);
+    const [reenvio, setReenvio] = useState<{ nombre: string; invitacion: Invitacion; correoEnviado: boolean } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [ocupado, setOcupado] = useState(false);
 
@@ -109,6 +134,19 @@ export default function GestionGrupos() {
             await cargarGrupos();
         });
 
+    async function nuevoEnlace(a: Alumno) {
+        setError(null);
+        setAlta(null);
+        try {
+            const r = await api<{ invitacion: Invitacion; correoEnviado: boolean }>("POST", `/docente/alumnos/${a.id}/invitacion`);
+            setReenvio({ nombre: a.nombre, ...r });
+            const lista = await api<{ items: Alumno[] }>("GET", `/docente/grupos/${elegido}/alumnos`);
+            setAlumnos(lista.items);
+        } catch (err) {
+            setError(err instanceof ErrorApi ? err.message : "No se pudo generar el enlace.");
+        }
+    }
+
     const grupo = grupos?.find((g) => g.id === elegido);
 
     return (
@@ -126,6 +164,7 @@ export default function GestionGrupos() {
                                     aria-current={g.id === elegido ? "true" : undefined}
                                     onClick={() => {
                                         setAlta(null);
+                                        setReenvio(null);
                                         setElegido(g.id);
                                     }}
                                     className={`w-full cursor-pointer rounded-xl border-2 px-3 py-2 text-left ${g.id === elegido ? "border-marca bg-marca-suave" : "border-slate-200 hover:border-marca"}`}
@@ -178,6 +217,7 @@ export default function GestionGrupos() {
                                         <th scope="col" className="py-2">Alumno</th>
                                         <th scope="col" className="py-2">Consentimiento</th>
                                         <th scope="col" className="py-2">Cámara</th>
+                                        <th scope="col" className="py-2"><span className="sr-only">Acciones</span></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -188,6 +228,13 @@ export default function GestionGrupos() {
                                                 <td className="py-2"><span aria-hidden="true" className="mr-2 text-2xl">{emoji(AVATARES, a.avatar)}</span>{a.nombre} {a.apellidos}</td>
                                                 <td className="py-2"><span className={`insignia-estado ${clase}`}>{texto}</span></td>
                                                 <td className="py-2">{a.aceptaCamara ? "Sí" : "No"}</td>
+                                                <td className="py-2 text-right">
+                                                    {a.estadoConsentimiento !== "vigente" && (
+                                                        <button type="button" className="cursor-pointer text-sm font-bold text-marca underline" onClick={() => nuevoEnlace(a)}>
+                                                            Nuevo enlace<span className="sr-only"> para el tutor de {a.nombre}</span>
+                                                        </button>
+                                                    )}
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -206,14 +253,14 @@ export default function GestionGrupos() {
                         <p className="mb-4 flex gap-2 text-4xl" role="img" aria-label={`Clave: ${alta.pin.map(nombreIcono).join(", ")}`}>
                             {alta.pin.map((p, i) => <span key={i} aria-hidden="true" className="rounded-xl bg-marca-suave p-2">{emoji(ICONOS_PIN, p)}</span>)}
                         </p>
-                        <p className="mb-1 font-bold">Enlace de consentimiento para el tutor</p>
-                        <p className="mb-2 text-sm text-tinta-suave">
-                            El alumno podrá entrar cuando su madre, padre o tutor acepte. Vence el {new Date(alta.invitacion.expira).toLocaleDateString("es-MX")}.
-                        </p>
-                        <div className="flex gap-2">
-                            <input readOnly value={alta.invitacion.url} aria-label="Enlace de consentimiento" className="campo font-mono text-sm" onFocus={(e) => e.currentTarget.select()} />
-                            <button type="button" className="boton-secundario" onClick={() => navigator.clipboard?.writeText(alta.invitacion.url)}>Copiar</button>
-                        </div>
+                        <EnlaceTutor invitacion={alta.invitacion} correoEnviado={alta.correoEnviado} />
+                    </section>
+                )}
+
+                {reenvio && (
+                    <section className="tarjeta border-2 border-marca" aria-labelledby="reenvio">
+                        <h2 id="reenvio" className="mb-2 text-xl font-extrabold">Nuevo enlace para el tutor de {reenvio.nombre}</h2>
+                        <EnlaceTutor invitacion={reenvio.invitacion} correoEnviado={reenvio.correoEnviado} />
                     </section>
                 )}
 

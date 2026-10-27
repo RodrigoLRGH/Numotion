@@ -2,11 +2,10 @@
 // del docente en contexto; un grupo ajeno simplemente "no existe" (404).
 import { avatarDisponible, esAvatar, generarCodigoAcceso, pinAleatorio, pinATexto } from "../../shared/dominio/acceso";
 import { hashSecreto, nuevoToken } from "../../shared/servidor/auth";
+import type { EstadoConsentimiento } from "../../shared/dominio/consentimiento";
+import { VIGENCIA_INVITACION_MS } from "../../shared/servidor/consentimiento";
 import type { Tx } from "../../shared/servidor/db";
 
-export const VIGENCIA_INVITACION_MS = 7 * 24 * 60 * 60 * 1000;
-
-export type EstadoConsentimiento = "vigente" | "pendiente" | "revocado" | "por_renovar";
 
 export interface GrupoResumen {
     id: string;
@@ -61,13 +60,14 @@ export async function alumnosDelGrupo(tx: Tx, grupoId: string): Promise<AlumnoDe
     if (!g) return null;
     return tx<AlumnoDeGrupo[]>`
         SELECT a.id, a.nombre, a.apellidos, a.avatar, a.activo,
-               CASE WHEN c.id IS NULL OR c.aceptado_en IS NULL THEN 'pendiente'
-                    WHEN c.revocado_en IS NOT NULL THEN 'revocado'
+               CASE WHEN c.revocado_en IS NOT NULL THEN 'revocado'
+                    WHEN c.id IS NULL OR (c.aceptado_en IS NULL AND c.token_expira_en > now()) THEN 'pendiente'
+                    WHEN c.aceptado_en IS NULL THEN 'vencido'
                     WHEN c.version_aviso <> v.version THEN 'por_renovar'
                     ELSE 'vigente' END AS "estadoConsentimiento",
                coalesce(c.acepta_camara AND c.revocado_en IS NULL, false) AS "aceptaCamara"
           FROM alumno a
-          LEFT JOIN LATERAL (SELECT ct.id, ct.aceptado_en, ct.revocado_en, ct.version_aviso, ct.acepta_camara
+          LEFT JOIN LATERAL (SELECT ct.id, ct.aceptado_en, ct.revocado_en, ct.version_aviso, ct.acepta_camara, ct.token_expira_en
                                FROM consentimiento_tutor ct WHERE ct.alumno_id = a.id
                               ORDER BY ct.creado_en DESC LIMIT 1) c ON true
           LEFT JOIN LATERAL (SELECT version FROM aviso_privacidad WHERE vigente_desde <= now()

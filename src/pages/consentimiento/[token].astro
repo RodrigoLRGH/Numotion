@@ -1,0 +1,26 @@
+---
+// Página pública del tutor (T-03-01-10). Sin sesión: el token del enlace identifica el consentimiento.
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ConsentimientoTutor from "../../modules/shared/componentes/ConsentimientoTutor";
+import { verConsentimiento } from "../../modules/shared/servidor/consentimiento";
+
+const token = Astro.params.token ?? "";
+const vista = await verConsentimiento(token);
+// El token es una credencial: que no se filtre por Referer ni quede en cachés
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("Referrer-Policy", "no-referrer");
+if (!vista) Astro.response.status = 404;
+---
+
+<BaseLayout titulo="Permiso del tutor">
+    {
+        vista ? (
+            <ConsentimientoTutor client:load token={token} vista={vista} />
+        ) : (
+            <section class="tarjeta">
+                <h1 class="text-2xl font-extrabold">Este enlace no es válido</h1>
+                <p class="mt-2">Pide un enlace nuevo a la maestra o maestro de tu hija o hijo.</p>
+            </section>
+        )
+    }
+</BaseLayout>
