@@ -74,8 +74,8 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 
 | Expect | Estado | Notas |
 |---|---|---|
-| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | Módulos y guardas existen; faltan lint de límites, acceso del alumno (ADR-004), consentimiento versionado, auditoría, cabeceras de seguridad y pantallas |
-| EXP-02 Diagnósticos PANAS-C y matemático | 🟨 En curso | Backend ✅ sobre PostgreSQL (PANAS incremental, escalonado, versión corta, retroalimentación, compuerta diaria). Faltan pantallas (T-03-02-07…10) y validar contenido (T-01-03, T-01-04) |
+| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. Faltan: flujo público del tutor con OTP (T-03-01-10), correo al tutor (T-03-01-09), lint de límites, logger, rate-limit por IP |
+| EXP-02 Diagnósticos PANAS-C y matemático | ✅ Hecho (pendiente validar contenido) | Backend y pantallas; P-E2E-01 y axe verdes en escritorio y tableta. Falta validar contenido: T-01-03, T-01-04, A-22 |
 | EXP-03 Asignación y seguimiento | 🟨 En curso | API de actividades con nivel inicial; faltan wizard UI e historial filtrable |
 | EXP-04 Motor de ejercicios y adaptación | 🟨 En curso | Generador, intentos, guía y ajuste de nivel existen; faltan `ajuste_dificultad`, UI, cola offline y OpenAI |
 | EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔; faltan IF según spec, SSE, guías de actuación y límite diario |
@@ -123,3 +123,11 @@ ADR aceptados que entran en conflicto con el código y requieren decisión: **AD
 | Servicios docente/alumno sobre PostgreSQL y retiro de `astro:db` (T-03-01-01) | 🟨 `@astrojs/db` retirado; diagnósticos, actividades, motor, emociones, gamificación y reportes siguen en `legacy/` por migrar | `legacy/` |
 
 La app ya corre sobre PostgreSQL. Diagnósticos migrados (EXP-02, `0005_catalogos`, `0006_diagnostico_respuesta`); tras completarlos el alumno pasa la compuerta, pero panel y actividades siguen en `legacy/`.
+
+## 10. Pruebas disponibles
+
+| Comando | Qué corre | Requisitos |
+|---|---|---|
+| `npm test` | Unitarias + componentes (Testing Library/jsdom) | — |
+| `npm run test:db` | P-DB, RLS, auth y diagnósticos contra PostgreSQL | `docker compose up -d` |
+| `npm run test:e2e` | P-E2E-01/02 + axe (P-A11Y-01) en escritorio y tableta; capturas en `test-results/capturas/` | Docker + `npm run db:migrar`; Playwright ≥ 1.63 (la 1.52 se cuelga con Node 24) |
