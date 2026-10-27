@@ -4,22 +4,22 @@ Cada tarea: **≤ 1 día**, con entregable y pruebas. Marcar `[x]` al cumplir la
 Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 
 ## EXP-01 · Base, módulos, auth y consentimiento
-- [ ] T-03-01-01 · Mover el código existente a la estructura `modules/{docente,alumno}` + `shared`/`core` según el mapeo de `estado-actual.md §4` (sin cambiar comportamiento) → web y api · build verde
+- [~] T-03-01-01 · *(en curso: código Astro DB apartado en `legacy/`; auth, middleware y grupos ya sobre PostgreSQL)* · Mover el código existente a la estructura `modules/{docente,alumno}` + `shared`/`core` según el mapeo de `estado-actual.md §4` (sin cambiar comportamiento) → web y api · build verde
 - [ ] T-03-01-02 · `infra/config`: carga y validación de variables de entorno con Zod (falla al arrancar si faltan) → `apps/api/src/infra/config.ts` · P-UNIT-10
-- [x] T-03-01-03 · `infra/db/withContext` + middleware `withDbContext` → P-DB-04 *(hecho como `conContexto` en `src/modules/shared/servidor/db.ts`; falta conectarlo al middleware con T-03-01-01)*
-- [ ] T-03-01-04 · Hash de contraseña (bcrypt 12) y emisión/verificación JWT RS256 (acceso 15 min, refresh 7 días rotativo en cookie) → `core/auth/{password,jwt}.ts` · P-SEC-02
-- [ ] T-03-01-05 · `POST /auth/docente/login|refresh`, `POST /auth/logout` con rate-limit y bloqueo → P-SEC-02
-- [ ] T-03-01-06 · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
-- [ ] T-03-01-07 · Middlewares `requireAuth`, `requireRole`, `requireConsent` (caché 60 s) → P-SEC-01, P-SEC-04
+- [x] T-03-01-03 · `infra/db/withContext` + middleware `withDbContext` → P-DB-04 *(`conContexto` en `src/modules/shared/servidor/db.ts`, usado por middleware y endpoints)*
+- [x] T-03-01-04 · *(ADR-010: scrypt + sesiones opacas en BD, docente 8 h / alumno 4 h, en lugar de bcrypt + JWT)* · Hash de contraseña (bcrypt 12) y emisión/verificación JWT RS256 (acceso 15 min, refresh 7 días rotativo en cookie) → `core/auth/{password,jwt}.ts` · P-SEC-02
+- [x] T-03-01-05 · *(`/api/v1/auth/docente/{login,registro}`, `/api/v1/auth/logout`; bloqueo 15 min tras 10 fallos en BD; sin refresh por ADR-010; rate-limit por IP pendiente)* · `POST /auth/docente/login|refresh`, `POST /auth/logout` con rate-limit y bloqueo → P-SEC-02
+- [x] T-03-01-06 · *(`/api/v1/auth/alumno/grupo/:codigo`, `/api/v1/auth/alumno/login`)* · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
+- [x] T-03-01-07 · *(middleware + `decidirAcceso`; el consentimiento se verifica en cada petición dentro de `fn_sesion_auth`, sin caché)* · Middlewares `requireAuth`, `requireRole`, `requireConsent` (caché 60 s) → P-SEC-01, P-SEC-04
 - [ ] T-03-01-08 · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
-- [ ] T-03-01-09 · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
+- [~] T-03-01-09 · *(alta de grupo y alumno lista en `/api/v1/docente/grupos[/:id/alumnos]`; falta el envío del correo al tutor: hoy el docente recibe el enlace)* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
 - [ ] T-03-01-10 · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
 - [ ] T-03-01-11 · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
 - [ ] T-03-01-12 · Web: router y guardas `RequireRole`, `RedirectIfAuth`, `RequireConsent` → P-ROUTE-01, P-ROUTE-03
 - [ ] T-03-01-13 · Web: `LoginDocente` → P-E2E-02
 - [ ] T-03-01-14 · Web: `EntrarAlumno` (código → avatar → PIN, con audio) → P-E2E-01, P-A11Y-01
 - [ ] T-03-01-15 · Web: `ConsentimientoTutor` (aviso, OTP, casillas separadas, revocar, ARCO) → P-E2E-01
-- [ ] T-03-01-16 · Cabeceras de seguridad: helmet, CSP, HSTS, Permissions-Policy, CORS → P-SEC-05
+- [x] T-03-01-16 · *(CSP, HSTS en producción, Permissions-Policy, nosniff, X-Frame-Options en `cabeceras.ts`; CORS innecesario: misma origen)* · Cabeceras de seguridad: helmet, CSP, HSTS, Permissions-Policy, CORS → P-SEC-05
 - [ ] T-03-01-17 · Logger pino con redacción de PII y exclusión de body en `/emociones/frame` → P-SEC-06
 - [ ] T-03-01-18 · Despliegue `dev` en AWS desde IaC (T-02-14) con pipeline → pipeline verde
 

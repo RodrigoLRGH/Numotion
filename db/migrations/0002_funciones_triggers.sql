@@ -289,20 +289,20 @@ BEGIN
   END IF;
 END $$;
 
--- Paso 2 del acceso del alumno: avatares del grupo (sin nombres, ADR-004)
+-- Paso 2 del acceso del alumno: avatares del grupo con nombre corto, nunca apellidos (ADR-004, A-18)
 CREATE FUNCTION fn_avatares_grupo(p_codigo text)
-RETURNS TABLE(avatar text) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT a.avatar FROM alumno a JOIN grupo g ON g.id = a.grupo_id
-   WHERE g.codigo_acceso = upper(p_codigo) AND a.activo ORDER BY a.avatar $$;
+RETURNS TABLE(grupo_id uuid, alumno_id uuid, avatar text, nombre_corto text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT g.id, a.id, a.avatar, split_part(a.nombre, ' ', 1) FROM alumno a JOIN grupo g ON g.id = a.grupo_id
+   WHERE g.codigo_acceso = upper(p_codigo) AND a.activo ORDER BY a.nombre $$;
 
-CREATE FUNCTION fn_auth_alumno(p_codigo text, p_avatar text)
-RETURNS TABLE(id uuid, nombre text, grupo_id uuid, pin_hash text, bloqueado_hasta timestamptz,
+CREATE FUNCTION fn_auth_alumno(p_grupo uuid, p_alumno uuid)
+RETURNS TABLE(id uuid, nombre text, avatar text, pin_hash text, bloqueado_hasta timestamptz,
               consentimiento boolean, acepta_camara boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT a.id, a.nombre, a.grupo_id, a.pin_hash, a.bloqueado_hasta, c.vigente, c.acepta_camara
-    FROM alumno a JOIN grupo g ON g.id = a.grupo_id
-    CROSS JOIN LATERAL fn_consentimiento_vigente(a.id) c
-   WHERE g.codigo_acceso = upper(p_codigo) AND a.avatar = p_avatar AND a.activo $$;
+  SELECT a.id, a.nombre, a.avatar, a.pin_hash, a.bloqueado_hasta, c.vigente, c.acepta_camara
+    FROM alumno a CROSS JOIN LATERAL fn_consentimiento_vigente(a.id) c
+   WHERE a.id = p_alumno AND a.grupo_id = p_grupo AND a.activo $$;
 
 -- Alumno: bloqueo 5 min tras 5 fallos (ADR-004). En éxito crea/reanuda la sesión del día.
 CREATE FUNCTION fn_auth_alumno_resultado(p_alumno uuid, p_exito boolean, p_ip inet) RETURNS uuid

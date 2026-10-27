@@ -117,7 +117,9 @@ ADR aceptados que entran en conflicto con el código y requieren decisión: **AD
 | Pruebas de BD: P-DB-01…08, RLS, auth | ✅ 28 en verde (`npm run test:db`) | `tests/db/` |
 | `conContexto` (contexto RLS por transacción) | ✅ | `src/modules/shared/servidor/db.ts` |
 | Dominio del acceso del alumno (íconos PIN, avatares, código) | ✅ con pruebas | `src/modules/shared/dominio/acceso.ts` |
-| Auth, middleware y endpoints sobre PostgreSQL (T-03-01-04…07) | ⬜ Siguiente | — |
-| Servicios docente/alumno sobre PostgreSQL y retiro de `astro:db` (T-03-01-01) | ⬜ | — |
+| Auth, middleware y endpoints sobre PostgreSQL (T-03-01-04…07) | ✅ Probado de punta a punta con `npm run dev` | `src/modules/shared/servidor/auth.ts`, `src/middleware.ts`, `src/pages/api/v1/auth/` |
+| Grupos y alta de alumnos del docente | ✅ | `src/modules/docente/servidor/grupos.ts`, `src/pages/api/v1/docente/grupos/` |
+| Seed de demostración | ✅ `npm run db:seed` | `db/seed/0001_demo.sql` |
+| Servicios docente/alumno sobre PostgreSQL y retiro de `astro:db` (T-03-01-01) | 🟨 `@astrojs/db` retirado; diagnósticos, actividades, motor, emociones, gamificación y reportes siguen en `legacy/` por migrar | `legacy/` |
 
-Hasta completar las dos últimas filas, la app sigue corriendo sobre Astro DB (sin cambios de comportamiento).
+La app ya corre sobre PostgreSQL. Mientras los módulos de `legacy/` no se migren, el alumno queda detenido en la compuerta de diagnósticos (no hay endpoints de diagnóstico todavía).

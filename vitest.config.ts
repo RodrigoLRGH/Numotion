@@ -11,6 +11,8 @@ export default defineConfig({
                     include: ["tests/db/**/*.test.ts"],
                     environment: "node",
                     globalSetup: ["tests/db/setup-global.ts"],
+                    // Los servicios se conectan como la app (numotion_app) a la base de pruebas
+                    env: { DATABASE_URL: "postgres://numotion_app:numotion_app@localhost:5433/numotion_test" },
                     // Un solo proceso: las transacciones de distintos archivos no deben competir por bloqueos
                     pool: "forks",
                     poolOptions: { forks: { singleFork: true } },

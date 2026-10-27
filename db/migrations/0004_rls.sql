@@ -77,11 +77,12 @@ GRANT SELECT (id, grupo_id, nombre, apellidos, avatar, intereses, activo, creado
 GRANT INSERT (grupo_id, nombre, apellidos, avatar, pin_hash, intereses) ON alumno TO numotion_app;
 GRANT UPDATE (nombre, apellidos, avatar, pin_hash, intereses, activo, intentos_fallidos, bloqueado_hasta)
   ON alumno TO numotion_app;
-CREATE POLICY alumno_docente ON alumno FOR SELECT USING (es_docente() AND docente_puede_ver(id));
+-- Por grupo_id (no docente_puede_ver(id)): la fila recién insertada aún no es visible para la función STABLE
+CREATE POLICY alumno_docente ON alumno FOR SELECT USING (es_docente() AND docente_es_dueno_grupo(grupo_id));
 CREATE POLICY alumno_docente_ins ON alumno FOR INSERT
   WITH CHECK (es_docente() AND docente_es_dueno_grupo(grupo_id));
 CREATE POLICY alumno_docente_upd ON alumno FOR UPDATE
-  USING (es_docente() AND docente_puede_ver(id))
+  USING (es_docente() AND docente_es_dueno_grupo(grupo_id))
   WITH CHECK (es_docente() AND docente_es_dueno_grupo(grupo_id));
 CREATE POLICY alumno_self ON alumno FOR SELECT USING (es_alumno() AND id = app_user());
 

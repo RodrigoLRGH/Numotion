@@ -1,101 +1,126 @@
-// Grupos y alumnos del docente. Toda consulta filtra por id_docente para que un
-// docente solo vea a los alumnos de sus grupos (RNF-04).
-import { Alumno, and, count, db, eq, Grupo, inArray, Usuario } from "astro:db";
-import { hashPassword } from "../../shared/servidor/auth";
+// Grupos y alumnos del docente (RNF-04, ADR-004, ADR-009). RLS ya limita todo a los grupos
+// del docente en contexto; un grupo ajeno simplemente "no existe" (404).
+import { avatarDisponible, esAvatar, generarCodigoAcceso, pinAleatorio, pinATexto } from "../../shared/dominio/acceso";
+import { hashSecreto, nuevoToken } from "../../shared/servidor/auth";
+import type { Tx } from "../../shared/servidor/db";
 
-export async function gruposDeDocente(idDocente: number) {
-    const grupos = await db.select().from(Grupo).where(eq(Grupo.id_docente, idDocente)).orderBy(Grupo.nombre);
-    if (!grupos.length) return [];
-    const conteos = await db
-        .select({ id_grupo: Alumno.id_grupo, n: count() })
-        .from(Alumno)
-        .where(inArray(Alumno.id_grupo, grupos.map((g) => g.id)))
-        .groupBy(Alumno.id_grupo);
-    return grupos.map((g) => ({ ...g, alumnos: conteos.find((c) => c.id_grupo === g.id)?.n ?? 0 }));
-}
+export const VIGENCIA_INVITACION_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function grupoDelDocente(idDocente: number, idGrupo: number) {
-    const [g] = await db.select().from(Grupo).where(and(eq(Grupo.id, idGrupo), eq(Grupo.id_docente, idDocente))).limit(1);
-    return g ?? null;
-}
+export type EstadoConsentimiento = "vigente" | "pendiente" | "revocado" | "por_renovar";
 
-export interface AlumnoResumen {
-    id: number;
+export interface GrupoResumen {
+    id: string;
     nombre: string;
-    usuario: string;
     grado: number;
-    idGrupo: number;
-    grupo: string;
-    consentimiento: boolean;
+    cicloEscolar: string;
+    codigoAcceso: string;
+    alumnos: number;
 }
 
-export async function alumnosDelDocente(idDocente: number, idGrupo?: number): Promise<AlumnoResumen[]> {
-    const filas = await db
-        .select({ alumno: Alumno, usuario: Usuario, grupo: Grupo })
-        .from(Alumno)
-        .innerJoin(Grupo, eq(Alumno.id_grupo, Grupo.id))
-        .innerJoin(Usuario, eq(Alumno.id_usuario, Usuario.id))
-        .where(idGrupo ? and(eq(Grupo.id_docente, idDocente), eq(Grupo.id, idGrupo)) : eq(Grupo.id_docente, idDocente))
-        .orderBy(Usuario.nombre);
-    return filas.map((f) => ({
-        id: f.alumno.id,
-        nombre: f.usuario.nombre,
-        usuario: f.usuario.usuario,
-        grado: f.alumno.grado,
-        idGrupo: f.grupo.id,
-        grupo: f.grupo.nombre,
-        consentimiento: f.alumno.consentimiento_tutor,
-    }));
+export async function gruposDelDocente(tx: Tx): Promise<GrupoResumen[]> {
+    return tx<GrupoResumen[]>`
+        SELECT g.id, g.nombre, g.grado, g.ciclo_escolar AS "cicloEscolar", g.codigo_acceso AS "codigoAcceso",
+               count(a.id)::int AS alumnos
+          FROM grupo g LEFT JOIN alumno a ON a.grupo_id = g.id AND a.activo
+         GROUP BY g.id ORDER BY g.ciclo_escolar DESC, g.nombre`;
 }
 
-/** Devuelve el alumno solo si pertenece a un grupo del docente (RNF-04). */
-export async function alumnoDelDocente(idDocente: number, idAlumno: number) {
-    const [f] = await db
-        .select({ alumno: Alumno, usuario: Usuario, grupo: Grupo })
-        .from(Alumno)
-        .innerJoin(Grupo, eq(Alumno.id_grupo, Grupo.id))
-        .innerJoin(Usuario, eq(Alumno.id_usuario, Usuario.id))
-        .where(and(eq(Alumno.id, idAlumno), eq(Grupo.id_docente, idDocente)))
-        .limit(1);
-    return f ?? null;
+export async function crearGrupo(
+    tx: Tx,
+    docenteId: string,
+    datos: { nombre: string; grado: number; cicloEscolar: string },
+): Promise<GrupoResumen> {
+    // El código es aleatorio; ante una colisión (UNIQUE) se reintenta con otro
+    for (let intento = 0; ; intento++) {
+        const codigo = generarCodigoAcceso(Math.random);
+        try {
+            const [g] = await tx.savepoint((sp) => sp<GrupoResumen[]>`
+                INSERT INTO grupo (docente_id, nombre, grado, ciclo_escolar, codigo_acceso)
+                VALUES (${docenteId}, ${datos.nombre}, ${datos.grado}, ${datos.cicloEscolar}, ${codigo})
+                RETURNING id, nombre, grado, ciclo_escolar AS "cicloEscolar", codigo_acceso AS "codigoAcceso", 0 AS alumnos`);
+            return g;
+        } catch (e) {
+            if (intento >= 4 || (e as { code?: string }).code !== "23505") throw e;
+        }
+    }
 }
 
-export async function crearGrupo(idDocente: number, datos: { nombre: string; grado: number; ciclo: string }) {
-    const [g] = await db.insert(Grupo).values({ id_docente: idDocente, ...datos }).returning();
-    return g;
+export interface AlumnoDeGrupo {
+    id: string;
+    nombre: string;
+    apellidos: string;
+    avatar: string;
+    activo: boolean;
+    estadoConsentimiento: EstadoConsentimiento;
+    aceptaCamara: boolean;
+}
+
+/** null si el grupo no existe o es de otro docente. */
+export async function alumnosDelGrupo(tx: Tx, grupoId: string): Promise<AlumnoDeGrupo[] | null> {
+    const [g] = await tx`SELECT id FROM grupo WHERE id = ${grupoId}`;
+    if (!g) return null;
+    return tx<AlumnoDeGrupo[]>`
+        SELECT a.id, a.nombre, a.apellidos, a.avatar, a.activo,
+               CASE WHEN c.id IS NULL OR c.aceptado_en IS NULL THEN 'pendiente'
+                    WHEN c.revocado_en IS NOT NULL THEN 'revocado'
+                    WHEN c.version_aviso <> v.version THEN 'por_renovar'
+                    ELSE 'vigente' END AS "estadoConsentimiento",
+               coalesce(c.acepta_camara AND c.revocado_en IS NULL, false) AS "aceptaCamara"
+          FROM alumno a
+          LEFT JOIN LATERAL (SELECT ct.id, ct.aceptado_en, ct.revocado_en, ct.version_aviso, ct.acepta_camara
+                               FROM consentimiento_tutor ct WHERE ct.alumno_id = a.id
+                              ORDER BY ct.creado_en DESC LIMIT 1) c ON true
+          LEFT JOIN LATERAL (SELECT version FROM aviso_privacidad WHERE vigente_desde <= now()
+                              ORDER BY vigente_desde DESC LIMIT 1) v ON true
+         WHERE a.grupo_id = ${grupoId}
+         ORDER BY a.nombre, a.apellidos`;
 }
 
 export interface DatosAlumnoNuevo {
-    idGrupo: number;
     nombre: string;
-    usuario: string;
-    password: string;
+    apellidos: string;
+    avatar?: string;
+    pin?: string[];
     tutorNombre: string;
-    tutorContacto: string;
-    consentimiento: true;
+    tutorEmail: string;
+    intereses?: string[];
 }
 
-export async function crearAlumno(idDocente: number, d: DatosAlumnoNuevo): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
-    const grupo = await grupoDelDocente(idDocente, d.idGrupo);
-    if (!grupo) return { ok: false, error: "Grupo no encontrado" };
-    const [existe] = await db.select({ id: Usuario.id }).from(Usuario).where(eq(Usuario.usuario, d.usuario)).limit(1);
-    if (existe) return { ok: false, error: "Ese nombre de usuario ya existe" };
+export type AltaAlumno =
+    | {
+          ok: true;
+          alumno: { id: string; nombre: string; avatar: string };
+          /** Se muestra una sola vez al docente para que se lo entregue al alumno */
+          pin: string[];
+          invitacion: { token: string; expira: Date };
+      }
+    | { ok: false; status: 404 | 409 | 422; message: string };
 
-    const [u] = await db
-        .insert(Usuario)
-        .values({ nombre: d.nombre, usuario: d.usuario, password_hash: await hashPassword(d.password), rol: "alumno" })
-        .returning({ id: Usuario.id });
-    const [a] = await db
-        .insert(Alumno)
-        .values({
-            id_usuario: u.id,
-            id_grupo: grupo.id,
-            grado: grupo.grado,
-            consentimiento_tutor: d.consentimiento,
-            tutor_nombre: d.tutorNombre,
-            tutor_contacto: d.tutorContacto,
-            consentimiento_fecha: new Date(),
-        })
-        .returning({ id: Alumno.id });
-    return { ok: true, id: a.id };
+export async function crearAlumno(tx: Tx, grupoId: string, d: DatosAlumnoNuevo): Promise<AltaAlumno> {
+    const usados = await alumnosDelGrupo(tx, grupoId);
+    if (!usados) return { ok: false, status: 404, message: "Grupo no encontrado" };
+
+    const avatar = d.avatar ?? avatarDisponible(usados.map((a) => a.avatar));
+    if (!avatar || !esAvatar(avatar)) return { ok: false, status: 422, message: "No hay un avatar disponible válido" };
+    if (usados.some((a) => a.avatar === avatar)) return { ok: false, status: 409, message: "Ese avatar ya lo usa otro alumno del grupo" };
+
+    const pin = d.pin ?? pinAleatorio(Math.random);
+    const pinTexto = pinATexto(pin);
+    if (!pinTexto) return { ok: false, status: 422, message: "El PIN debe tener 4 íconos del catálogo" };
+
+    const [aviso] = await tx`SELECT version FROM aviso_privacidad WHERE vigente_desde <= now() ORDER BY vigente_desde DESC LIMIT 1`;
+    if (!aviso) throw new Error("No hay un aviso de privacidad vigente (aviso_privacidad vacío)");
+
+    const [alumno] = await tx`
+        INSERT INTO alumno (grupo_id, nombre, apellidos, avatar, pin_hash, intereses)
+        VALUES (${grupoId}, ${d.nombre}, ${d.apellidos}, ${avatar}, ${await hashSecreto(pinTexto)}, ${d.intereses ?? []})
+        RETURNING id, nombre, avatar`;
+
+    const { token, hash } = nuevoToken();
+    const expira = new Date(Date.now() + VIGENCIA_INVITACION_MS);
+    await tx`
+        INSERT INTO consentimiento_tutor (alumno_id, tutor_nombre, tutor_email, version_aviso, token_hash, token_expira_en)
+        VALUES (${alumno.id}, ${d.tutorNombre}, ${d.tutorEmail}, ${aviso.version}, ${hash}, ${expira})`;
+
+    return { ok: true, alumno: { id: alumno.id, nombre: alumno.nombre, avatar: alumno.avatar }, pin, invitacion: { token, expira } };
 }

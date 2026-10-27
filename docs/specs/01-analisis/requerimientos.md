@@ -98,7 +98,7 @@ Fuente: Matriz de Clasificación (`docs/requerimientos.docx`). Los IDs **no se r
 | A-15 | **RF-67** no dice si una práctica en sábado/domingo suma racha. | No suma racha (solo cuentan días hábiles), pero sí otorga puntos. |
 | A-16 | **RF-11** fija máximo 3 intentos antes de la guía, pero no dice qué pasa después. | Tras el 3.er fallo se muestra la guía y se permite un 4.º intento; si falla, el ejercicio se cierra con la explicación final (RF-45). |
 | A-17 | El modelo exige `intento_ejercicio.ejercicio_id` (FK a `ejercicio`), pero el código existente genera ejercicios al vuelo con un generador determinista. | Se agrega el valor `generador` a `origen_ejercicio`; cada ejercicio generado se inserta en `ejercicio` (sin datos del alumno) antes de presentarse. |
-| A-18 | ADR-004 dice que el alumno elige su avatar, pero no si la cuadrícula muestra nombres. | La cuadrícula muestra **solo avatares** (sin nombres): `fn_avatares_grupo` no devuelve PII. El avatar es único dentro del grupo. |
+| A-18 | ADR-004 dice que el alumno elige su avatar, pero no si la cuadrícula muestra nombres. | Según `05-contratos §1`, la cuadrícula muestra avatar + **nombre corto** (primer nombre, nunca apellidos). El avatar es único dentro del grupo. |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).

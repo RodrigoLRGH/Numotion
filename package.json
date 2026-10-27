@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build --remote",
-    "build:local": "astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
     "test": "vitest run --project unidad",
@@ -16,7 +15,6 @@
     "test:db": "vitest run --project db"
   },
   "dependencies": {
-    "@astrojs/db": "^0.18.2",
     "@astrojs/react": "^4.4.1",
     "@astrojs/vercel": "^9.0.0",
     "@aws-sdk/client-rekognition": "^3.700.0",

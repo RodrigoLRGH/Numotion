@@ -7,11 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 import vercel from '@astrojs/vercel';
 
-import db from '@astrojs/db';
-
 // https://astro.build/config
+// Datos en PostgreSQL vía src/modules/shared/servidor/db.ts (ADR-010)
 export default defineConfig({
-  integrations: [react(), db()],
+  integrations: [react()],
   vite: {
     plugins: [tailwindcss()]
   },

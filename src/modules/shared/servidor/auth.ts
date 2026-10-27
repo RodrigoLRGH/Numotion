@@ -1,83 +1,199 @@
-// Autenticación y sesiones (RNF-04, RC-07). Contraseñas con scrypt y sesiones
-// opacas: en la cookie viaja un token aleatorio; en BD solo su hash SHA-256.
+// Autenticación (RNF-04, RC-07, ADR-004, ADR-010). Contraseñas y PIN con scrypt; sesiones
+// opacas: en la cookie viaja un token aleatorio y en BD solo su hash SHA-256 (sesion_auth).
+// Todo pasa por funciones SECURITY DEFINER: la app nunca lee hashes ni sesiones directamente.
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { AstroCookies } from "astro";
-import { db, eq, Sesion, Usuario, Alumno } from "astro:db";
+import { ICONOS_PIN, pinATexto } from "../dominio/acceso";
+import { conContexto, type Tx } from "./db";
+import type { CodigoError } from "./http";
 
 const scrypt = promisify(scryptCb) as (pwd: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
-export const COOKIE_SESION = "ff_sesion";
-const DURACION_SESION_MS = 8 * 60 * 60 * 1000; // una jornada escolar
+export const COOKIE_SESION = "nm_sesion";
+export const DURACION_SESION_MS = { docente: 8 * 60 * 60 * 1000, alumno: 4 * 60 * 60 * 1000 } as const;
+export const MIN_PASSWORD_DOCENTE = 10;
 
 export type Rol = "docente" | "alumno";
 
 export interface UsuarioSesion {
-    id: number;
+    id: string;
     nombre: string;
-    usuario: string;
     rol: Rol;
-    /** Solo para rol alumno */
-    idAlumno?: number;
-    idGrupo?: number;
+    /** Solo alumno */
+    grupoId?: string;
+    aceptaCamara?: boolean;
 }
 
-export async function hashPassword(password: string): Promise<string> {
+export interface SesionEmitida {
+    token: string;
+    expira: Date;
+}
+
+export type Fallo = { ok: false; code: CodigoError; message: string; status: number };
+
+export async function hashSecreto(secreto: string): Promise<string> {
     const salt = randomBytes(16);
-    const hash = await scrypt(password, salt, 64);
+    const hash = await scrypt(secreto, salt, 64);
     return `scrypt$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
 
-export async function verificarPassword(password: string, almacenado: string): Promise<boolean> {
-    const [algoritmo, saltB64, hashB64] = almacenado.split("$");
+export async function verificarSecreto(secreto: string, almacenado: string | null): Promise<boolean> {
+    const [algoritmo, saltB64, hashB64] = (almacenado ?? "").split("$");
     if (algoritmo !== "scrypt" || !saltB64 || !hashB64) return false;
     const esperado = Buffer.from(hashB64, "base64");
-    const calculado = await scrypt(password, Buffer.from(saltB64, "base64"), esperado.length);
+    const calculado = await scrypt(secreto, Buffer.from(saltB64, "base64"), esperado.length);
     return calculado.length === esperado.length && timingSafeEqual(calculado, esperado);
 }
 
-function hashToken(token: string): string {
+// Hash de relleno para que un correo inexistente tarde lo mismo que uno existente
+let hashRelleno: Promise<string> | null = null;
+const relleno = () => (hashRelleno ??= hashSecreto(randomBytes(16).toString("hex")));
+
+export function hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
 }
 
-export async function crearSesion(idUsuario: number, cookies: AstroCookies): Promise<void> {
+/** Token de un solo uso (sesión, invitación al tutor): se entrega el token y se guarda el hash. */
+export function nuevoToken(): { token: string; hash: string } {
     const token = randomBytes(32).toString("base64url");
-    const expira = new Date(Date.now() + DURACION_SESION_MS);
-    await db.insert(Sesion).values({ token_hash: hashToken(token), id_usuario: idUsuario, expira_en: expira });
-    cookies.set(COOKIE_SESION, token, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: import.meta.env.PROD,
-        expires: expira,
+    return { token, hash: hashToken(token) };
+}
+
+async function emitirSesion(tx: Tx, rol: Rol, id: string): Promise<SesionEmitida> {
+    const { token, hash } = nuevoToken();
+    const expira = new Date(Date.now() + DURACION_SESION_MS[rol]);
+    await tx`SELECT fn_crear_sesion_auth(${hash}, ${rol}, ${id}, ${expira})`;
+    return { token, expira };
+}
+
+const credencialesInvalidas = (message: string): Fallo => ({ ok: false, code: "CREDENCIALES_INVALIDAS", message, status: 401 });
+const bloqueada = (message: string): Fallo => ({ ok: false, code: "CUENTA_BLOQUEADA", message, status: 423 });
+
+// ───────────── Docente ─────────────
+
+export async function registrarDocente(
+    nombre: string,
+    email: string,
+    password: string,
+): Promise<{ ok: true; sesion: SesionEmitida; docente: { id: string; nombre: string } }> {
+    const hash = await hashSecreto(password);
+    return conContexto(null, async (tx) => {
+        const [{ id }] = await tx`SELECT fn_registrar_docente(${nombre}, ${email}, ${hash}) AS id`;
+        await tx`SELECT fn_auditar(${id}, 'docente', 'login')`;
+        return { ok: true as const, sesion: await emitirSesion(tx, "docente", id), docente: { id, nombre } };
     });
 }
 
-export async function cerrarSesion(cookies: AstroCookies): Promise<void> {
-    const token = cookies.get(COOKIE_SESION)?.value;
-    if (token) await db.delete(Sesion).where(eq(Sesion.token_hash, hashToken(token)));
-    cookies.delete(COOKIE_SESION, { path: "/" });
+export async function loginDocente(
+    email: string,
+    password: string,
+    ip: string | null,
+): Promise<{ ok: true; sesion: SesionEmitida; docente: { id: string; nombre: string } } | Fallo> {
+    return conContexto(null, async (tx) => {
+        const [d] = await tx`SELECT * FROM fn_auth_docente(${email})`;
+        if (!d || !d.activo) {
+            await verificarSecreto(password, await relleno());
+            return credencialesInvalidas("Correo o contraseña incorrectos");
+        }
+        if (d.bloqueado_hasta && d.bloqueado_hasta > new Date()) {
+            return bloqueada("Demasiados intentos. Espera 15 minutos.");
+        }
+        const ok = await verificarSecreto(password, d.password_hash);
+        await tx`SELECT fn_auth_docente_resultado(${d.id}, ${ok}, ${ip}::inet)`;
+        if (!ok) return credencialesInvalidas("Correo o contraseña incorrectos");
+        return { ok: true as const, sesion: await emitirSesion(tx, "docente", d.id), docente: { id: d.id, nombre: d.nombre } };
+    });
 }
 
-export async function usuarioDeSesion(cookies: AstroCookies): Promise<UsuarioSesion | null> {
-    const token = cookies.get(COOKIE_SESION)?.value;
-    if (!token) return null;
-    const filas = await db
-        .select({ sesion: Sesion, usuario: Usuario })
-        .from(Sesion)
-        .innerJoin(Usuario, eq(Sesion.id_usuario, Usuario.id))
-        .where(eq(Sesion.token_hash, hashToken(token)))
-        .limit(1);
-    const fila = filas[0];
-    if (!fila || fila.sesion.expira_en.getTime() < Date.now() || !fila.usuario.activo) return null;
+// ───────────── Alumno (ADR-004) ─────────────
 
-    const u = fila.usuario;
-    const base: UsuarioSesion = { id: u.id, nombre: u.nombre, usuario: u.usuario, rol: u.rol as Rol };
-    if (u.rol === "alumno") {
-        const [alumno] = await db.select().from(Alumno).where(eq(Alumno.id_usuario, u.id)).limit(1);
-        if (!alumno) return null;
-        base.idAlumno = alumno.id;
-        base.idGrupo = alumno.id_grupo;
-    }
-    return base;
+export interface GrupoParaEntrar {
+    grupoId: string;
+    alumnos: { id: string; avatar: string; nombreCorto: string }[];
+    iconosPin: string[];
+}
+
+export async function grupoParaEntrar(codigo: string): Promise<GrupoParaEntrar | null> {
+    const filas = await conContexto(null, (tx) => tx`SELECT * FROM fn_avatares_grupo(${codigo})`);
+    if (!filas.length) return null;
+    return {
+        grupoId: filas[0].grupo_id,
+        alumnos: filas.map((f) => ({ id: f.alumno_id, avatar: f.avatar, nombreCorto: f.nombre_corto })),
+        iconosPin: ICONOS_PIN.map((i) => i.id),
+    };
+}
+
+export interface LoginAlumno {
+    ok: true;
+    sesion: SesionEmitida;
+    alumno: { id: string; nombre: string; avatar: string };
+    sesionId: string;
+    camaraPermitida: boolean;
+}
+
+export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknown, ip: string | null): Promise<LoginAlumno | Fallo> {
+    const pinTexto = pinATexto(pin);
+    return conContexto(null, async (tx) => {
+        const [a] = await tx`SELECT * FROM fn_auth_alumno(${grupoId}, ${alumnoId})`;
+        if (!a) return credencialesInvalidas("No encontramos a ese alumno en el grupo");
+        if (a.bloqueado_hasta && a.bloqueado_hasta > new Date()) {
+            return bloqueada("Espera 5 minutos e inténtalo de nuevo.");
+        }
+        const ok = pinTexto !== null && (await verificarSecreto(pinTexto, a.pin_hash));
+        if (!ok) {
+            await tx`SELECT fn_auth_alumno_resultado(${a.id}, false, ${ip}::inet)`;
+            return credencialesInvalidas("¡Casi! Esa no es tu clave. Intenta otra vez.");
+        }
+        // ADR-009: sin consentimiento vigente del tutor no se entra
+        if (!a.consentimiento) {
+            return {
+                ok: false as const,
+                code: "CONSENTIMIENTO_REQUERIDO" as const,
+                message: "Falta el permiso de tu mamá, papá o tutor. Avisa a tu maestro(a).",
+                status: 403,
+            };
+        }
+        const [{ sesion_id }] = await tx`SELECT fn_auth_alumno_resultado(${a.id}, true, ${ip}::inet) AS sesion_id`;
+        return {
+            ok: true as const,
+            sesion: await emitirSesion(tx, "alumno", a.id),
+            alumno: { id: a.id, nombre: a.nombre, avatar: a.avatar },
+            sesionId: sesion_id,
+            camaraPermitida: a.acepta_camara,
+        };
+    });
+}
+
+// ───────────── Sesión ─────────────
+
+export async function usuarioDeToken(token: string | undefined): Promise<UsuarioSesion | null> {
+    if (!token) return null;
+    const [s] = await conContexto(null, (tx) => tx`SELECT * FROM fn_sesion_auth(${hashToken(token)})`);
+    if (!s) return null;
+    return s.rol === "alumno"
+        ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id, aceptaCamara: s.acepta_camara }
+        : { id: s.usuario_id, nombre: s.nombre, rol: "docente" };
+}
+
+export async function cerrarSesionToken(token: string | undefined): Promise<void> {
+    if (token) await conContexto(null, (tx) => tx`SELECT fn_cerrar_sesion_auth(${hashToken(token)})`);
+}
+
+export function fijarCookieSesion(cookies: AstroCookies, sesion: SesionEmitida): void {
+    cookies.set(COOKIE_SESION, sesion.token, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "strict",
+        secure: import.meta.env.PROD,
+        expires: sesion.expira,
+    });
+}
+
+export function tokenDeCookies(cookies: AstroCookies): string | undefined {
+    return cookies.get(COOKIE_SESION)?.value;
+}
+
+export function borrarCookieSesion(cookies: AstroCookies): void {
+    cookies.delete(COOKIE_SESION, { path: "/" });
 }
