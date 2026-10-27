@@ -251,3 +251,21 @@ Todas aquellas archivos y carpetas que estén entiqueados con `(X)` son generado
     - [Estilizar con clases de utilidad](https://tailwindcss.com/docs/styling-with-utility-classes)
     - [Flotado, enfoque y otros estados](https://tailwindcss.com/docs/hover-focus-and-other-states)
     - [Diseño responsivo](https://tailwindcss.com/docs/responsive-design)
+
+## Correo (Google Workspace)
+
+La invitación al tutor y los códigos de verificación se envían por SMTP de Google Workspace.
+
+1. En la cuenta remitente (p. ej. `numotion@tu-escuela.edu.mx`) activa la **verificación en dos pasos**.
+2. Crea una **contraseña de aplicación** en <https://myaccount.google.com/apppasswords> (si no aparece, el administrador de Workspace debe permitirlas).
+3. Configura las variables (en `.env` para local y en *Settings → Environment Variables* de Vercel para producción):
+   ```sh
+   CORREO_PROVEEDOR=smtp
+   SMTP_USUARIO=numotion@tu-escuela.edu.mx
+   SMTP_PASSWORD=abcd efgh ijkl mnop   # la contraseña de aplicación
+   MAIL_FROM="Numotion <numotion@tu-escuela.edu.mx>"
+   ```
+   `MAIL_FROM` debe ser la misma cuenta o un alias configurado en Gmail como "Enviar como"; si no, Gmail lo reemplaza.
+4. Verifica: `npm run correo:probar -- tu@correo.mx`.
+
+Límite de Google Workspace: unos 2 000 mensajes al día por cuenta. En desarrollo usa `CORREO_PROVEEDOR=archivo` (los correos quedan en `tmp/correos`).

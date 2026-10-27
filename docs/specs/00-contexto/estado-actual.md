@@ -74,7 +74,7 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 
 | Expect | Estado | Notas |
 |---|---|---|
-| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. ✅ Flujo del tutor con OTP, revocación y ARCO (T-03-01-10/15). Faltan: proveedor de correo de producción, atención de solicitudes ARCO (rol admin), lint de límites, logger, rate-limit por IP |
+| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. ✅ Flujo del tutor con OTP, revocación y ARCO (T-03-01-10/15). Correo por Google Workspace (SMTP). Faltan: atención de solicitudes ARCO (rol admin), lint de límites, logger, rate-limit por IP |
 | EXP-02 Diagnósticos PANAS-C y matemático | ✅ Hecho (pendiente validar contenido) | Backend y pantallas; P-E2E-01 y axe verdes en escritorio y tableta. Falta validar contenido: T-01-03, T-01-04, A-22 |
 | EXP-03 Asignación y seguimiento | 🟨 En curso | API de actividades con nivel inicial; faltan wizard UI e historial filtrable |
 | EXP-04 Motor de ejercicios y adaptación | 🟨 En curso | Generador, intentos, guía y ajuste de nivel existen; faltan `ajuste_dificultad`, UI, cola offline y OpenAI |

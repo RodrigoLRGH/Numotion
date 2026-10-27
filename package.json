@@ -13,7 +13,8 @@
     "db:migrar": "node --env-file-if-exists=.env scripts/migrar.mjs",
     "db:seed": "node --env-file-if-exists=.env scripts/migrar.mjs --seed",
     "test:db": "vitest run --project db",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "correo:probar": "node --env-file-if-exists=.env scripts/probar-correo.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.1",
@@ -24,6 +25,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "astro": "^5.15.3",
+    "nodemailer": "^10.0.16",
     "postgres": "^3.4.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -36,6 +38,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/nodemailer": "^8.0.2",
     "jsdom": "^26.1.0",
     "prettier": "^3.6.2",
     "prettier-plugin-astro": "^0.14.1",

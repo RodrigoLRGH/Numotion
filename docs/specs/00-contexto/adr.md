@@ -76,6 +76,7 @@ Formato: Contexto · Decisión · Consecuencias · Estado. Una decisión aceptad
 | BD | **PostgreSQL 16** con RLS (ADR-003 se mantiene). Migraciones SQL versionadas en `db/migrations/*.sql` como fuente de verdad, aplicadas con `npm run db:migrar` |
 | Acceso a datos | `postgres` (postgres.js) con SQL parametrizado; cada request abre una transacción y fija `app.user_id`/`app.role` (`withContext`). Sin ORM (reemplaza Prisma/T-02-08) |
 | Alojamiento | **Vercel** (adaptador `@astrojs/vercel`) + PostgreSQL administrado compatible (Neon / Vercel Postgres / Supabase). Desviación de RC-02 (AWS) registrada; Rekognition sigue en AWS con credenciales IAM de mínimo privilegio |
+| Correo | SMTP de **Google Workspace** (`smtp.gmail.com:465`, contraseña de aplicación) con `nodemailer`, detrás de la interfaz `ProveedorCorreo` (decisión del responsable, 2026-10-27). El relay SMTP de Workspace se descarta porque autoriza por IP y las de Vercel cambian |
 | Pruebas | Vitest (unitarias y de BD contra PostgreSQL en Docker, en lugar de pgTAP), Playwright, k6 |
 | CI/CD | GitHub Actions + Vercel |
 **Consecuencias:**
