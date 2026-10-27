@@ -1,4 +1,6 @@
 ---
+import { NOMBRE_PRODUCTO } from "../../modules/shared/marca";
+
 interface Props {
     titulo?: string;
 }
@@ -14,5 +16,5 @@ const { titulo } = Astro.props;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
-    <title>{titulo ? `${titulo} · FEEL-FACE` : "FEEL-FACE"}</title>
+    <title>{titulo ? `${titulo} · ${NOMBRE_PRODUCTO}` : NOMBRE_PRODUCTO}</title>
 </head>

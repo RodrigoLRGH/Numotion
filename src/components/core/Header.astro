@@ -1,5 +1,8 @@
 ---
-// Navegación según el rol de la sesión (módulo docente / módulo alumno)
+import { NOMBRE_PRODUCTO } from "../../modules/shared/marca";
+
+// Navegación según el rol de la sesión (módulo docente / módulo alumno).
+// Solo se enlazan pantallas que ya existen; el resto llega con EXP-03…07.
 const usuario = Astro.locals.usuario;
 const ruta = Astro.url.pathname;
 
@@ -8,18 +11,13 @@ const enlaces =
         ? [
               { href: "/docente", texto: "Panel" },
               { href: "/docente/grupos", texto: "Grupos" },
-              { href: "/docente/actividades", texto: "Actividades" },
-              { href: "/docente/historial", texto: "Historial" },
-              { href: "/docente/reportes", texto: "Reportes" },
           ]
         : usuario?.rol === "alumno"
-          ? [
-                { href: "/alumno", texto: "🏠 Mi panel" },
-                { href: "/alumno/perfil", texto: "🦸 Mi perfil" },
-            ]
+          ? [{ href: "/alumno", texto: "🏠 Mi panel" }]
           : [];
 
 const activo = (href: string) => (href === "/docente" || href === "/alumno" ? ruta === href : ruta.startsWith(href));
+const inicio = usuario ? (usuario.rol === "docente" ? "/docente" : "/alumno") : "/";
 ---
 
 <!-- Only meant to be used for BaseLayout.astro -->
@@ -28,9 +26,7 @@ const activo = (href: string) => (href === "/docente" || href === "/alumno" ? ru
         Saltar al contenido
     </a>
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <a href={usuario ? (usuario.rol === "docente" ? "/docente" : "/alumno") : "/"} class="text-2xl font-extrabold tracking-tight">
-            FEEL-FACE
-        </a>
+        <a href={inicio} class="text-2xl font-extrabold tracking-tight">{NOMBRE_PRODUCTO}</a>
         {
             usuario && (
                 <nav aria-label="Principal" class="flex flex-wrap items-center gap-1">
@@ -40,15 +36,15 @@ const activo = (href: string) => (href === "/docente" || href === "/alumno" ? ru
                             aria-current={activo(e.href) ? "page" : undefined}
                             class:list={[
                                 "rounded-lg px-3 py-2 font-semibold hover:bg-white/15",
-                                activo(e.href) && "bg-white/20 underline underline-offset-4",
+                                activo(e.href) && "bg-marca-fuerte underline underline-offset-4",
                             ]}
                         >
                             {e.texto}
                         </a>
                     ))}
                     <span class="mx-2 hidden text-sm opacity-90 sm:inline">{usuario.nombre}</span>
-                    <form method="post" action="/api/auth/logout">
-                        <button type="submit" class="cursor-pointer rounded-lg border border-white/60 px-3 py-1.5 text-sm font-bold hover:bg-white/15">
+                    <form method="post" action="/api/v1/auth/logout">
+                        <button type="submit" class="min-h-11 cursor-pointer rounded-lg border border-white/60 px-3 py-1.5 text-sm font-bold hover:bg-white/15">
                             Salir
                         </button>
                     </form>

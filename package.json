@@ -7,12 +7,13 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "test": "vitest run --project unidad",
-    "test:watch": "vitest --project unidad",
+    "test": "vitest run --project unidad --project componentes",
+    "test:watch": "vitest --project unidad --project componentes",
     "astro": "astro",
     "db:migrar": "node --env-file-if-exists=.env scripts/migrar.mjs",
     "db:seed": "node --env-file-if-exists=.env scripts/migrar.mjs --seed",
-    "test:db": "vitest run --project db"
+    "test:db": "vitest run --project db",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.1",
@@ -30,6 +31,12 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "^1.63.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^26.1.0",
     "prettier": "^3.6.2",
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-tailwindcss": "^0.6.14",

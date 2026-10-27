@@ -14,10 +14,10 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [ ] T-03-01-08 · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
 - [~] T-03-01-09 · *(alta de grupo y alumno lista en `/api/v1/docente/grupos[/:id/alumnos]`; falta el envío del correo al tutor: hoy el docente recibe el enlace)* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
 - [ ] T-03-01-10 · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
-- [ ] T-03-01-11 · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
-- [ ] T-03-01-12 · Web: router y guardas `RequireRole`, `RedirectIfAuth`, `RequireConsent` → P-ROUTE-01, P-ROUTE-03
-- [ ] T-03-01-13 · Web: `LoginDocente` → P-E2E-02
-- [ ] T-03-01-14 · Web: `EntrarAlumno` (código → avatar → PIN, con audio) → P-E2E-01, P-A11Y-01
+- [x] T-03-01-11 · *(ADR-010: `shared/cliente/api.ts`; sin refresh; la navegación la resuelve el middleware)* · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
+- [x] T-03-01-12 · *(ADR-010: guardas en servidor con `decidirAcceso`; no hay router SPA)* · Web: router y guardas `RequireRole`, `RedirectIfAuth`, `RequireConsent` → P-ROUTE-01, P-ROUTE-03
+- [x] T-03-01-13 · *(página `/login` + registro; isla `FormularioAcceso`)* · Web: `LoginDocente` → P-E2E-02
+- [x] T-03-01-14 · *(página `/entrar`, isla `EntrarAlumno`; los íconos del PIN no se leen en voz alta)* · Web: `EntrarAlumno` (código → avatar → PIN, con audio) → P-E2E-01, P-A11Y-01
 - [ ] T-03-01-15 · Web: `ConsentimientoTutor` (aviso, OTP, casillas separadas, revocar, ARCO) → P-E2E-01
 - [x] T-03-01-16 · *(CSP, HSTS en producción, Permissions-Policy, nosniff, X-Frame-Options en `cabeceras.ts`; CORS innecesario: misma origen)* · Cabeceras de seguridad: helmet, CSP, HSTS, Permissions-Policy, CORS → P-SEC-05
 - [ ] T-03-01-17 · Logger pino con redacción de PII y exclusión de body en `/emociones/frame` → P-SEC-06
@@ -30,10 +30,10 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-02-04 · *(`/api/v1/alumno/diagnostico/matematico/*`; preguntas del generador, A-20; versión corta, A-19)* · Endpoints diagnóstico matemático (siguiente, responder, finalizar) incl. versión corta → P-API-03
 - [x] T-03-02-05 · `fn_generar_retroalimentacion` invocada al finalizar; idempotente → P-API-03
 - [x] T-03-02-06 · *(en `src/middleware.ts` vía `decidirAcceso` + `estadoDiagnosticos`)* · Middleware API `requireDiagnosticos` en rutas de panel/actividades/práctica → P-API-03
-- [ ] T-03-02-07 · Web: `EscalaCaritas` + `BotonAudio` (`useSpeak` es-MX) → P-COMP-05, P-A11Y-01
-- [ ] T-03-02-08 · Web: página `PanasC` (un ítem por pantalla, progreso, retomar) → P-E2E-01
-- [ ] T-03-02-09 · Web: página `DiagnosticoMatematico` (reutiliza componentes de ejercicio) → P-E2E-01
-- [ ] T-03-02-10 · Web: guardas `RequirePanas`, `RequireDiagnosticos` y reinicio por cambio de día → P-ROUTE-02
+- [x] T-03-02-07 · *(`EscalaIntensidad` (A-22) + `BotonAudio`/`voz.ts`)* · Web: `EscalaCaritas` + `BotonAudio` (`useSpeak` es-MX) → P-COMP-05, P-A11Y-01
+- [x] T-03-02-08 · Web: página `PanasC` (un ítem por pantalla, progreso, retomar) → P-E2E-01
+- [x] T-03-02-09 · *(isla propia; se unificará con los componentes de ejercicio de EXP-04)* · Web: página `DiagnosticoMatematico` (reutiliza componentes de ejercicio) → P-E2E-01
+- [x] T-03-02-10 · *(compuerta en middleware; P-E2E-01 cubre el redireccionamiento)* · Web: guardas `RequirePanas`, `RequireDiagnosticos` y reinicio por cambio de día → P-ROUTE-02
 
 ## EXP-03 · Asignación y seguimiento (Docente)
 - [ ] T-03-03-01 · Esquema `CrearActividad` con `DestinoActividad` discriminado → P-API-01

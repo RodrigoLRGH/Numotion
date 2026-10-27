@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { NOMBRE_PRODUCTO } from "../modules/shared/marca";
+---
+
+<BaseLayout>
+    <section class="mx-auto flex max-w-2xl flex-col items-center gap-8 py-10 text-center">
+        <div>
+            <h1 class="text-4xl font-extrabold sm:text-5xl">{NOMBRE_PRODUCTO}</h1>
+            <p class="mt-3 text-xl text-tinta-suave">Matemáticas a tu ritmo, con atención a cómo te sientes.</p>
+        </div>
+        <div class="grid w-full gap-4 sm:grid-cols-2">
+            <a href="/entrar" class="tarjeta flex min-h-40 flex-col items-center justify-center gap-2 text-2xl font-extrabold hover:border-marca hover:bg-marca-suave">
+                <span aria-hidden="true" class="text-6xl">🧒</span> Soy alumno
+            </a>
+            <a href="/login" class="tarjeta flex min-h-40 flex-col items-center justify-center gap-2 text-2xl font-extrabold hover:border-marca hover:bg-marca-suave">
+                <span aria-hidden="true" class="text-6xl">👩‍🏫</span> Soy docente
+            </a>
+        </div>
+    </section>
+</BaseLayout>

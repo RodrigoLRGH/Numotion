@@ -1,0 +1,10 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import EntrarAlumno from "../modules/alumno/componentes/EntrarAlumno";
+
+const siguiente = Astro.url.searchParams.get("siguiente") ?? undefined;
+---
+
+<BaseLayout titulo="Entrar" modulo="alumno">
+    <EntrarAlumno client:load siguiente={siguiente} />
+</BaseLayout>

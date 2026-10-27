@@ -102,6 +102,8 @@ Fuente: Matriz de Clasificación (`docs/requerimientos.docx`). Los IDs **no se r
 | A-19 | EXP-02.6 pide la versión corta "con diagnóstico matemático completo en los últimos 7 días", sin decir qué nivel usar ni cómo calificar 1 sola pregunta. | Por tema: si en los últimos `diagnostico_corto_dias` hubo un resultado con ≥ 3 preguntas, se hace 1 pregunta en el último `nivel_dominio`; acierto → se mantiene, fallo → baja 1 (mín. 1). Una versión corta no habilita otra: se exige un diagnóstico completo en la ventana. |
 | A-20 | El banco `pregunta_diagnostico` (T-01-04) no existe aún. | Las preguntas del diagnóstico salen del generador determinista existente (semilla por sesión, tema y orden) para números, suma, resta, multiplicación y división. Geometría y fracciones no se diagnostican hasta tener banco validado. |
 | A-21 | `05-contratos §3.1` devuelve `{ afectoPositivo, afectoNegativo }` al alumno al finalizar PANAS-C, pero EXP-02 y RF-65 prohíben que el alumno vea sus puntajes. | Gana la privacidad: `POST …/panas/finalizar` responde solo `{ completado: true }`. |
+| A-22 | EXP-02.1 pide una escala "pictográfica de 5 caras", pero una cara feliz en "Muchísimo" contradice los ítems negativos ("¿Qué tan triste…?"). | Se usan círculos de tamaño creciente (intensidad, sin valencia) con etiqueta y audio. A validar con psicopedagogía en T-01-03. |
+| A-23 | El nombre del producto es "Numotion" en los specs y "FEEL-FACE" en el código previo. | Se usa "Numotion" (jerarquía de verdad: specs > código), centralizado en `src/modules/shared/marca.ts`. |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).
