@@ -1,72 +1,52 @@
-// PANAS-C forma breve (10 reactivos; Ebesutani et al., 2012) adaptada al español
-// para primaria. Escala Likert 1..5 → cada subescala suma entre 5 y 25.
+// PANAS-C (RF-54, RF-61). Los ítems viven en BD (panas_item, versión vigente en
+// config_adaptativa.panas_version) y se validan con T-01-03. Escala Likert 1..5;
+// AP y AN son el promedio de cada subescala. El alumno nunca ve sus puntajes.
 
-export type Subescala = "positivo" | "negativo";
-
-export interface ReactivoPanas {
-    id: number;
-    afecto: string;
-    pregunta: string;
-    emoji: string;
-    subescala: Subescala;
-}
-
-export const REACTIVOS_PANAS: readonly ReactivoPanas[] = [
-    { id: 1, afecto: "alegre", pregunta: "¿Qué tan alegre te sientes hoy?", emoji: "😄", subescala: "positivo" },
-    { id: 2, afecto: "triste", pregunta: "¿Qué tan triste te sientes hoy?", emoji: "😢", subescala: "negativo" },
-    { id: 3, afecto: "animado", pregunta: "¿Qué tan animado(a) te sientes hoy?", emoji: "🤩", subescala: "positivo" },
-    { id: 4, afecto: "asustado", pregunta: "¿Qué tan asustado(a) te sientes hoy?", emoji: "😨", subescala: "negativo" },
-    { id: 5, afecto: "feliz", pregunta: "¿Qué tan feliz te sientes hoy?", emoji: "😊", subescala: "positivo" },
-    { id: 6, afecto: "enojado", pregunta: "¿Qué tan enojado(a) te sientes hoy?", emoji: "😠", subescala: "negativo" },
-    { id: 7, afecto: "orgulloso", pregunta: "¿Qué tan orgulloso(a) de ti te sientes hoy?", emoji: "🦸", subescala: "positivo" },
-    { id: 8, afecto: "con miedo", pregunta: "¿Qué tanto miedo sientes hoy?", emoji: "😰", subescala: "negativo" },
-    { id: 9, afecto: "con energía", pregunta: "¿Qué tanta energía tienes hoy?", emoji: "⚡", subescala: "positivo" },
-    { id: 10, afecto: "decaído", pregunta: "¿Qué tan decaído(a) o desanimado(a) te sientes hoy?", emoji: "😞", subescala: "negativo" },
-];
+export type Afecto = "positivo" | "negativo";
+export type EstadoEmocional = "positivo" | "neutral" | "frustracion" | "desinteres" | "sin_dato";
 
 export const ESCALA_PANAS = [
-    { valor: 1, texto: "Nada", emoji: "⚪" },
-    { valor: 2, texto: "Un poco", emoji: "🔵" },
-    { valor: 3, texto: "Más o menos", emoji: "🟢" },
-    { valor: 4, texto: "Bastante", emoji: "🟡" },
-    { valor: 5, texto: "Muchísimo", emoji: "🟠" },
+    { valor: 1, texto: "Nada", icono: "😶" },
+    { valor: 2, texto: "Un poco", icono: "🙂" },
+    { valor: 3, texto: "Más o menos", icono: "😊" },
+    { valor: 4, texto: "Bastante", icono: "😃" },
+    { valor: 5, texto: "Muchísimo", icono: "🤩" },
 ] as const;
 
-export interface RespuestaPanas {
-    id: number;
-    valor: number;
+export function esValorPanas(valor: unknown): valor is 1 | 2 | 3 | 4 | 5 {
+    return Number.isInteger(valor) && (valor as number) >= 1 && (valor as number) <= 5;
 }
 
+export interface PuntajeAfecto {
+    afectoPositivo: number;
+    afectoNegativo: number;
+}
+
+export function calcularPanas(respuestas: readonly { afecto: Afecto; valor: number }[]): PuntajeAfecto {
+    const prom = (a: number[]) => Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100;
+    return {
+        afectoPositivo: prom(respuestas.filter((r) => r.afecto === "positivo").map((r) => r.valor)),
+        afectoNegativo: prom(respuestas.filter((r) => r.afecto === "negativo").map((r) => r.valor)),
+    };
+}
+
+/** 02-diseno/02-…§3.2. Debe coincidir con fn_estado_inicial en BD. */
+export function estadoInicialDesdePanas(ap: number, an: number): EstadoEmocional {
+    if (an >= 3.0) return "frustracion";
+    if (ap >= 3.5 && an < 2.5) return "positivo";
+    if (ap < 2.5) return "desinteres";
+    return "neutral";
+}
+
+// ───────── Heredado (escala de sumas 5..25) ─────────
+// Lo usan dificultad, motivación y retroalimentación hasta que EXP-04/06/07 los migren a
+// estado_emocional. No usar en código nuevo.
 export interface PuntajePanas {
     afecto_positivo: number;
     afecto_negativo: number;
 }
 
 export type BalancePanas = "positivo" | "equilibrado" | "negativo";
-
-export function validarRespuestasPanas(respuestas: readonly RespuestaPanas[]): string | null {
-    const ids = new Set(respuestas.map((r) => r.id));
-    if (ids.size !== REACTIVOS_PANAS.length || respuestas.length !== REACTIVOS_PANAS.length) {
-        return "Responde todas las preguntas.";
-    }
-    for (const r of respuestas) {
-        if (!REACTIVOS_PANAS.some((x) => x.id === r.id)) return "Pregunta desconocida.";
-        if (!Number.isInteger(r.valor) || r.valor < 1 || r.valor > 5) return "Valor fuera de escala.";
-    }
-    return null;
-}
-
-export function calcularPanas(respuestas: readonly RespuestaPanas[]): PuntajePanas {
-    let afecto_positivo = 0;
-    let afecto_negativo = 0;
-    for (const r of respuestas) {
-        const reactivo = REACTIVOS_PANAS.find((x) => x.id === r.id);
-        if (!reactivo) continue;
-        if (reactivo.subescala === "positivo") afecto_positivo += r.valor;
-        else afecto_negativo += r.valor;
-    }
-    return { afecto_positivo, afecto_negativo };
-}
 
 /** Diferencia de al menos 4 puntos (de 20 posibles) para considerar un balance no equilibrado. */
 export function balancePanas(p: PuntajePanas): BalancePanas {

@@ -4,20 +4,12 @@
 --   Ana   (gato)   sol-luna-pez-sol           consentimiento con cámara
 --   Beto  (perro)  casa-casa-arbol-flor       consentimiento sin cámara
 --   Caro  (conejo) estrella-nube-coche-pelota SIN consentimiento (para probar el bloqueo, ADR-009)
--- Los catálogos definitivos (PANAS-C, banco diagnóstico, guías) llegan en 0005_seed (T-02-07).
+
 
 INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', '2026-01-01', '/privacidad')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO tema (clave, nombre, grado_min, grado_max, orden) VALUES
-  ('numeros', 'Números', 1, 6, 1),
-  ('suma', 'Suma', 1, 6, 2),
-  ('resta', 'Resta', 1, 6, 3),
-  ('multiplicacion', 'Multiplicación', 2, 6, 4),
-  ('division', 'División', 3, 6, 5),
-  ('geometria', 'Geometría', 1, 6, 6),
-  ('fracciones', 'Fracciones', 3, 6, 7)
-ON CONFLICT (clave) DO NOTHING;
+-- Temas, PANAS-C y config_adaptativa vienen de db/migrations/0005_catalogos.sql
 
 INSERT INTO docente (id, nombre, email, password_hash) VALUES
   ('d0000000-0000-4000-8000-000000000001', 'Laura Demo', 'demo@numotion.mx',

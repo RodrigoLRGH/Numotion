@@ -99,6 +99,9 @@ Fuente: Matriz de Clasificación (`docs/requerimientos.docx`). Los IDs **no se r
 | A-16 | **RF-11** fija máximo 3 intentos antes de la guía, pero no dice qué pasa después. | Tras el 3.er fallo se muestra la guía y se permite un 4.º intento; si falla, el ejercicio se cierra con la explicación final (RF-45). |
 | A-17 | El modelo exige `intento_ejercicio.ejercicio_id` (FK a `ejercicio`), pero el código existente genera ejercicios al vuelo con un generador determinista. | Se agrega el valor `generador` a `origen_ejercicio`; cada ejercicio generado se inserta en `ejercicio` (sin datos del alumno) antes de presentarse. |
 | A-18 | ADR-004 dice que el alumno elige su avatar, pero no si la cuadrícula muestra nombres. | Según `05-contratos §1`, la cuadrícula muestra avatar + **nombre corto** (primer nombre, nunca apellidos). El avatar es único dentro del grupo. |
+| A-19 | EXP-02.6 pide la versión corta "con diagnóstico matemático completo en los últimos 7 días", sin decir qué nivel usar ni cómo calificar 1 sola pregunta. | Por tema: si en los últimos `diagnostico_corto_dias` hubo un resultado con ≥ 3 preguntas, se hace 1 pregunta en el último `nivel_dominio`; acierto → se mantiene, fallo → baja 1 (mín. 1). Una versión corta no habilita otra: se exige un diagnóstico completo en la ventana. |
+| A-20 | El banco `pregunta_diagnostico` (T-01-04) no existe aún. | Las preguntas del diagnóstico salen del generador determinista existente (semilla por sesión, tema y orden) para números, suma, resta, multiplicación y división. Geometría y fracciones no se diagnostican hasta tener banco validado. |
+| A-21 | `05-contratos §3.1` devuelve `{ afectoPositivo, afectoNegativo }` al alumno al finalizar PANAS-C, pero EXP-02 y RF-65 prohíben que el alumno vea sus puntajes. | Gana la privacidad: `POST …/panas/finalizar` responde solo `{ completado: true }`. |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).

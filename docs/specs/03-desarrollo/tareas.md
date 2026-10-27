@@ -24,12 +24,12 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [ ] T-03-01-18 · Despliegue `dev` en AWS desde IaC (T-02-14) con pipeline → pipeline verde
 
 ## EXP-02 · Diagnósticos
-- [ ] T-03-02-01 · `core/diagnostico/panas.ts`: `calcularPanas`, `estadoInicialDesdePanas` → P-UNIT-05
-- [ ] T-03-02-02 · Endpoints PANAS (GET ítems + respondidos, PUT respuesta incremental, POST finalizar) → P-API-03
-- [ ] T-03-02-03 · `core/diagnostico/matematico.ts`: selección escalonada y `nivelDominio` → P-UNIT-06
-- [ ] T-03-02-04 · Endpoints diagnóstico matemático (siguiente, responder, finalizar) incl. versión corta → P-API-03
-- [ ] T-03-02-05 · `fn_generar_retroalimentacion` invocada al finalizar; idempotente → P-API-03
-- [ ] T-03-02-06 · Middleware API `requireDiagnosticos` en rutas de panel/actividades/práctica → P-API-03
+- [x] T-03-02-01 · *(`shared/dominio/panas.ts`)* · `core/diagnostico/panas.ts`: `calcularPanas`, `estadoInicialDesdePanas` → P-UNIT-05
+- [x] T-03-02-02 · *(`/api/v1/alumno/diagnostico/panas/*`; finalizar sin AP/AN, A-21)* · Endpoints PANAS (GET ítems + respondidos, PUT respuesta incremental, POST finalizar) → P-API-03
+- [x] T-03-02-03 · *(`shared/dominio/diagnostico.ts`)* · `core/diagnostico/matematico.ts`: selección escalonada y `nivelDominio` → P-UNIT-06
+- [x] T-03-02-04 · *(`/api/v1/alumno/diagnostico/matematico/*`; preguntas del generador, A-20; versión corta, A-19)* · Endpoints diagnóstico matemático (siguiente, responder, finalizar) incl. versión corta → P-API-03
+- [x] T-03-02-05 · `fn_generar_retroalimentacion` invocada al finalizar; idempotente → P-API-03
+- [x] T-03-02-06 · *(en `src/middleware.ts` vía `decidirAcceso` + `estadoDiagnosticos`)* · Middleware API `requireDiagnosticos` en rutas de panel/actividades/práctica → P-API-03
 - [ ] T-03-02-07 · Web: `EscalaCaritas` + `BotonAudio` (`useSpeak` es-MX) → P-COMP-05, P-A11Y-01
 - [ ] T-03-02-08 · Web: página `PanasC` (un ítem por pantalla, progreso, retomar) → P-E2E-01
 - [ ] T-03-02-09 · Web: página `DiagnosticoMatematico` (reutiliza componentes de ejercicio) → P-E2E-01

@@ -78,7 +78,7 @@ export async function crearFixture(tx: Tx) {
              SELECT id, 'Tutor', 't@correo.mx', 'v1', true, true, now(), 'tok-' || id, now() + interval '7 days'
                FROM alumno WHERE id IN (${IDS.alumnoA1}, ${IDS.alumnoA2}, ${IDS.alumnoB1})`;
     await tx`INSERT INTO tema (id, clave, nombre, orden) VALUES
-        (${IDS.temaSuma}, 'suma', 'Suma', 1), (${IDS.temaResta}, 'resta', 'Resta', 2)`;
+        (${IDS.temaSuma}, 'suma_prueba', 'Suma', 91), (${IDS.temaResta}, 'resta_prueba', 'Resta', 92)`;
 }
 
 export async function crearEjercicio(tx: Tx, tema: string = IDS.temaSuma, nivel = 2): Promise<string> {

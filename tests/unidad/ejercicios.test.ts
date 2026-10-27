@@ -10,7 +10,7 @@ import {
     TEMAS,
 } from "../../src/modules/shared/dominio/ejercicios";
 import { coincideTolerante, numeroAPalabras } from "../../src/modules/shared/dominio/numeros";
-import { calcularPanas, balancePanas, validarRespuestasPanas, REACTIVOS_PANAS } from "../../src/modules/shared/dominio/panas";
+import { balancePanas } from "../../src/modules/shared/dominio/panas";
 
 describe("generarEjercicio", () => {
     for (const tema of TEMAS) {
@@ -81,16 +81,9 @@ describe("números en palabras (RF-39)", () => {
     });
 });
 
-describe("PANAS-C (RF-54)", () => {
-    const todas = (pos: number, neg: number) =>
-        REACTIVOS_PANAS.map((r) => ({ id: r.id, valor: r.subescala === "positivo" ? pos : neg }));
-    it("valida respuestas completas en escala 1..5", () => {
-        expect(validarRespuestasPanas(todas(3, 3))).toBeNull();
-        expect(validarRespuestasPanas(todas(3, 3).slice(1))).not.toBeNull();
-        expect(validarRespuestasPanas(todas(6, 3))).not.toBeNull();
-    });
-    it("calcula afecto positivo y negativo", () => {
-        expect(calcularPanas(todas(5, 1))).toEqual({ afecto_positivo: 25, afecto_negativo: 5 });
+// PANAS-C en escala de promedios: tests/unidad/diagnostico.test.ts (P-UNIT-05)
+describe("balance PANAS heredado (escala de sumas)", () => {
+    it("clasifica por diferencia de al menos 4 puntos", () => {
         expect(balancePanas({ afecto_positivo: 25, afecto_negativo: 5 })).toBe("positivo");
         expect(balancePanas({ afecto_positivo: 10, afecto_negativo: 12 })).toBe("equilibrado");
         expect(balancePanas({ afecto_positivo: 6, afecto_negativo: 20 })).toBe("negativo");

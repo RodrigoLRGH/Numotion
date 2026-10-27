@@ -75,7 +75,7 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 | Expect | Estado | Notas |
 |---|---|---|
 | EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | Módulos y guardas existen; faltan lint de límites, acceso del alumno (ADR-004), consentimiento versionado, auditoría, cabeceras de seguridad y pantallas |
-| EXP-02 Diagnósticos PANAS-C y matemático | 🟨 En curso | Dominio + API + compuerta diaria existen; faltan pantallas, guardado incremental y versión corta |
+| EXP-02 Diagnósticos PANAS-C y matemático | 🟨 En curso | Backend ✅ sobre PostgreSQL (PANAS incremental, escalonado, versión corta, retroalimentación, compuerta diaria). Faltan pantallas (T-03-02-07…10) y validar contenido (T-01-03, T-01-04) |
 | EXP-03 Asignación y seguimiento | 🟨 En curso | API de actividades con nivel inicial; faltan wizard UI e historial filtrable |
 | EXP-04 Motor de ejercicios y adaptación | 🟨 En curso | Generador, intentos, guía y ajuste de nivel existen; faltan `ajuste_dificultad`, UI, cola offline y OpenAI |
 | EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔; faltan IF según spec, SSE, guías de actuación y límite diario |
@@ -122,4 +122,4 @@ ADR aceptados que entran en conflicto con el código y requieren decisión: **AD
 | Seed de demostración | ✅ `npm run db:seed` | `db/seed/0001_demo.sql` |
 | Servicios docente/alumno sobre PostgreSQL y retiro de `astro:db` (T-03-01-01) | 🟨 `@astrojs/db` retirado; diagnósticos, actividades, motor, emociones, gamificación y reportes siguen en `legacy/` por migrar | `legacy/` |
 
-La app ya corre sobre PostgreSQL. Mientras los módulos de `legacy/` no se migren, el alumno queda detenido en la compuerta de diagnósticos (no hay endpoints de diagnóstico todavía).
+La app ya corre sobre PostgreSQL. Diagnósticos migrados (EXP-02, `0005_catalogos`, `0006_diagnostico_respuesta`); tras completarlos el alumno pasa la compuerta, pero panel y actividades siguen en `legacy/`.
