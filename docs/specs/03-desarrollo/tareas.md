@@ -46,24 +46,24 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-03-08 · Web: `Historial` con filtros persistidos en la URL → P-E2E-02
 
 ## EXP-04 · Motor de ejercicios y adaptación
-- [ ] T-03-04-01 · `GET /alumno/actividades` y Web `MisActividades` + `TarjetaActividad` → P-API-02
-- [ ] T-03-04-02 · `core/adaptive/decidirNivel.ts` (función pura, tabla §3.4, lee umbrales de `config_adaptativa`) → P-UNIT-01
-- [ ] T-03-04-03 · `core/content/seleccionarEjercicio.ts` (tema, tipo, nivel, sin repetir) → P-UNIT-11
-- [ ] T-03-04-04 · `core/content/clasificarError.ts` → P-UNIT-08
-- [ ] T-03-04-05 · Servicio `registrarIntento` (flujo del EXP-04) con idempotencia `clienteId` → P-API-02, P-DB-03
-- [ ] T-03-04-06 · `POST /alumno/actividades/:id/iniciar` (recalcular nivel inicial del día) y `GET …/siguiente` → P-API-02
-- [ ] T-03-04-07 · Generación de `hashRespuesta` y `EjercicioPublico` (sin respuesta) → P-API-02
-- [ ] T-03-04-08 · Guía: `GET /alumno/ejercicios/:id/guia` + inclusión automática en intento 3 (paso a paso) y 4 (final) → P-API-02
-- [ ] T-03-04-09 · Web: `useActividadStore` + `useMotorActividad` (cronómetro que pausa con pestaña oculta) → P-COMP-01
-- [ ] T-03-04-10 · Web: `EjercicioSeleccionMultiple` → P-COMP-01
-- [ ] T-03-04-11 · Web: `EjercicioArrastrar` (dnd-kit + alternativa por tap/teclado) → P-COMP-01
-- [ ] T-03-04-12 · Web: `EjercicioCompletarOperacion` (RF-42) → P-COMP-01
+- [x] T-03-04-01 · `GET /alumno/actividades` y Web `MisActividades` + `TarjetaActividad` → P-API-02
+- [x] T-03-04-02 · *(`shared/dominio/adaptativo.ts`; R3–R5 con 3 cerrados, A-26)* · `core/adaptive/decidirNivel.ts` (función pura, tabla §3.4, lee umbrales de `config_adaptativa`) → P-UNIT-01
+- [x] T-03-04-03 · *(generador determinista con semilla por asignación; A-17)* · `core/content/seleccionarEjercicio.ts` (tema, tipo, nivel, sin repetir) → P-UNIT-11
+- [x] T-03-04-04 · *(`shared/dominio/contenido.ts`)* · `core/content/clasificarError.ts` → P-UNIT-08
+- [x] T-03-04-05 · *(`alumno/servidor/motor.ts`; respuesta guardada en el intento para idempotencia)* · Servicio `registrarIntento` (flujo del EXP-04) con idempotencia `clienteId` → P-API-02, P-DB-03
+- [x] T-03-04-06 · `POST /alumno/actividades/:id/iniciar` (recalcular nivel inicial del día) y `GET …/siguiente` → P-API-02
+- [x] T-03-04-07 · Generación de `hashRespuesta` y `EjercicioPublico` (sin respuesta) → P-API-02
+- [x] T-03-04-08 · *(la guía es POST porque cambia los puntos)* · Guía: `GET /alumno/ejercicios/:id/guia` + inclusión automática en intento 3 (paso a paso) y 4 (final) → P-API-02
+- [x] T-03-04-09 · *(estado local en `ResolverActividad` sin Zustand; cronómetro que pausa con la pestaña oculta)* · Web: `useActividadStore` + `useMotorActividad` (cronómetro que pausa con pestaña oculta) → P-COMP-01
+- [x] T-03-04-10 · Web: `EjercicioSeleccionMultiple` → P-COMP-01
+- [x] T-03-04-11 · *(arrastre nativo + alternativa por toque/teclado, sin dnd-kit)* · Web: `EjercicioArrastrar` (dnd-kit + alternativa por tap/teclado) → P-COMP-01
+- [x] T-03-04-12 · Web: `EjercicioCompletarOperacion` (RF-42) → P-COMP-01
 - [ ] T-03-04-13 · Web: `EjercicioNumeroAPalabras` (RF-39) → P-COMP-01
-- [ ] T-03-04-14 · Web: `EjercicioIdentificarNumero` (RF-40, Could) → P-COMP-01
+- [x] T-03-04-14 · Web: `EjercicioIdentificarNumero` (RF-40, Could) → P-COMP-01
 - [ ] T-03-04-15 · Web: `EjercicioSumaFiguras` (RF-41, Could) → P-COMP-01
 - [ ] T-03-04-16 · Web: `EjercicioColorearFigura` (RF-44, Could) → P-COMP-01
-- [ ] T-03-04-17 · Web: `GuiaPasoAPaso` (modos paso_a_paso / final) → P-COMP-02
-- [ ] T-03-04-18 · Web: `RecompensaModal` al completar → P-E2E-01
+- [x] T-03-04-17 · Web: `GuiaPasoAPaso` (modos paso_a_paso / final) → P-COMP-02
+- [x] T-03-04-18 · Web: `RecompensaModal` al completar → P-E2E-01
 - [ ] T-03-04-19 · Web: `useColaIntentos` (IndexedDB con try/catch, backoff, indicador "Guardando…") → P-E2E-05
 - [ ] T-03-04-20 · `core/content/ContentGateway` (OpenAI): prompt sin PII, timeout 20 s, validación del ejercicio generado, caché, presupuesto mensual, respaldo de catálogo → P-INT-02
 - [ ] T-03-04-21 · Precarga del siguiente ejercicio y code splitting del módulo alumno → P-PERF-01

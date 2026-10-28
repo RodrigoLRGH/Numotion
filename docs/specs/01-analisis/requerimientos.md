@@ -106,6 +106,10 @@ Fuente: Matriz de Clasificación (`docs/requerimientos.docx`). Los IDs **no se r
 | A-23 | El nombre del producto es "Numotion" en los specs y "FEEL-FACE" en el código previo. | Se usa "Numotion" (jerarquía de verdad: specs > código), centralizado en `src/modules/shared/marca.ts`. |
 | A-24 | 03-seguridad §6 da 7 días al enlace del tutor, pero la revocación y los derechos ARCO deben poder ejercerse "desde el mismo enlace" en cualquier momento. | Los 7 días solo limitan la **primera aceptación**. Con el enlace vencido se puede revocar, pedir ARCO y cambiar la preferencia de cámara; siempre con OTP. Revocar es definitivo para ese consentimiento: para volver a autorizar, el docente genera un enlace nuevo. |
 | A-25 | Los specs listan 7 tipos de interacción y 7 temas, pero no qué tipos admite cada tema. | Catálogo en `shared/dominio/catalogo.ts` (números: identificar, a palabras, selección; operaciones: selección, arrastrar, completar; suma además figuras; geometría: colorear, selección; fracciones: selección, arrastrar). La API rechaza combinaciones fuera del catálogo (422). EXP-04 debe servir cada combinación. |
+| A-26 | La tabla de `decidirNivel` (02-…§3.4) no dice cuántos ejercicios cerrados exige R3–R5 ("count(correcto) en ultimos3"). | R3, R4 y R5 solo se evalúan con 3 ejercicios cerrados en la asignación; antes, el nivel no cambia salvo por R1 o R2. |
+| A-27 | §4 fija puntos pero no cuántas estrellas da la recompensa (wireframe A6). | Resultado final ≥ 9 → 3 estrellas; ≥ 7 → 2; si no, 1. |
+| A-28 | No se dice si el alumno ve actividades con fecha futura. | "Mis actividades" y el motor solo muestran asignaciones con fecha de hoy o anterior. |
+| A-29 | Con 4 opciones y 4 intentos, ¿se pueden volver a elegir las opciones ya fallidas? | No: quedan tachadas y deshabilitadas para no repetir el error. Consecuencia: en ejercicios de 4 opciones el 4.º intento solo deja la correcta (tras ver la guía, vale 3 puntos) y la explicación final (RF-45) solo se ve en tipos de respuesta abierta. **A validar con el docente.** |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).

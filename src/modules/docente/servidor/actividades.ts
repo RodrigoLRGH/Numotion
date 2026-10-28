@@ -1,6 +1,7 @@
 // Asignación de actividades (RF-56, RF-57), seguimiento (RF-58) e historial (RF-59).
 // Todo corre en contexto docente: RLS limita a sus grupos, alumnos y actividades.
 import { tiposDeTema, type TipoInteraccionActividad } from "../../shared/dominio/catalogo";
+import { combinacionDisponible } from "../../shared/dominio/contenido";
 import { codificarCursor, decodificarCursor } from "../../shared/dominio/cursor";
 import type { Tx } from "../../shared/servidor/db";
 
@@ -55,6 +56,9 @@ export async function crearActividad(tx: Tx, docenteId: string, d: DatosActivida
     if (!tema) return { ok: false, status: 404, message: "Tema no encontrado" };
     if (!tiposDeTema(tema.clave).includes(d.tipoInteraccion)) {
         return { ok: false, status: 422, message: "Ese tipo de ejercicio no está disponible para el tema" };
+    }
+    if (!combinacionDisponible(tema.clave, d.tipoInteraccion)) {
+        return { ok: false, status: 422, message: "Todavía no hay ejercicios de ese tipo para el tema" };
     }
     const grupo = d.destino.tipo === "grupo" ? d.destino.grupoId : null;
     const alumnos = d.destino.tipo === "alumnos" ? [...new Set(d.destino.alumnoIds)] : [];

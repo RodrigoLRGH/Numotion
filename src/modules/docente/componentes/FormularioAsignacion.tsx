@@ -80,7 +80,11 @@ export default function FormularioAsignacion() {
 
     const grupo = grupos.find((g) => g.id === grupoId);
     // Temas del grado del grupo elegido (si aún no hay grupo, todos)
-    const temasDelGrado = useMemo(() => temas.filter((t) => !grupo || (grupo.grado >= t.gradoMin && grupo.grado <= t.gradoMax)), [temas, grupo]);
+    // Solo temas del grado del grupo que ya tienen ejercicios disponibles
+    const temasDelGrado = useMemo(
+        () => temas.filter((t) => t.tiposInteraccion.length > 0 && (!grupo || (grupo.grado >= t.gradoMin && grupo.grado <= t.gradoMax))),
+        [temas, grupo],
+    );
     const tema = temas.find((t) => t.id === datos.temaId);
     const destino = modo === "grupo" ? { tipo: "grupo" as const, grupoId } : { tipo: "alumnos" as const, alumnoIds: [...elegidos] };
 

@@ -284,21 +284,33 @@ function generarOperacion(op: Operacion, nivel: number, interaccion: Interaccion
     };
 }
 
-function generarIncompleta(nivel: number, interaccion: InteraccionAsignable, rng: Rng): Ejercicio {
-    const op = elegir<Operacion>(rng, ["suma", "resta", "multiplicacion", "division"]);
+/**
+ * Operación con un número faltante (RF-42). Sin `op` elige la operación al azar; `posiciones`
+ * indica dónde puede ir el hueco (por defecto en un operando; "r" = el resultado).
+ */
+export function generarIncompleta(
+    nivel: number,
+    interaccion: InteraccionAsignable,
+    rng: Rng,
+    op: Operacion = elegir<Operacion>(rng, ["suma", "resta", "multiplicacion", "division"]),
+    posiciones: readonly ("a" | "b" | "r")[] = ["a", "b"],
+): Ejercicio {
     const [a, b] = operandos(op, Math.max(1, nivel - 1), rng);
     const r = operar(op, a, b);
-    const oculto = elegir<"a" | "b">(rng, ["a", "b"]);
-    const faltante = oculto === "a" ? a : b;
+    const oculto = elegir(rng, posiciones);
+    const faltante = oculto === "a" ? a : oculto === "b" ? b : r;
     const izq = oculto === "a" ? "□" : String(a);
     const der = oculto === "b" ? "□" : String(b);
-    const expresion = `${izq} ${SIMBOLO[op]} ${der} = ${r}`;
-    const inversa: Record<Operacion, string> = {
-        suma: `${r} − ${oculto === "a" ? b : a} = ${faltante}`,
-        resta: oculto === "a" ? `${r} + ${b} = ${a}` : `${a} − ${r} = ${b}`,
-        multiplicacion: `${r} ÷ ${oculto === "a" ? b : a} = ${faltante}`,
-        division: oculto === "a" ? `${r} × ${b} = ${a}` : `${a} ÷ ${r} = ${b}`,
-    };
+    const expresion = `${izq} ${SIMBOLO[op]} ${der} = ${oculto === "r" ? "□" : r}`;
+    const inversa: Record<Operacion, string> =
+        oculto === "r"
+            ? { suma: `${a} + ${b} = ${r}`, resta: `${a} − ${b} = ${r}`, multiplicacion: `${a} × ${b} = ${r}`, division: `${a} ÷ ${b} = ${r}` }
+            : {
+                  suma: `${r} − ${oculto === "a" ? b : a} = ${faltante}`,
+                  resta: oculto === "a" ? `${r} + ${b} = ${a}` : `${a} − ${r} = ${b}`,
+                  multiplicacion: `${r} ÷ ${oculto === "a" ? b : a} = ${faltante}`,
+                  division: oculto === "a" ? `${r} × ${b} = ${a}` : `${a} ÷ ${r} = ${b}`,
+              };
     return {
         tema: "operaciones_incompletas",
         nivel,
@@ -309,7 +321,7 @@ function generarIncompleta(nivel: number, interaccion: InteraccionAsignable, rng
         respuesta: String(faltante),
         pasos: [
             `Observa la operación: ${expresion}.`,
-            `Para encontrar el número que falta usa la operación inversa: ${inversa[op]}.`,
+            oculto === "r" ? `Resuelve la operación: ${inversa[op]}.` : `Para encontrar el número que falta usa la operación inversa: ${inversa[op]}.`,
             `Comprueba: ${expresion.replace("□", String(faltante))}.`,
             `El número que falta es ${faltante}.`,
         ],

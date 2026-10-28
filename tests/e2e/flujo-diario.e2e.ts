@@ -84,7 +84,7 @@ test("alumno: entra con código, avatar y PIN; responde los diagnósticos del d�
     }
 
     await expect(page).toHaveURL(/\/alumno$/);
-    await expect(page.getByRole("heading", { name: /hola valeria/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /hola, valeria/i })).toBeVisible();
     await sinViolacionesSerias(page);
     await captura(page, "06-panel");
 
