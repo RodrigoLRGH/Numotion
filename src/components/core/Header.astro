@@ -2,7 +2,7 @@
 import { NOMBRE_PRODUCTO } from "../../modules/shared/marca";
 
 // Navegación según el rol de la sesión (módulo docente / módulo alumno).
-// Solo se enlazan pantallas que ya existen; el resto llega con EXP-03…07.
+// Solo se enlazan pantallas que ya existen; el resto llega con EXP-04…07.
 const usuario = Astro.locals.usuario;
 const ruta = Astro.url.pathname;
 
@@ -11,6 +11,8 @@ const enlaces =
         ? [
               { href: "/docente", texto: "Panel" },
               { href: "/docente/grupos", texto: "Grupos" },
+              { href: "/docente/actividades", texto: "Actividades" },
+              { href: "/docente/historial", texto: "Historial" },
           ]
         : usuario?.rol === "alumno"
           ? [{ href: "/alumno", texto: "🏠 Mi panel" }]

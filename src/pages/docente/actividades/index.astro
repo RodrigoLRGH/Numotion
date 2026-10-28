@@ -1,0 +1,8 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import ActividadesAsignadas from "../../../modules/docente/componentes/ActividadesAsignadas";
+---
+
+<BaseLayout titulo="Actividades" modulo="docente" ancho="amplio">
+    <ActividadesAsignadas client:load />
+</BaseLayout>

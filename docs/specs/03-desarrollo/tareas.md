@@ -36,14 +36,14 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-02-10 · *(compuerta en middleware; P-E2E-01 cubre el redireccionamiento)* · Web: guardas `RequirePanas`, `RequireDiagnosticos` y reinicio por cambio de día → P-ROUTE-02
 
 ## EXP-03 · Asignación y seguimiento (Docente)
-- [ ] T-03-03-01 · Esquema `CrearActividad` con `DestinoActividad` discriminado → P-API-01
-- [ ] T-03-03-02 · `GET /docente/actividades/previsualizar-niveles` → P-API-01
-- [ ] T-03-03-03 · `POST /docente/actividades` → `fn_registrar_asignacion`; mapear excepciones SQL a 422/404 → P-API-01, P-DB-02, P-DB-06
-- [ ] T-03-03-04 · `GET /docente/actividades` con resumen por estado y detalle por alumno → P-API-04
-- [ ] T-03-03-05 · `GET /docente/historial` con filtros y cursor → P-API-04
-- [ ] T-03-03-06 · Web: `FormularioAsignacion` (wizard 3 pasos, destino excluyente, previsualización) → P-COMP-04
-- [ ] T-03-03-07 · Web: `ActividadesAsignadas` con refresco 30 s → P-E2E-02
-- [ ] T-03-03-08 · Web: `Historial` con filtros persistidos en la URL → P-E2E-02
+- [x] T-03-03-01 · *(`docente/servidor/esquemas.ts`, unión estricta → 422 si llegan ambos)* · Esquema `CrearActividad` con `DestinoActividad` discriminado → P-API-01
+- [x] T-03-03-02 · `GET /docente/actividades/previsualizar-niveles` → P-API-01
+- [x] T-03-03-03 · `POST /docente/actividades` → `fn_registrar_asignacion`; mapear excepciones SQL a 422/404 → P-API-01, P-DB-02, P-DB-06
+- [x] T-03-03-04 · *(cursor por fecha + id)* · `GET /docente/actividades` con resumen por estado y detalle por alumno → P-API-04
+- [x] T-03-03-05 · `GET /docente/historial` con filtros y cursor → P-API-04
+- [x] T-03-03-06 · Web: `FormularioAsignacion` (wizard 3 pasos, destino excluyente, previsualización) → P-COMP-04
+- [x] T-03-03-07 · *(refresco 30 s, pausado con la pestaña oculta)* · Web: `ActividadesAsignadas` con refresco 30 s → P-E2E-02
+- [x] T-03-03-08 · Web: `Historial` con filtros persistidos en la URL → P-E2E-02
 
 ## EXP-04 · Motor de ejercicios y adaptación
 - [ ] T-03-04-01 · `GET /alumno/actividades` y Web `MisActividades` + `TarjetaActividad` → P-API-02

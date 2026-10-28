@@ -3,6 +3,9 @@
 // la conexión usa numotion_app, que no puede saltarse RLS.
 import postgres from "postgres";
 
+// Fechas como texto: postgres.js convierte con `new Date()` los parámetros que el servidor tipa como
+// date/timestamp, y una fecha sin zona se interpreta en la zona LOCAL del proceso (corre horas o días).
+// Envíalas como `${valor}::text::timestamp` / `::text::date` para que las convierta PostgreSQL.
 export type Tx = postgres.TransactionSql;
 export type Contexto = { rol: "docente" | "alumno"; id: string } | null;
 

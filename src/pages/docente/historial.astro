@@ -1,0 +1,8 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Historial from "../../modules/docente/componentes/Historial";
+---
+
+<BaseLayout titulo="Historial" modulo="docente" ancho="amplio">
+    <Historial client:only="react" />
+</BaseLayout>
