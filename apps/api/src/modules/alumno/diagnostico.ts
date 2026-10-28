@@ -2,7 +2,8 @@
 // Todas las funciones reciben una transacción con contexto del alumno (RLS).
 import { crearRng, semillaDeTexto } from "@numotion/core/dominio/aleatorio";
 import { nivelDominio, siguienteNivel, MIN_PREGUNTAS_TEMA, type Modo } from "@numotion/core/dominio/diagnostico";
-import { aPublico, evaluarRespuesta, generarEjercicio, type ClaveTema, type Ejercicio, type EjercicioPublico } from "@numotion/core/dominio/ejercicios";
+import { combinacionDisponible, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { aPublico, type Ejercicio, type EjercicioPublico } from "@numotion/core/dominio/ejercicios";
 import { calcularPanas, ESCALA_PANAS, esValorPanas, type Afecto } from "@numotion/core/dominio/panas";
 import type { Prisma, Tx } from "../../infra/db";
 import { estadoDiagnosticos } from "../core/sesion-alumno";
@@ -87,15 +88,9 @@ export async function finalizarPanas(tx: Tx, alumnoId: string): Promise<{ ok: tr
 
 // ───────────── Diagnóstico matemático (EXP-02.2, 02.5, 02.6) ─────────────
 
-// A-20: mientras no exista el banco validado (T-01-04), las preguntas salen del generador
-// determinista. Los temas sin generador (geometría, fracciones) no se diagnostican aún.
-const GENERADOR_POR_TEMA: Record<string, ClaveTema> = {
-    numeros: "identificar_numero",
-    suma: "suma",
-    resta: "resta",
-    multiplicacion: "multiplicacion",
-    division: "division",
-};
+// A-20: mientras no exista el banco validado (T-01-04), las preguntas salen del contenido generado
+// de las actividades, en su versión de selección múltiple (todos los temas la tienen, A-25/A-30).
+const tieneDiagnostico = (clave: string) => combinacionDisponible(clave, "seleccion_multiple");
 
 interface FilaRespuesta {
     id: string;
@@ -155,7 +150,7 @@ async function planDelDia(tx: Tx, alumnoId: string, sesionId: string): Promise<T
         select: { id: true, tema_id: true, orden: true, nivel: true, correcta: true, tiempo_ms: true, pregunta: true },
     })) as unknown as (FilaRespuesta & { tema_id: string })[];
     return temas
-        .filter((t) => t.clave in GENERADOR_POR_TEMA)
+        .filter((t) => tieneDiagnostico(t.clave))
         .map((t) => {
             const previo = previos.find((p) => p.tema_id === t.id && p.hubo_completo);
             return {
@@ -190,7 +185,7 @@ export async function siguientePregunta(tx: Tx, alumnoId: string): Promise<Sigui
     }
     // Semilla fija por (sesión, tema, orden): la misma pregunta si se pide dos veces
     const rng = crearRng(semillaDeTexto(`diagnostico|${sesionId}|${paso.tema.id}|${paso.orden}`));
-    const ejercicio = generarEjercicio(GENERADOR_POR_TEMA[paso.tema.clave], paso.nivel, "seleccion_multiple", rng);
+    const ejercicio = generarParaActividad(paso.tema.clave, "seleccion_multiple", paso.nivel, rng)!;
     const fila = await tx.diagnostico_mat_respuesta.create({
         data: { sesion_id: sesionId, alumno_id: alumnoId, tema_id: paso.tema.id, orden: paso.orden, nivel: paso.nivel, pregunta: ejercicio as unknown as Prisma.InputJsonValue },
         select: { id: true },
@@ -210,7 +205,7 @@ export async function responderPregunta(
         SELECT r.pregunta FROM diagnostico_mat_respuesta r JOIN sesion_alumno s ON s.id = r.sesion_id
          WHERE r.id = ${preguntaId}::uuid AND r.alumno_id = ${alumnoId}::uuid AND r.respuesta IS NULL AND s.fecha = fn_hoy_local()`;
     if (!f) return null;
-    const { correcta } = evaluarRespuesta(f.pregunta, respuesta);
+    const correcta = esCorrecta(f.pregunta, respuesta);
     await tx.diagnostico_mat_respuesta.update({
         where: { id: preguntaId },
         data: { respuesta, correcta, tiempo_ms: Math.round(tiempoMs), respondida_en: new Date() },

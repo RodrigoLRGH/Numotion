@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { decidirNivel, estadoVentana, indiceFrustracion, type MotivoAjuste } from "@numotion/core/dominio/adaptativo";
 import { semillaDeTexto, crearRng } from "@numotion/core/dominio/aleatorio";
 import type { TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
-import { clasificarError, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { clasificarError, esCorrecta, generarParaActividad, validacionLocal } from "@numotion/core/dominio/contenido";
 import { textoParaHash } from "@numotion/core/dominio/respuesta";
 import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
 import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
@@ -54,7 +54,7 @@ interface FilaEjercicio {
     id: string;
     nivel: number;
     tipo_interaccion: string;
-    enunciado: { texto: string; expresion?: string; figuras?: Ejercicio["figuras"]; numeroMostrado?: number };
+    enunciado: { texto: string; expresion?: string; figuras?: Ejercicio["figuras"]; numeroMostrado?: number; lienzo?: Ejercicio["lienzo"] };
     opciones: string[] | null;
     respuesta: { valor: string; generador: Ejercicio["tema"]; datos: Ejercicio["datos"] };
     pasos_solucion: { orden: number; texto: string }[];
@@ -68,9 +68,13 @@ export interface EjercicioPublico {
     expresion?: string;
     figuras?: Ejercicio["figuras"];
     numeroMostrado?: number;
+    lienzo?: Ejercicio["lienzo"];
     opciones?: string[];
-    /** SHA-256 de `${id}:${respuesta normalizada}`: validación optimista en el cliente (EXP-04.8) */
-    hashRespuesta: string;
+    /**
+     * SHA-256 de `${id}:${respuesta normalizada}`: validación optimista en el cliente (EXP-04.8).
+     * null en texto libre y coloreo, donde solo el servidor puede decidir (validacionLocal).
+     */
+    hashRespuesta: string | null;
 }
 
 export function hashRespuesta(ejercicioId: string, valor: string): string {
@@ -87,6 +91,7 @@ function aEjercicio(f: FilaEjercicio): Ejercicio {
         opciones: f.opciones ?? undefined,
         figuras: f.enunciado.figuras,
         numeroMostrado: f.enunciado.numeroMostrado,
+        lienzo: f.enunciado.lienzo,
         respuesta: f.respuesta.valor,
         pasos: f.pasos_solucion.map((p) => p.texto),
         datos: f.respuesta.datos,
@@ -102,8 +107,9 @@ function aPublico(f: FilaEjercicio): EjercicioPublico {
         ...(f.enunciado.expresion ? { expresion: f.enunciado.expresion } : {}),
         ...(f.enunciado.figuras ? { figuras: f.enunciado.figuras } : {}),
         ...(f.enunciado.numeroMostrado !== undefined ? { numeroMostrado: f.enunciado.numeroMostrado } : {}),
+        ...(f.enunciado.lienzo ? { lienzo: f.enunciado.lienzo } : {}),
         ...(f.opciones ? { opciones: f.opciones } : {}),
-        hashRespuesta: hashRespuesta(f.id, f.respuesta.valor),
+        hashRespuesta: validacionLocal(f.respuesta.generador) ? hashRespuesta(f.id, f.respuesta.valor) : null,
     };
 }
 
@@ -186,7 +192,7 @@ export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId:
                 tema_id: a.tema_id,
                 tipo_interaccion: a.tipo_interaccion,
                 nivel: a.nivel_actual,
-                enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado }),
+                enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, lienzo: e.lienzo }),
                 respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos }),
                 opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
                 pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),

@@ -44,8 +44,17 @@ export function temaPorClave(clave: string): DefinicionTema | undefined {
     return TEMAS.find((t) => t.clave === clave);
 }
 
+/** Generador que produjo el ejercicio: los de TEMAS más los del contenido provisional (A-30). */
+export type TemaGenerador = ClaveTema | "colorear" | "geometria" | "fracciones";
+
+/** Lienzo de "colorea la figura" (RF-44): figuras con id y la instrucción (forma + color). */
+export interface Lienzo {
+    figuras: readonly { id: string; tipo: string }[];
+    instruccion: { tipo: string; color: string };
+}
+
 export interface Ejercicio {
-    tema: ClaveTema;
+    tema: TemaGenerador;
     nivel: number;
     interaccion: TipoInteraccion;
     enunciado: string;
@@ -55,6 +64,7 @@ export interface Ejercicio {
     figuras?: { emoji: string; cantidad: number }[];
     /** Número mostrado en ejercicios de escritura. */
     numeroMostrado?: number;
+    lienzo?: Lienzo;
     respuesta: string;
     pasos: string[];
     datos: { a?: number; b?: number; operacion?: Operacion; oculto?: "a" | "b" | "r" };
@@ -133,7 +143,7 @@ function distractoresNumericos(correcta: number, rng: Rng, extra: number[] = [])
     return barajar(rng, unicos).slice(0, 3);
 }
 
-function opcionesCon(correcta: number, rng: Rng, extra: number[] = []): string[] {
+export function opcionesCon(correcta: number, rng: Rng, extra: number[] = []): string[] {
     return barajar(rng, [correcta, ...distractoresNumericos(correcta, rng, extra)]).map(String);
 }
 
@@ -515,7 +525,7 @@ export interface ResultadoDiagnostico {
     precision: number;
     tiempo_promedio_ms: number;
     resultado_por_tema: Record<string, ResultadoTema>;
-    detalle: { indice: number; tema: ClaveTema; correcta: boolean; tiempo_ms: number }[];
+    detalle: { indice: number; tema: TemaGenerador; correcta: boolean; tiempo_ms: number }[];
 }
 
 export function calificarDiagnostico(ejercicios: readonly Ejercicio[], respuestas: readonly RespuestaDiagnostico[]): ResultadoDiagnostico {

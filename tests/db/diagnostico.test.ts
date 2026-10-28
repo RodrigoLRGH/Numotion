@@ -114,8 +114,8 @@ describe("diagnóstico matemático y retroalimentación (EXP-02.2–02.4, 02.6)"
 
         // Acierta hasta el nivel 3: dominio 3 en cada tema
         const preguntas = await responderDiagnostico(a, (nivel) => nivel <= 3);
-        const temas = await sql`SELECT clave FROM tema WHERE 3 BETWEEN grado_min AND grado_max
-                                  AND clave IN ('numeros','suma','resta','multiplicacion','division')`;
+        // Todos los temas del grado tienen versión de selección múltiple (A-20, A-30)
+        const temas = await sql`SELECT clave FROM tema WHERE 3 BETWEEN grado_min AND grado_max`;
         expect(preguntas).toBeGreaterThanOrEqual(3 * temas.length);
         expect(preguntas).toBeLessThanOrEqual(5 * temas.length);
 

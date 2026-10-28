@@ -1,8 +1,10 @@
 // A4 · Resolver una actividad (EXP-04). El servidor decide nivel, puntos y guía; aquí se mide el
 // tiempo (solo con la pestaña visible, EXP-04.4), se da retroalimentación inmediata con el hash
-// (EXP-04.8) y se muestran guía, explicación final y recompensa.
+// (EXP-04.8) y se muestran guía, explicación final y recompensa. Sin conexión, los intentos se
+// encolan y el alumno ve "Guardando…" (EXP-04.9).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
+import { enviarIntento, sincronizarPendientes } from "../../../shared/cliente/cola-intentos";
 import { coincideHash } from "../../../shared/cliente/hash";
 import { hablar } from "../../../shared/cliente/voz";
 import { Aviso } from "../../../shared/ui/Aviso";
@@ -66,6 +68,12 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
     const [retro, setRetro] = useState<Retro>(null);
     const [cerrado, setCerrado] = useState(false);
     const [ocupado, setOcupado] = useState(false);
+    const [guardando, setGuardando] = useState(false);
+    const montado = useRef(true);
+    useEffect(() => {
+        montado.current = true; // StrictMode monta, desmonta y vuelve a montar
+        return () => void (montado.current = false);
+    }, []);
     const [error, setError] = useState<string | null>(null);
     const [puntosSesion, setPuntosSesion] = useState(0);
     // Al cerrar la actividad con la explicación final, la recompensa se muestra al pulsar "Seguir"
@@ -85,7 +93,9 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
-        api<Siguiente>("POST", `/alumno/actividades/${asignacionId}/iniciar`)
+        // Primero se reenvían intentos que quedaron guardados sin conexión, para retomar donde iban
+        sincronizarPendientes()
+            .then(() => api<Siguiente>("POST", `/alumno/actividades/${asignacionId}/iniciar`))
             .then(mostrar)
             .catch((e) => setError(e instanceof ErrorApi ? e.message : "No pudimos abrir la actividad."));
     }, [asignacionId, mostrar]);
@@ -108,17 +118,16 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
         setError(null);
         const tiempoMs = cronometro.leer();
         // Retroalimentación inmediata; el servidor confirma (y manda si difiere)
-        const optimista = await coincideHash(ejercicio.id, respuesta, ejercicio.hashRespuesta);
+        // (solo con respuestas cerradas: el texto y el coloreo los evalúa el servidor)
+        const optimista = ejercicio.hashRespuesta ? await coincideHash(ejercicio.id, respuesta, ejercicio.hashRespuesta) : null;
         if (optimista !== null) setRetro(optimista ? { tipo: "bien", puntos: null } : { tipo: "casi", restantes: null });
         try {
-            const r = await api<ResultadoIntento>("POST", "/alumno/intentos", {
-                clienteId: crypto.randomUUID(),
-                asignacionId,
-                ejercicioId: ejercicio.id,
-                respuesta,
-                tiempoMs,
-                ayudaSolicitada: ayuda,
-            });
+            const r = await enviarIntento<ResultadoIntento>(
+                { clienteId: crypto.randomUUID(), asignacionId, ejercicioId: ejercicio.id, respuesta, tiempoMs, ayudaSolicitada: ayuda },
+                () => setGuardando(true),
+                () => montado.current,
+            );
+            setGuardando(false);
             setPuntosSesion((p) => p + r.puntos);
             setRetro(r.correcta ? { tipo: "bien", puntos: r.puntos } : { tipo: "casi", restantes: r.ejercicioCerrado ? 0 : r.intentosRestantes });
             hablar(r.correcta ? "¡Muy bien!" : r.ejercicioCerrado ? "Veamos cómo se resuelve" : "¡Casi! Intenta otra vez");
@@ -133,6 +142,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
                 else setTimeout(() => setEstado((s) => (s ? { completada: true, recompensa, actividad: s.actividad } : s)), 900);
             }
         } catch (e) {
+            setGuardando(false);
             setRetro(null);
             setError(e instanceof ErrorApi ? e.message : "No se guardó tu respuesta. Intenta otra vez.");
         } finally {
@@ -204,6 +214,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
             )}
 
             <div className="mt-5 min-h-14" aria-live="polite">
+                {guardando && <Aviso tipo="info">Guardando… <span className="text-base">Tu respuesta se enviará cuando vuelva el internet.</span></Aviso>}
                 {retro?.tipo === "bien" && <Aviso tipo="exito">¡Muy bien!{retro.puntos ? ` +${retro.puntos} puntos` : ""} <span aria-hidden="true">🎉</span></Aviso>}
                 {retro?.tipo === "casi" && retro.restantes !== 0 && <Aviso tipo="info">¡Casi! Intenta otra vez <span aria-hidden="true">💪</span></Aviso>}
                 {error && <Aviso tipo="error">{error}</Aviso>}

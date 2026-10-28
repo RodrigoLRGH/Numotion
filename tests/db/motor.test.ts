@@ -16,7 +16,7 @@ import {
 } from "../../apps/api/src/modules/alumno/motor";
 import { sql } from "./fixture";
 
-async function escenario(opciones: { num?: number; fecha?: string; alumnos?: number; tipo?: "seleccion_multiple" | "completar_operacion" } = {}) {
+async function escenario(opciones: { num?: number; fecha?: string; alumnos?: number; tipo?: string; tema?: string } = {}) {
     await sql`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', now() - interval '1 day', '/privacidad') ON CONFLICT DO NOTHING`;
     const { docente } = await registrarDocente("Docente Motor", `motor-${randomUUID()}@escuela.mx`, "contraseña-segura");
     const ctxD: Contexto = { rol: "docente", id: docente.id };
@@ -27,10 +27,10 @@ async function escenario(opciones: { num?: number; fecha?: string; alumnos?: num
         if (!r.ok) throw new Error(r.message);
         ids.push(r.alumno.id);
     }
-    const [{ id: suma }] = await sql`SELECT id FROM tema WHERE clave = 'suma'`;
+    const [{ id: suma }] = await sql`SELECT id FROM tema WHERE clave = ${opciones.tema ?? "suma"}`;
     const [{ hoy }] = await sql`SELECT to_char(fn_hoy_local(), 'YYYY-MM-DD') AS hoy`;
     const act = await conContexto(ctxD, (tx) => crearActividad(tx, docente.id, {
-        nombre: "Sumas motor", temaId: suma, tipoInteraccion: opciones.tipo ?? "seleccion_multiple",
+        nombre: "Sumas motor", temaId: suma, tipoInteraccion: (opciones.tipo ?? "seleccion_multiple") as "seleccion_multiple",
         fechaAsignacion: opciones.fecha ?? hoy, numEjercicios: opciones.num ?? 3, destino: { tipo: "grupo", grupoId: grupo.id },
     }));
     if (!act.ok) throw new Error(act.message);
@@ -207,5 +207,45 @@ describe("completar la actividad (EXP-04.10)", () => {
         expect(a.ejercicio.tipoInteraccion).toBe("completar_operacion");
         expect(a.ejercicio.expresion).toMatch(/□/);
         expect(a.ejercicio.expresion).toContain("+");
+    });
+});
+
+describe("tipos especiales (RF-39, RF-41, RF-44)", () => {
+    const intentar = (e: Escenario, ejercicioId: string, respuesta: string) =>
+        e.como((tx) => registrarIntento(tx, e.alumnoId, { clienteId: randomUUID(), asignacionId: e.asignacionId, ejercicioId, respuesta, tiempoMs: 5000, ayudaSolicitada: false }));
+
+    it("suma con figuras: trae los grupos y el total es la suma; conserva la validación optimista", async () => {
+        const e = await escenario({ tipo: "suma_figuras" });
+        const a = await ejercicioActual(e);
+        const total = a.ejercicio.figuras!.reduce((s, f) => s + f.cantidad, 0);
+        expect(a.correcta).toBe(String(total));
+        expect(a.ejercicio.hashRespuesta).toBe(hashRespuesta(a.ejercicio.id, String(total)));
+        expect(await intentar(e, a.ejercicio.id, String(total))).toMatchObject({ correcta: true, puntos: 10 });
+    });
+
+    it("con letras: sin hash (solo valida el servidor) y tolera un error de ortografía", async () => {
+        const e = await escenario({ tema: "numeros", tipo: "numero_a_palabras" });
+        const a = await ejercicioActual(e);
+        expect(a.ejercicio.hashRespuesta).toBeNull();
+        expect(typeof a.ejercicio.numeroMostrado).toBe("number");
+        expect(await intentar(e, a.ejercicio.id, "xxxxxxxxxxxx")).toMatchObject({ correcta: false });
+        expect(await intentar(e, a.ejercicio.id, a.correcta.slice(1).toUpperCase())).toMatchObject({ correcta: true });
+        const [i] = await sql`SELECT tipo_error FROM intento_ejercicio WHERE ejercicio_id = ${a.ejercicio.id} AND NOT correcta`;
+        expect(i.tipo_error).not.toBeNull();
+    });
+
+    it("colorear: el lienzo es público, la respuesta no; se evalúa el coloreo enviado como JSON", async () => {
+        const e = await escenario({ tema: "geometria", tipo: "colorear_figura" });
+        const a = await ejercicioActual(e);
+        const { lienzo } = a.ejercicio;
+        expect(a.ejercicio.hashRespuesta).toBeNull();
+        expect(JSON.stringify(a.ejercicio)).not.toContain(a.correcta);
+        const { tipo, color } = lienzo!.instruccion;
+        const todas = Object.fromEntries(lienzo!.figuras.map((f) => [f.id, color]));
+        expect(await intentar(e, a.ejercicio.id, JSON.stringify(todas))).toMatchObject({ correcta: false });
+        const [i] = await sql`SELECT tipo_error FROM intento_ejercicio WHERE ejercicio_id = ${a.ejercicio.id}`;
+        expect(i.tipo_error).toBe("lectura"); // pintó figuras que no eran
+        const bien = Object.fromEntries(lienzo!.figuras.filter((f) => f.tipo === tipo).map((f) => [f.id, color]));
+        expect(await intentar(e, a.ejercicio.id, JSON.stringify(bien))).toMatchObject({ correcta: true, puntos: 7 });
     });
 });

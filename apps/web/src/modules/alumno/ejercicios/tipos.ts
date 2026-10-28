@@ -9,12 +9,15 @@ export interface EjercicioPublico {
     figuras?: { emoji: string; cantidad: number }[];
     numeroMostrado?: number;
     opciones?: string[];
-    hashRespuesta: string;
+    /** Colorear (RF-44): figuras a pintar e instrucción */
+    lienzo?: { figuras: { id: string; tipo: string }[]; instruccion: { tipo: string; color: string } };
+    /** null cuando la respuesta no es cerrada (texto con tolerancia, coloreo): solo valida el servidor */
+    hashRespuesta: string | null;
 }
 
 export interface EjercicioProps {
     ejercicio: EjercicioPublico;
-    /** Opciones ya intentadas y erróneas en este ejercicio: se muestran tachadas */
+    /** Respuestas ya intentadas y erróneas en este ejercicio: se muestran tachadas */
     descartadas: readonly string[];
     deshabilitado: boolean;
     onResponder(respuesta: string): void;

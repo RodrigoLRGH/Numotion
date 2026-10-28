@@ -25,7 +25,13 @@ export async function api<T = unknown>(metodo: "GET" | "POST" | "PUT" | "DELETE"
         throw new ErrorApi("SIN_CONEXION", "No hay conexión. Revisa el internet e intenta otra vez.", 0);
     }
     const texto = await r.text();
-    const datos = texto ? JSON.parse(texto) : null;
+    let datos: { error?: { code?: string; message?: string; details?: unknown } } | null = null;
+    try {
+        datos = texto ? JSON.parse(texto) : null;
+    } catch {
+        // Cuerpo no JSON (p. ej. la página de error de un proxy ante un 502): se trata por su estado
+        if (r.ok) throw new ErrorApi("INTERNO", "Algo salió mal. Intenta otra vez.", r.status);
+    }
     if (!r.ok) {
         const e = datos?.error;
         throw new ErrorApi(e?.code ?? "INTERNO", e?.message ?? "Algo salió mal. Intenta otra vez.", r.status, e?.details);

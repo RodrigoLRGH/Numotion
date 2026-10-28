@@ -15,14 +15,14 @@ describe("combinaciones disponibles", () => {
                     for (let i = 0; i < 20; i++) {
                         const e = generarParaActividad(tema, tipo, nivel, rng);
                         expect(e, `${tema}/${tipo}`).not.toBeNull();
-                        expect(esCorrecta(e!, e!.respuesta)).toBe(true);
-                        expect(e!.opciones).toContain(e!.respuesta);
+                        if (tipo !== "colorear_figura") expect(esCorrecta(e!, e!.respuesta)).toBe(true);
+                        if (e!.opciones) expect(e!.opciones).toContain(e!.respuesta);
                         expect(e!.pasos.length).toBeGreaterThanOrEqual(2);
                     }
                 }
             }
         }
-        expect(generarParaActividad("geometria", "colorear_figura", 2, crearRng(1))).toBeNull();
+        expect(generarParaActividad("geometria", "regla_y_compas", 2, crearRng(1) as never)).toBeNull();
     });
 
     it("RF-40: en «encuentra el número» ningún par de opciones es consecutivo", () => {

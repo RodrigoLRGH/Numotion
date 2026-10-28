@@ -58,13 +58,13 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-04-10 · Web: `EjercicioSeleccionMultiple` → P-COMP-01
 - [x] T-03-04-11 · *(arrastre nativo + alternativa por toque/teclado, sin dnd-kit)* · Web: `EjercicioArrastrar` (dnd-kit + alternativa por tap/teclado) → P-COMP-01
 - [x] T-03-04-12 · Web: `EjercicioCompletarOperacion` (RF-42) → P-COMP-01
-- [ ] T-03-04-13 · Web: `EjercicioNumeroAPalabras` (RF-39) → P-COMP-01
+- [x] T-03-04-13 · Web: `EjercicioNumeroAPalabras` (RF-39) → P-COMP-01
 - [x] T-03-04-14 · Web: `EjercicioIdentificarNumero` (RF-40, Could) → P-COMP-01
-- [ ] T-03-04-15 · Web: `EjercicioSumaFiguras` (RF-41, Could) → P-COMP-01
-- [ ] T-03-04-16 · Web: `EjercicioColorearFigura` (RF-44, Could) → P-COMP-01
+- [x] T-03-04-15 · Web: `EjercicioSumaFiguras` (RF-41, Could) → P-COMP-01
+- [x] T-03-04-16 · *(contenido provisional de geometría y fracciones, A-30)* · Web: `EjercicioColorearFigura` (RF-44, Could) → P-COMP-01
 - [x] T-03-04-17 · Web: `GuiaPasoAPaso` (modos paso_a_paso / final) → P-COMP-02
 - [x] T-03-04-18 · Web: `RecompensaModal` al completar → P-E2E-01
-- [ ] T-03-04-19 · Web: `useColaIntentos` (IndexedDB con try/catch, backoff, indicador "Guardando…") → P-E2E-05
+- [x] T-03-04-19 · *(`shared/cliente/cola-intentos.ts` con idb-keyval, A-32)* · Web: `useColaIntentos` (IndexedDB con try/catch, backoff, indicador "Guardando…") → P-E2E-05
 - [ ] T-03-04-20 · `core/content/ContentGateway` (OpenAI): prompt sin PII, timeout 20 s, validación del ejercicio generado, caché, presupuesto mensual, respaldo de catálogo → P-INT-02
 - [ ] T-03-04-21 · Precarga del siguiente ejercicio y code splitting del módulo alumno → P-PERF-01
 
