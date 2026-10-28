@@ -172,6 +172,7 @@ rutasCore.post("/consentimiento/:token/arco", ruta(async (req, res) => {
 
 // Temas con los tipos de ejercicio que el motor ya sirve (A-25)
 rutasCore.get("/catalogo/temas", ruta(async (_req, res) => {
-    const temas = await conContexto(null, (tx) => tx`SELECT id, clave, nombre, grado_min AS "gradoMin", grado_max AS "gradoMax" FROM tema ORDER BY orden`);
-    res.json({ items: temas.map((t) => ({ ...t, tiposInteraccion: tiposDeTema(t.clave).filter((tipo) => combinacionDisponible(t.clave, tipo)) })) });
+    const temas = await conContexto(null, (tx) =>
+        tx.tema.findMany({ select: { id: true, clave: true, nombre: true, grado_min: true, grado_max: true }, orderBy: { orden: "asc" } }));
+    res.json({ items: temas.map(({ grado_min, grado_max, ...t }) => ({ ...t, gradoMin: grado_min, gradoMax: grado_max, tiposInteraccion: tiposDeTema(t.clave).filter((tipo) => combinacionDisponible(t.clave, tipo)) })) });
 }));

@@ -64,7 +64,7 @@ export function nuevoToken(): { token: string; hash: string } {
 async function emitirSesion(tx: Tx, rol: Rol, id: string): Promise<SesionEmitida> {
     const { token, hash } = nuevoToken();
     const expira = new Date(Date.now() + DURACION_SESION_MS[rol]);
-    await tx`SELECT fn_crear_sesion_auth(${hash}, ${rol}, ${id}, ${expira})`;
+    await tx.$executeRaw`SELECT fn_crear_sesion_auth(${hash}, ${rol}::rol_usuario, ${id}::uuid, ${expira})`;
     return { token, expira };
 }
 
@@ -80,8 +80,8 @@ export async function registrarDocente(
 ): Promise<{ ok: true; sesion: SesionEmitida; docente: { id: string; nombre: string } }> {
     const hash = await hashSecreto(password);
     return conContexto(null, async (tx) => {
-        const [{ id }] = await tx`SELECT fn_registrar_docente(${nombre}, ${email}, ${hash}) AS id`;
-        await tx`SELECT fn_auditar(${id}, 'docente', 'login')`;
+        const [{ id }] = await tx.$queryRaw<{ id: string }[]>`SELECT fn_registrar_docente(${nombre}, ${email}::citext, ${hash}) AS id`;
+        await tx.$executeRaw`SELECT fn_auditar(${id}::uuid, 'docente', 'login')`;
         return { ok: true as const, sesion: await emitirSesion(tx, "docente", id), docente: { id, nombre } };
     });
 }
@@ -92,7 +92,8 @@ export async function loginDocente(
     ip: string | null,
 ): Promise<{ ok: true; sesion: SesionEmitida; docente: { id: string; nombre: string } } | Fallo> {
     return conContexto(null, async (tx) => {
-        const [d] = await tx`SELECT * FROM fn_auth_docente(${email})`;
+        const [d] = await tx.$queryRaw<{ id: string; nombre: string; password_hash: string; activo: boolean; bloqueado_hasta: Date | null }[]>`
+            SELECT * FROM fn_auth_docente(${email}::citext)`;
         if (!d || !d.activo) {
             await verificarSecreto(password, await relleno());
             return credencialesInvalidas("Correo o contraseña incorrectos");
@@ -101,7 +102,7 @@ export async function loginDocente(
             return bloqueada("Demasiados intentos. Espera 15 minutos.");
         }
         const ok = await verificarSecreto(password, d.password_hash);
-        await tx`SELECT fn_auth_docente_resultado(${d.id}, ${ok}, ${ip}::inet)`;
+        await tx.$executeRaw`SELECT fn_auth_docente_resultado(${d.id}::uuid, ${ok}, ${ip}::inet)`;
         if (!ok) return credencialesInvalidas("Correo o contraseña incorrectos");
         return { ok: true as const, sesion: await emitirSesion(tx, "docente", d.id), docente: { id: d.id, nombre: d.nombre } };
     });
@@ -116,7 +117,8 @@ export interface GrupoParaEntrar {
 }
 
 export async function grupoParaEntrar(codigo: string): Promise<GrupoParaEntrar | null> {
-    const filas = await conContexto(null, (tx) => tx`SELECT * FROM fn_avatares_grupo(${codigo})`);
+    const filas = await conContexto(null, (tx) =>
+        tx.$queryRaw<{ grupo_id: string; alumno_id: string; avatar: string; nombre_corto: string }[]>`SELECT * FROM fn_avatares_grupo(${codigo})`);
     if (!filas.length) return null;
     return {
         grupoId: filas[0].grupo_id,
@@ -136,14 +138,16 @@ export interface LoginAlumno {
 export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknown, ip: string | null): Promise<LoginAlumno | Fallo> {
     const pinTexto = pinATexto(pin);
     return conContexto(null, async (tx) => {
-        const [a] = await tx`SELECT * FROM fn_auth_alumno(${grupoId}, ${alumnoId})`;
+        const [a] = await tx.$queryRaw<
+            { id: string; nombre: string; avatar: string; pin_hash: string | null; bloqueado_hasta: Date | null; consentimiento: boolean; acepta_camara: boolean }[]
+        >`SELECT * FROM fn_auth_alumno(${grupoId}::uuid, ${alumnoId}::uuid)`;
         if (!a) return credencialesInvalidas("No encontramos a ese alumno en el grupo");
         if (a.bloqueado_hasta && a.bloqueado_hasta > new Date()) {
             return bloqueada("Espera 5 minutos e inténtalo de nuevo.");
         }
         const ok = pinTexto !== null && (await verificarSecreto(pinTexto, a.pin_hash));
         if (!ok) {
-            await tx`SELECT fn_auth_alumno_resultado(${a.id}, false, ${ip}::inet)`;
+            await tx.$queryRaw`SELECT fn_auth_alumno_resultado(${a.id}::uuid, false, ${ip}::inet)`;
             return credencialesInvalidas("¡Casi! Esa no es tu clave. Intenta otra vez.");
         }
         // ADR-009: sin consentimiento vigente del tutor no se entra
@@ -155,7 +159,7 @@ export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknow
                 status: 403,
             };
         }
-        const [{ sesion_id }] = await tx`SELECT fn_auth_alumno_resultado(${a.id}, true, ${ip}::inet) AS sesion_id`;
+        const [{ sesion_id }] = await tx.$queryRaw<{ sesion_id: string }[]>`SELECT fn_auth_alumno_resultado(${a.id}::uuid, true, ${ip}::inet) AS sesion_id`;
         return {
             ok: true as const,
             sesion: await emitirSesion(tx, "alumno", a.id),
@@ -170,15 +174,17 @@ export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknow
 
 export async function usuarioDeToken(token: string | undefined): Promise<UsuarioSesion | null> {
     if (!token) return null;
-    const [s] = await conContexto(null, (tx) => tx`SELECT * FROM fn_sesion_auth(${hashToken(token)})`);
+    const [s] = await conContexto(null, (tx) =>
+        tx.$queryRaw<{ rol: Rol; usuario_id: string; nombre: string; grupo_id: string | null; acepta_camara: boolean }[]>`
+            SELECT * FROM fn_sesion_auth(${hashToken(token)})`);
     if (!s) return null;
     return s.rol === "alumno"
-        ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id, aceptaCamara: s.acepta_camara }
+        ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id ?? undefined, aceptaCamara: s.acepta_camara }
         : { id: s.usuario_id, nombre: s.nombre, rol: "docente" };
 }
 
 export async function cerrarSesionToken(token: string | undefined): Promise<void> {
-    if (token) await conContexto(null, (tx) => tx`SELECT fn_cerrar_sesion_auth(${hashToken(token)})`);
+    if (token) await conContexto(null, (tx) => tx.$executeRaw`SELECT fn_cerrar_sesion_auth(${hashToken(token)})`);
 }
 
 export function fijarCookieSesion(res: Response, sesion: SesionEmitida): void {

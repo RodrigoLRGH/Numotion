@@ -4,22 +4,23 @@ import { crearRng, semillaDeTexto } from "@numotion/core/dominio/aleatorio";
 import { nivelDominio, siguienteNivel, MIN_PREGUNTAS_TEMA, type Modo } from "@numotion/core/dominio/diagnostico";
 import { aPublico, evaluarRespuesta, generarEjercicio, type ClaveTema, type Ejercicio, type EjercicioPublico } from "@numotion/core/dominio/ejercicios";
 import { calcularPanas, ESCALA_PANAS, esValorPanas, type Afecto } from "@numotion/core/dominio/panas";
-import type { Tx } from "../../infra/db";
+import type { Prisma, Tx } from "../../infra/db";
 import { estadoDiagnosticos } from "../core/sesion-alumno";
 
 export { estadoDiagnosticos };
 
 /** Crea o reanuda la sesión de clase del día (zona America/Tijuana). */
 export async function sesionDelDia(tx: Tx, alumnoId: string): Promise<string> {
-    const [s] = await tx`
-        INSERT INTO sesion_alumno (alumno_id, fecha) VALUES (${alumnoId}, fn_hoy_local())
+    // La fecha la calcula PostgreSQL en la zona de la escuela (fn_hoy_local): por eso es SQL y no upsert de Prisma
+    const [s] = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO sesion_alumno (alumno_id, fecha) VALUES (${alumnoId}::uuid, fn_hoy_local())
         ON CONFLICT (alumno_id, fecha) DO UPDATE SET ultima_actividad_en = now()
         RETURNING id`;
     return s.id;
 }
 
 async function config<T>(tx: Tx, clave: string, porDefecto: T): Promise<T> {
-    const [c] = await tx`SELECT valor FROM config_adaptativa WHERE clave = ${clave}`;
+    const c = await tx.config_adaptativa.findUnique({ where: { clave }, select: { valor: true } });
     return (c?.valor as T | undefined) ?? porDefecto;
 }
 
@@ -33,13 +34,13 @@ interface RespuestaGuardada {
 export async function panasDelDia(tx: Tx, alumnoId: string) {
     const sesionId = await sesionDelDia(tx, alumnoId);
     const version = await config(tx, "panas_version", "v1");
-    const items = await tx`SELECT id, orden, texto, audio_url AS "audioUrl" FROM panas_item WHERE version = ${version} ORDER BY orden`;
-    const [p] = await tx`SELECT respuestas, completado_en FROM panas_resultado WHERE sesion_id = ${sesionId}`;
+    const items = await tx.panas_item.findMany({ where: { version }, orderBy: { orden: "asc" }, select: { id: true, orden: true, texto: true, audio_url: true } });
+    const p = await tx.panas_resultado.findUnique({ where: { sesion_id: sesionId }, select: { respuestas: true, completado_en: true } });
     return {
-        items,
+        items: items.map(({ audio_url, ...i }) => ({ ...i, audioUrl: audio_url })),
         escala: ESCALA_PANAS.map((e) => ({ valor: e.valor, icono: e.icono, etiqueta: e.texto })),
         // Para retomar en el primer ítem sin responder (EXP-02.5)
-        respondidos: ((p?.respuestas ?? []) as RespuestaGuardada[]).map((r) => r.itemId),
+        respondidos: ((p?.respuestas ?? []) as unknown as RespuestaGuardada[]).map((r) => r.itemId),
         completado: Boolean(p?.completado_en),
     };
 }
@@ -51,11 +52,12 @@ export async function responderPanas(tx: Tx, alumnoId: string, itemId: string, v
     if (!esValorPanas(valor)) return "valor_invalido";
     const sesionId = await sesionDelDia(tx, alumnoId);
     const version = await config(tx, "panas_version", "v1");
-    const [item] = await tx`SELECT id FROM panas_item WHERE id = ${itemId} AND version = ${version}`;
+    const item = await tx.panas_item.findFirst({ where: { id: itemId, version }, select: { id: true } });
     if (!item) return "item_desconocido";
     const nueva = [{ itemId, valor }];
-    const filas = await tx`
-        INSERT INTO panas_resultado (sesion_id, alumno_id, respuestas) VALUES (${sesionId}, ${alumnoId}, ${tx.json(nueva)})
+    // Mezcla jsonb en una sola sentencia (reemplaza el ítem si ya estaba): SQL
+    const filas = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO panas_resultado (sesion_id, alumno_id, respuestas) VALUES (${sesionId}::uuid, ${alumnoId}::uuid, ${JSON.stringify(nueva)}::jsonb)
         ON CONFLICT (sesion_id) DO UPDATE
            SET respuestas = (SELECT coalesce(jsonb_agg(e), '[]'::jsonb) FROM jsonb_array_elements(panas_resultado.respuestas) e
                               WHERE e->>'itemId' <> ${itemId}) || EXCLUDED.respuestas
@@ -67,16 +69,19 @@ export async function responderPanas(tx: Tx, alumnoId: string, itemId: string, v
 /** Calcula AP/AN y cierra el PANAS del día. Idempotente. */
 export async function finalizarPanas(tx: Tx, alumnoId: string): Promise<{ ok: true } | { ok: false; faltan: number }> {
     const sesionId = await sesionDelDia(tx, alumnoId);
-    const [p] = await tx`SELECT respuestas, completado_en FROM panas_resultado WHERE sesion_id = ${sesionId}`;
+    const p = await tx.panas_resultado.findUnique({ where: { sesion_id: sesionId }, select: { respuestas: true, completado_en: true } });
     if (p?.completado_en) return { ok: true };
     const version = await config(tx, "panas_version", "v1");
-    const items = await tx<{ id: string; afecto: Afecto }[]>`SELECT id, afecto FROM panas_item WHERE version = ${version}`;
-    const valores = new Map(((p?.respuestas ?? []) as RespuestaGuardada[]).map((r) => [r.itemId, r.valor]));
+    const items: { id: string; afecto: Afecto }[] = await tx.panas_item.findMany({ where: { version }, select: { id: true, afecto: true } });
+    const valores = new Map(((p?.respuestas ?? []) as unknown as RespuestaGuardada[]).map((r) => [r.itemId, r.valor]));
     const faltan = items.filter((i) => !valores.has(i.id)).length;
     if (!p || faltan > 0 || items.length === 0) return { ok: false, faltan: faltan || items.length };
     const { afectoPositivo, afectoNegativo } = calcularPanas(items.map((i) => ({ afecto: i.afecto, valor: valores.get(i.id)! })));
-    await tx`UPDATE panas_resultado SET afecto_positivo = ${afectoPositivo}, afecto_negativo = ${afectoNegativo}, completado_en = now()
-             WHERE sesion_id = ${sesionId}`;
+    await tx.panas_resultado.update({
+        where: { sesion_id: sesionId },
+        data: { afecto_positivo: afectoPositivo, afecto_negativo: afectoNegativo, completado_en: new Date() },
+        select: { id: true },
+    });
     return { ok: true };
 }
 
@@ -129,24 +134,26 @@ export function pasoSiguiente(plan: readonly TemaPlan[]): Paso {
 }
 
 async function planDelDia(tx: Tx, alumnoId: string, sesionId: string): Promise<TemaPlan[]> {
-    const temas = await tx<{ id: string; clave: string; nombre: string }[]>`
+    const temas = await tx.$queryRaw<{ id: string; clave: string; nombre: string }[]>`
         SELECT t.id, t.clave, t.nombre
           FROM alumno a JOIN grupo g ON g.id = a.grupo_id
           JOIN tema t ON g.grado BETWEEN t.grado_min AND t.grado_max
-         WHERE a.id = ${alumnoId} ORDER BY t.orden`;
+         WHERE a.id = ${alumnoId}::uuid ORDER BY t.orden`;
     const dias = await config(tx, "diagnostico_corto_dias", 7);
     // EXP-02.6: versión corta si hubo un diagnóstico completo del tema en los últimos N días
-    const previos = await tx<{ tema_id: string; nivel: number; hubo_completo: boolean }[]>`
+    const previos = await tx.$queryRaw<{ tema_id: string; nivel: number; hubo_completo: boolean }[]>`
         SELECT d.tema_id,
                (array_agg(d.nivel_dominio ORDER BY d.creado_en DESC))[1] AS nivel,
                bool_or(d.total >= ${MIN_PREGUNTAS_TEMA}) AS hubo_completo
           FROM diagnostico_mat_resultado d
-         WHERE d.alumno_id = ${alumnoId} AND d.sesion_id <> ${sesionId}
-           AND d.creado_en > now() - make_interval(days => ${dias})
+         WHERE d.alumno_id = ${alumnoId}::uuid AND d.sesion_id <> ${sesionId}::uuid
+           AND d.creado_en > now() - make_interval(days => ${dias}::int)
          GROUP BY d.tema_id`;
-    const filas = await tx<(FilaRespuesta & { tema_id: string })[]>`
-        SELECT id, tema_id, orden, nivel, correcta, tiempo_ms, pregunta
-          FROM diagnostico_mat_respuesta WHERE sesion_id = ${sesionId} ORDER BY orden`;
+    const filas = (await tx.diagnostico_mat_respuesta.findMany({
+        where: { sesion_id: sesionId },
+        orderBy: { orden: "asc" },
+        select: { id: true, tema_id: true, orden: true, nivel: true, correcta: true, tiempo_ms: true, pregunta: true },
+    })) as unknown as (FilaRespuesta & { tema_id: string })[];
     return temas
         .filter((t) => t.clave in GENERADOR_POR_TEMA)
         .map((t) => {
@@ -184,10 +191,10 @@ export async function siguientePregunta(tx: Tx, alumnoId: string): Promise<Sigui
     // Semilla fija por (sesión, tema, orden): la misma pregunta si se pide dos veces
     const rng = crearRng(semillaDeTexto(`diagnostico|${sesionId}|${paso.tema.id}|${paso.orden}`));
     const ejercicio = generarEjercicio(GENERADOR_POR_TEMA[paso.tema.clave], paso.nivel, "seleccion_multiple", rng);
-    const [fila] = await tx`
-        INSERT INTO diagnostico_mat_respuesta (sesion_id, alumno_id, tema_id, orden, nivel, pregunta)
-        VALUES (${sesionId}, ${alumnoId}, ${paso.tema.id}, ${paso.orden}, ${paso.nivel}, ${tx.json(ejercicio as never)})
-        RETURNING id`;
+    const fila = await tx.diagnostico_mat_respuesta.create({
+        data: { sesion_id: sesionId, alumno_id: alumnoId, tema_id: paso.tema.id, orden: paso.orden, nivel: paso.nivel, pregunta: ejercicio as unknown as Prisma.InputJsonValue },
+        select: { id: true },
+    });
     return { pregunta: { id: fila.id, ...aPublico(ejercicio) }, temaId: paso.tema.id, progreso: progreso(plan, paso.tema) };
 }
 
@@ -199,14 +206,16 @@ export async function responderPregunta(
     respuesta: string,
     tiempoMs: number,
 ): Promise<{ correcta: boolean } | null> {
-    const [f] = await tx<{ pregunta: Ejercicio }[]>`
+    const [f] = await tx.$queryRaw<{ pregunta: Ejercicio }[]>`
         SELECT r.pregunta FROM diagnostico_mat_respuesta r JOIN sesion_alumno s ON s.id = r.sesion_id
-         WHERE r.id = ${preguntaId} AND r.alumno_id = ${alumnoId} AND r.respuesta IS NULL AND s.fecha = fn_hoy_local()`;
+         WHERE r.id = ${preguntaId}::uuid AND r.alumno_id = ${alumnoId}::uuid AND r.respuesta IS NULL AND s.fecha = fn_hoy_local()`;
     if (!f) return null;
     const { correcta } = evaluarRespuesta(f.pregunta, respuesta);
-    await tx`UPDATE diagnostico_mat_respuesta
-                SET respuesta = ${respuesta}, correcta = ${correcta}, tiempo_ms = ${Math.round(tiempoMs)}, respondida_en = now()
-              WHERE id = ${preguntaId}`;
+    await tx.diagnostico_mat_respuesta.update({
+        where: { id: preguntaId },
+        data: { respuesta, correcta, tiempo_ms: Math.round(tiempoMs), respondida_en: new Date() },
+        select: { id: true },
+    });
     return { correcta };
 }
 
@@ -222,16 +231,22 @@ export async function finalizarMatematico(tx: Tx, alumnoId: string): Promise<Fin
     if (pasoSiguiente(plan).tipo !== "terminado") return { ok: false, motivo: "incompleto" };
 
     const dominio: Record<string, number> = {};
-    for (const tema of plan) {
+    const resultados = plan.map((tema) => {
         const historial = tema.respuestas.map((r) => ({ nivel: r.nivel, correcta: r.correcta as boolean }));
         const nivel = nivelDominio(historial, tema.modo);
         dominio[tema.clave] = nivel;
-        await tx`
-            INSERT INTO diagnostico_mat_resultado (sesion_id, alumno_id, tema_id, aciertos, total, nivel_dominio, tiempo_total_ms)
-            VALUES (${sesionId}, ${alumnoId}, ${tema.id}, ${historial.filter((h) => h.correcta).length}, ${historial.length},
-                    ${nivel}, ${tema.respuestas.reduce((s, r) => s + (r.tiempo_ms ?? 0), 0)})
-            ON CONFLICT (sesion_id, tema_id) DO NOTHING`;
-    }
-    const [{ id }] = await tx`SELECT fn_generar_retroalimentacion(${sesionId}) AS id`;
+        return {
+            sesion_id: sesionId,
+            alumno_id: alumnoId,
+            tema_id: tema.id,
+            aciertos: historial.filter((h) => h.correcta).length,
+            total: historial.length,
+            nivel_dominio: nivel,
+            tiempo_total_ms: tema.respuestas.reduce((s, r) => s + (r.tiempo_ms ?? 0), 0),
+        };
+    });
+    // Idempotente: UNIQUE(sesion_id, tema_id)
+    await tx.diagnostico_mat_resultado.createMany({ data: resultados, skipDuplicates: true });
+    const [{ id }] = await tx.$queryRaw<{ id: string }[]>`SELECT fn_generar_retroalimentacion(${sesionId}::uuid) AS id`;
     return { ok: true, dominio, retroalimentacionId: id };
 }

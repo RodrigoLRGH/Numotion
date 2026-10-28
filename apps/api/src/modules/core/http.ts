@@ -1,9 +1,8 @@
 // Utilidades HTTP de la API (Express). Errores con el formato de 05-contratos-de-api.md §0:
 // { error: { code, message, details? } }. Las rutas lanzan ErrorHttp y el manejador central responde.
 import type { ErrorRequestHandler, Request, RequestHandler, Response } from "express";
-import postgres from "postgres";
 import { z } from "zod";
-import type { Contexto } from "../../infra/db";
+import { errorBd, type Contexto } from "../../infra/db";
 import type { UsuarioSesion } from "./auth";
 
 export type CodigoError =
@@ -86,12 +85,13 @@ const ERRORES_BD: Record<string, [CodigoError, number, string]> = {
 
 export const manejadorErrores: ErrorRequestHandler = (err, _req, res, _next) => {
     if (err instanceof ErrorHttp) return enviarError(res, err.code, err.message, err.status, err.details);
-    if (err instanceof postgres.PostgresError) {
-        const conocido = ERRORES_BD[err.message];
+    const bd = errorBd(err);
+    if (bd) {
+        const conocido = ERRORES_BD[bd.mensaje];
         if (conocido) return enviarError(res, conocido[0], conocido[2], conocido[1]);
         // RLS o permisos: el recurso es ajeno; 404 para no revelar que existe (03-seguridad §3)
-        if (err.code === "42501") return enviarError(res, "NO_ENCONTRADO", "Recurso no encontrado", 404);
-        if (err.code === "23505") return enviarError(res, "CONFLICTO", "El registro ya existe", 409);
+        if (bd.codigo === "42501") return enviarError(res, "NO_ENCONTRADO", "Recurso no encontrado", 404);
+        if (bd.codigo === "23505") return enviarError(res, "CONFLICTO", "El registro ya existe", 409);
     }
     // JSON mal formado (express.json) o cuerpo demasiado grande
     if (err?.type === "entity.parse.failed") return enviarError(res, "VALIDACION", "Cuerpo JSON inválido", 400);

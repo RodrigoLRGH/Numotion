@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "db:migrar": "node --env-file-if-exists=.env scripts/migrar.mjs",
     "db:seed": "node --env-file-if-exists=.env scripts/migrar.mjs --seed",
-    "correo:probar": "node --env-file-if-exists=.env scripts/probar-correo.mjs"
+    "correo:probar": "node --env-file-if-exists=.env scripts/probar-correo.mjs",
+    "db:pull": "node --env-file-if-exists=.env scripts/prisma-pull.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",

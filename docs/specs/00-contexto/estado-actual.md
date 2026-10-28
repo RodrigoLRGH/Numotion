@@ -9,7 +9,7 @@
 | Requerimientos | Matriz de clasificación v actual (37 RF, 6 RNF, 7 RI, 7 RC) |
 | SDD y specs | v1.0 — este documento |
 | Código | Inventariado (T-00-01, 2026-10-27). Backend de dominio y API avanzados; **sin pantallas** |
-| Stack | **ADR-011**: SPA React + Vite + React Router (`apps/web`), API Express (`apps/api`), dominio compartido (`packages/core`), PostgreSQL 16 con RLS, Vercel |
+| Stack | **ADR-011**: SPA React + Vite + React Router (`apps/web`), API Express (`apps/api`), dominio compartido (`packages/core`), PostgreSQL 16 con RLS vía Prisma 6 (ADR-012), Vercel |
 | Despliegue | Por definir (AWS, RC-02) |
 
 ## 2. T-00-01 · Inventario del repositorio (obligatorio primero)

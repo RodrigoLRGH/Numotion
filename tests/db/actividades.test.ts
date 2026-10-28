@@ -41,9 +41,9 @@ async function completar(asignacionId: string, alumnoId: string, temaId: string,
         const [e] = await sql`INSERT INTO ejercicio (tema_id, tipo_interaccion, nivel, enunciado, respuesta, pasos_solucion, origen)
             VALUES (${temaId}, 'seleccion_multiple', 2, '{}', '{}', '[{"orden":1,"texto":"a"},{"orden":2,"texto":"b"}]', 'generador') RETURNING id`;
         const ok = i < correctos;
-        await conContexto({ rol: "alumno", id: alumnoId }, (tx) => tx`
+        await conContexto({ rol: "alumno", id: alumnoId }, (tx) => tx.$executeRaw`
             INSERT INTO intento_ejercicio (asignacion_id, alumno_id, ejercicio_id, nivel, respuesta, correcta, numero_intento, tiempo_ms, cliente_id)
-            VALUES (${asignacionId}, ${alumnoId}, ${e.id}, 2, '{}', ${ok}, ${ok ? 1 : 4}, 5000, gen_random_uuid())`);
+            VALUES (${asignacionId}::uuid, ${alumnoId}::uuid, ${e.id}::uuid, 2, '{}', ${ok}, ${ok ? 1 : 4}, 5000, gen_random_uuid())`);
     }
 }
 
@@ -130,9 +130,9 @@ describe("seguimiento e historial (P-API-04)", () => {
         await sql`UPDATE asignacion_alumno SET completada_en = '2026-09-15 10:00-07' WHERE actividad_id = ${ids[0]}`;
         const h = await d.como((tx) => historial(tx, {}));
         expect(h.items).toHaveLength(3);
-        expect([h.items[0].actividad, h.items[0].alumno, h.items[0].resultadoFinal]).toEqual(["Act 3", "Ana", "10.00"]);
+        expect([h.items[0].actividad, h.items[0].alumno, h.items[0].resultadoFinal]).toEqual(["Act 3", "Ana", 10]);
         // Act 1 se completó a la misma hora para ambos: el desempate es por id
-        expect(h.items.slice(1).map((e) => [e.actividad, e.resultadoFinal])).toEqual([["Act 1", "6.67"], ["Act 1", "6.67"]]);
+        expect(h.items.slice(1).map((e) => [e.actividad, e.resultadoFinal])).toEqual([["Act 1", 6.67], ["Act 1", 6.67]]);
         expect(h.items.slice(1).map((e) => e.alumno).sort()).toEqual(["Ana", "Beto"]);
         expect(h.items[0]).toMatchObject({ actividad: "Act 3", tiempoTotalMs: 15000, nivelInicial: 2 });
 

@@ -7,7 +7,7 @@ import type { Tx } from "../../infra/db";
  * hecho cuando ya existe la retroalimentación de la sesión (se genera al finalizarlo).
  */
 export async function estadoDiagnosticos(tx: Tx): Promise<EstadoDiagnosticos> {
-    const [r] = await tx`
+    const [r] = await tx.$queryRaw<EstadoDiagnosticos[]>`
         SELECT coalesce(bool_or(p.completado_en IS NOT NULL), false) AS panas,
                coalesce(bool_or(r.id IS NOT NULL), false) AS matematico
           FROM sesion_alumno s

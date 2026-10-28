@@ -67,8 +67,8 @@ rutasDocente.post("/alumnos/:id/invitacion", ruta(async (req, res) => {
     const id = paramId(req, "id", "Alumno no encontrado");
     const r = await conContexto(contextoDe(docente), async (tx) => {
         const inv = await renovarInvitacion(tx, id);
-        const [a] = inv ? await tx`SELECT nombre FROM alumno WHERE id = ${id}` : [];
-        return inv && { ...inv, alumno: a.nombre as string };
+        const a = inv ? await tx.alumno.findUnique({ where: { id }, select: { nombre: true } }) : null;
+        return inv && a && { ...inv, alumno: a.nombre };
     });
     if (!r) throw noEncontrado("Alumno no encontrado");
     const url = `${origen(req)}/consentimiento/${r.token}`;

@@ -39,12 +39,35 @@ Datos de demostración (`db/seed/0001_demo.sql`):
 | `npm run test:e2e` | Recorridos completos con Playwright y axe, en escritorio y tableta |
 | `npm run typecheck` | TypeScript en core, api, web y pruebas |
 
+## Base de datos y Prisma
+
+Las migraciones SQL de `db/migrations` son la fuente de verdad (RLS, funciones, triggers). Prisma solo las refleja:
+
+```sh
+npm run db:migrar   # aplica migraciones nuevas
+npm run db:pull     # regenera apps/api/prisma/schema.prisma y el cliente
+```
+
+Reglas para escribir consultas: ver el encabezado de `apps/api/src/infra/db.ts` y ADR-012.
+
 ## Despliegue (Vercel)
 
 `vercel.json` publica `apps/web/dist` como sitio estático y la API como función (`api/index.mjs`).
-Configura en Vercel las variables de `.env.example` (`DATABASE_URL` con el rol `numotion_app`,
-`CORREO_PROVEEDOR=smtp`, `SMTP_*`, `MAIL_FROM`, `WEB_ORIGIN`). Las migraciones se aplican con
-`DATABASE_OWNER_URL=… npm run db:migrar`.
+
+1. **Base de datos:** crea un PostgreSQL administrado (por ejemplo Neon desde el Marketplace de Vercel). Necesitas dos cadenas de conexión: la del rol dueño (migraciones) y la del rol `numotion_app` (la app).
+2. **Migraciones** desde tu equipo, con el rol dueño:
+   ```sh
+   DATABASE_OWNER_URL="postgres://…owner…" NUMOTION_APP_PASSWORD="<contraseña fuerte>" npm run db:migrar
+   ```
+   Crea el rol `numotion_app` (sin BYPASSRLS) con esa contraseña. **No** apliques `db:seed` en producción.
+3. **Proyecto en Vercel:** `npx vercel login` y `npx vercel link` en la raíz del repo.
+4. **Variables** (Settings → Environment Variables):
+   - `DATABASE_URL` = conexión **pooled** con el rol `numotion_app` + `?pgbouncer=true&connection_limit=1`
+   - `NODE_ENV=production`, `WEB_ORIGIN=https://<tu-dominio>`
+   - `CORREO_PROVEEDOR=smtp`, `SMTP_USUARIO`, `SMTP_PASSWORD`, `MAIL_FROM` (ver «Correo»)
+   - `EMOTION_PROVIDER` y `AWS_REGION` cuando se active la cámara (EXP-05)
+5. **Despliegue de prueba:** `npx vercel` (preview). Comprueba `/api/v1/catalogo/temas` (200 con temas) y el registro de un docente.
+6. **Producción:** `npx vercel --prod`.
 
 ## Correo (Google Workspace)
 

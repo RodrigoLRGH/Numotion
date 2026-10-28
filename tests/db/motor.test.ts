@@ -198,7 +198,7 @@ describe("completar la actividad (EXP-04.10)", () => {
         expect(s).toMatchObject({ completada: true, recompensa: { puntos: 20 } });
         const [r] = await sql`SELECT tipo, calificacion FROM resultado_academico WHERE asignacion_id = ${e.asignacionId}`;
         expect(r).toEqual({ tipo: "actividad_numotion", calificacion: "6.67" });
-        expect((await e.como((tx) => misActividades(tx, e.alumnoId)))[0]).toMatchObject({ estado: "completada", resultadoFinal: "6.67" });
+        expect((await e.como((tx) => misActividades(tx, e.alumnoId)))[0]).toMatchObject({ estado: "completada", resultadoFinal: 6.67 });
     });
 
     it("completar la operación sirve ejercicios con el faltante del tema", async () => {

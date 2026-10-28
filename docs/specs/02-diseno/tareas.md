@@ -9,7 +9,7 @@
 | T-02-05 | Escribir `0003_vistas.sql` (`v_estado_emocional_reciente`, `v_perfil_estadistico`, `mv_indice_tema_grupo`, `v_resultado_consolidado`, `v_cruce_academico_emocional`) | Migración | T-02-04 | ⬜ |
 | T-02-06 | Escribir `0004_rls.sql` (roles `numotion_owner`/`numotion_app`, funciones `app_user/app_role/docente_puede_ver`, políticas por tabla) | Migración + P-DB-04 | T-02-03 | ✅ |
 | T-02-07 | Escribir `0005_seed.sql`: temas, subtemas, ≥ 10 ejercicios por (tema, nivel) para tipos Must, PANAS-C (de T-01-03), banco diagnóstico (T-01-04), guías (T-01-05), insignias, mensajes, `config_adaptativa` | Seed reproducible | T-02-03, T-01-03…05 | ⬜ |
-| T-02-08 | Configurar Prisma con `prisma db pull` sobre las migraciones SQL (las migraciones SQL son la fuente de verdad) | `schema.prisma` | T-02-06 | ➖ Sustituida por postgres.js con SQL parametrizado (ADR-010) |
+| T-02-08 | Configurar Prisma con `prisma db pull` sobre las migraciones SQL (las migraciones SQL son la fuente de verdad) | `schema.prisma` | T-02-06 | ✅ `apps/api/prisma/schema.prisma` generado con `npm run db:pull` (ADR-012) |
 | T-02-09 | Escribir esquemas Zod en `packages/contracts` para todos los endpoints de `05-contratos-de-api.md` + esquemas de `ejercicio.enunciado/respuesta` por tipo | Paquete compilando, tipos exportados | T-02-01 | ⬜ |
 | T-02-10 | Generar `openapi.yaml` desde Zod | `docs/specs/02-diseno/openapi.yaml` | T-02-09 | ⬜ |
 | T-02-11 | Implementar validadores compartidos por tipo (`packages/contracts/validadores`), incluido Levenshtein para RF-39 | Funciones puras + P-UNIT-03, P-UNIT-08 | T-02-09 | ⬜ |

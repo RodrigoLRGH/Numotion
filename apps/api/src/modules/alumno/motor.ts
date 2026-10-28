@@ -9,12 +9,15 @@ import { clasificarError, esCorrecta, generarParaActividad } from "@numotion/cor
 import { textoParaHash } from "@numotion/core/dominio/respuesta";
 import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
 import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
-import type { Tx } from "../../infra/db";
+import { errorBd, num, Prisma, type Tx } from "../../infra/db";
 
 export const MAX_INTENTOS = 4;
 
+/** Valor para una columna jsonb (sin `undefined`, que Prisma rechaza). */
+const json = (v: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
+
 async function config<T>(tx: Tx, clave: string, porDefecto: T): Promise<T> {
-    const [c] = await tx`SELECT valor FROM config_adaptativa WHERE clave = ${clave}`;
+    const c = await tx.config_adaptativa.findUnique({ where: { clave }, select: { valor: true } });
     return (c?.valor as T | undefined) ?? porDefecto;
 }
 
@@ -29,19 +32,20 @@ export interface ActividadAlumno {
     fechaAsignacion: string;
     estado: "pendiente" | "en_curso" | "completada";
     progreso: { resueltos: number; total: number };
-    resultadoFinal: string | null;
+    resultadoFinal: number | null;
 }
 
 /** Asignaciones del alumno con fecha de hoy o anterior (A-28): en curso, pendientes y completadas. */
 export async function misActividades(tx: Tx, alumnoId: string): Promise<ActividadAlumno[]> {
-    return tx<ActividadAlumno[]>`
+    const filas = await tx.$queryRaw<(Omit<ActividadAlumno, "resultadoFinal"> & { resultadoFinal: Prisma.Decimal | null })[]>`
         SELECT s.id AS "asignacionId", ac.nombre, t.nombre AS tema, t.clave AS "temaClave", ac.tipo_interaccion AS "tipoInteraccion",
                to_char(ac.fecha_asignacion, 'YYYY-MM-DD') AS "fechaAsignacion", s.estado,
                json_build_object('resueltos', s.ejercicios_resueltos, 'total', ac.num_ejercicios) AS progreso,
                s.resultado_final AS "resultadoFinal"
           FROM asignacion_alumno s JOIN actividad ac ON ac.id = s.actividad_id JOIN tema t ON t.id = ac.tema_id
-         WHERE s.alumno_id = ${alumnoId} AND ac.fecha_asignacion <= fn_hoy_local()
+         WHERE s.alumno_id = ${alumnoId}::uuid AND ac.fecha_asignacion <= fn_hoy_local()
          ORDER BY CASE s.estado WHEN 'en_curso' THEN 0 WHEN 'pendiente' THEN 1 ELSE 2 END, ac.fecha_asignacion DESC, ac.nombre`;
+    return filas.map((f) => ({ ...f, resultadoFinal: num(f.resultadoFinal) }));
 }
 
 // ───────────── Representación del ejercicio ─────────────
@@ -103,8 +107,10 @@ function aPublico(f: FilaEjercicio): EjercicioPublico {
     };
 }
 
+const columnasEjercicio = { id: true, nivel: true, tipo_interaccion: true, enunciado: true, opciones: true, respuesta: true, pasos_solucion: true } as const;
+
 const cargarEjercicio = async (tx: Tx, id: string) =>
-    (await tx<FilaEjercicio[]>`SELECT id, nivel, tipo_interaccion, enunciado, opciones, respuesta, pasos_solucion FROM ejercicio WHERE id = ${id}`)[0];
+    (await tx.ejercicio.findUniqueOrThrow({ where: { id }, select: columnasEjercicio })) as unknown as FilaEjercicio;
 
 // ───────────── Asignación ─────────────
 
@@ -115,7 +121,7 @@ interface Asignacion {
     nivel_actual: number;
     ejercicios_resueltos: number;
     puntaje: number;
-    resultado_final: string | null;
+    resultado_final: Prisma.Decimal | null;
     ejercicio_actual_id: string | null;
     ayuda_actual: boolean;
     tema_id: string;
@@ -126,12 +132,13 @@ interface Asignacion {
 }
 
 async function cargarAsignacion(tx: Tx, alumnoId: string, id: string, bloquear = false): Promise<Asignacion | null> {
-    const filas = await tx<Asignacion[]>`
+    // Asignación + actividad + tema, con bloqueo de fila para serializar intentos simultáneos: SQL
+    const filas = await tx.$queryRaw<Asignacion[]>`
         SELECT s.id, s.estado, s.nivel_inicial, s.nivel_actual, s.ejercicios_resueltos, s.puntaje, s.resultado_final,
                s.ejercicio_actual_id, s.ayuda_actual, ac.tema_id, t.clave AS tema_clave, ac.tipo_interaccion, ac.num_ejercicios, ac.nombre
           FROM asignacion_alumno s JOIN actividad ac ON ac.id = s.actividad_id JOIN tema t ON t.id = ac.tema_id
-         WHERE s.id = ${id} AND s.alumno_id = ${alumnoId} AND ac.fecha_asignacion <= fn_hoy_local()
-        ${bloquear ? tx`FOR UPDATE OF s` : tx``}`;
+         WHERE s.id = ${id}::uuid AND s.alumno_id = ${alumnoId}::uuid AND ac.fecha_asignacion <= fn_hoy_local()
+        ${bloquear ? Prisma.sql`FOR UPDATE OF s` : Prisma.empty}`;
     return filas[0] ?? null;
 }
 
@@ -142,7 +149,7 @@ export interface Recompensa {
 }
 
 const recompensa = (a: Pick<Asignacion, "puntaje" | "resultado_final">): Recompensa => {
-    const resultado = Number(a.resultado_final ?? 0);
+    const resultado = num(a.resultado_final) ?? 0;
     return { puntos: a.puntaje, estrellas: estrellas(resultado), resultadoFinal: resultado };
 };
 
@@ -168,21 +175,26 @@ export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId:
     let intentosUsados = 0;
     if (a.ejercicio_actual_id) {
         fila = await cargarEjercicio(tx, a.ejercicio_actual_id);
-        [{ n: intentosUsados }] = await tx`SELECT count(*)::int AS n FROM intento_ejercicio WHERE asignacion_id = ${a.id} AND ejercicio_id = ${a.ejercicio_actual_id}`;
+        intentosUsados = await tx.intento_ejercicio.count({ where: { asignacion_id: a.id, ejercicio_id: a.ejercicio_actual_id } });
     } else {
-        const [{ n: presentados }] = await tx`SELECT count(DISTINCT ejercicio_id)::int AS n FROM intento_ejercicio WHERE asignacion_id = ${a.id}`;
+        const presentados = (await tx.intento_ejercicio.findMany({ where: { asignacion_id: a.id }, distinct: ["ejercicio_id"], select: { ejercicio_id: true } })).length;
         const rng = crearRng(semillaDeTexto(`actividad|${a.id}|${presentados}|${a.nivel_actual}`));
         const e = generarParaActividad(a.tema_clave, a.tipo_interaccion, a.nivel_actual, rng);
         if (!e) return { error: "sin_contenido" };
-        [fila] = await tx<FilaEjercicio[]>`
-            INSERT INTO ejercicio (tema_id, tipo_interaccion, nivel, enunciado, respuesta, opciones, pasos_solucion, origen)
-            VALUES (${a.tema_id}, ${a.tipo_interaccion}, ${a.nivel_actual},
-                    ${tx.json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado } as never)},
-                    ${tx.json({ valor: e.respuesta, generador: e.tema, datos: e.datos } as never)},
-                    ${e.opciones ? tx.json(e.opciones) : null},
-                    ${tx.json(e.pasos.map((texto, i) => ({ orden: i + 1, texto })))}, 'generador')
-            RETURNING id, nivel, tipo_interaccion, enunciado, opciones, respuesta, pasos_solucion`;
-        await tx`UPDATE asignacion_alumno SET ejercicio_actual_id = ${fila.id}, ayuda_actual = false WHERE id = ${a.id}`;
+        fila = (await tx.ejercicio.create({
+            data: {
+                tema_id: a.tema_id,
+                tipo_interaccion: a.tipo_interaccion,
+                nivel: a.nivel_actual,
+                enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado }),
+                respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos }),
+                opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
+                pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),
+                origen: "generador",
+            },
+            select: columnasEjercicio,
+        })) as unknown as FilaEjercicio;
+        await tx.asignacion_alumno.update({ where: { id: a.id }, data: { ejercicio_actual_id: fila.id, ayuda_actual: false }, select: { id: true } });
         a.ayuda_actual = false;
     }
     return {
@@ -200,11 +212,13 @@ export async function iniciarActividad(tx: Tx, alumnoId: string, asignacionId: s
     const a = await cargarAsignacion(tx, alumnoId, asignacionId, true);
     if (!a) return { error: "no_encontrada" };
     if (a.estado === "pendiente" && !a.ejercicio_actual_id) {
-        const [{ nivel }] = await tx`SELECT fn_nivel_inicial(${alumnoId}, ${a.tema_id}) AS nivel`;
+        const [{ nivel }] = await tx.$queryRaw<{ nivel: number }[]>`SELECT fn_nivel_inicial(${alumnoId}::uuid, ${a.tema_id}::uuid)::int AS nivel`;
         if (nivel !== a.nivel_actual) {
-            await tx`UPDATE asignacion_alumno SET nivel_actual = ${nivel} WHERE id = ${a.id}`;
-            await tx`INSERT INTO ajuste_dificultad (asignacion_id, alumno_id, nivel_anterior, nivel_nuevo, motivo, detalle)
-                     VALUES (${a.id}, ${alumnoId}, ${a.nivel_actual}, ${nivel}, 'inicial', ${tx.json({ regla: "diagnostico_del_dia" })})`;
+            await tx.asignacion_alumno.update({ where: { id: a.id }, data: { nivel_actual: nivel }, select: { id: true } });
+            await tx.ajuste_dificultad.create({
+                data: { asignacion_id: a.id, alumno_id: alumnoId, nivel_anterior: a.nivel_actual, nivel_nuevo: nivel, motivo: "inicial", detalle: json({ regla: "diagnostico_del_dia" }) },
+                select: { id: true },
+            });
         }
     }
     return siguienteEjercicio(tx, alumnoId, asignacionId);
@@ -222,7 +236,7 @@ export interface Guia {
 export async function pedirGuia(tx: Tx, alumnoId: string, asignacionId: string, ejercicioId: string): Promise<Guia | null> {
     const a = await cargarAsignacion(tx, alumnoId, asignacionId, true);
     if (!a || a.estado === "completada" || a.ejercicio_actual_id !== ejercicioId) return null;
-    await tx`UPDATE asignacion_alumno SET ayuda_actual = true WHERE id = ${a.id}`;
+    await tx.asignacion_alumno.update({ where: { id: a.id }, data: { ayuda_actual: true }, select: { id: true } });
     const fila = await cargarEjercicio(tx, ejercicioId);
     return { modo: "paso_a_paso", pasos: fila.pasos_solucion };
 }
@@ -252,22 +266,24 @@ export interface ResultadoIntento {
 export type FalloIntento = { error: "no_encontrada" | "completada" | "ejercicio_no_vigente" | "cliente_repetido" };
 
 async function senalesNivel(tx: Tx, a: Asignacion, ayudas: number) {
-    const ultimos = await tx<{ correcto: boolean; primero: boolean; tiempo: number; fin: Date }[]>`
+    const ultimos = await tx.$queryRaw<{ correcto: boolean; primero: boolean; tiempo: number; fin: Date }[]>`
         SELECT bool_or(correcta) AS correcto, bool_or(correcta AND numero_intento = 1) AS primero,
                sum(tiempo_ms)::int AS tiempo, max(creado_en) AS fin
-          FROM intento_ejercicio WHERE asignacion_id = ${a.id}
+          FROM intento_ejercicio WHERE asignacion_id = ${a.id}::uuid
          GROUP BY ejercicio_id HAVING bool_or(correcta) OR max(numero_intento) >= ${MAX_INTENTOS}
          ORDER BY max(creado_en) DESC`;
-    const intentos = await tx<{ correcta: boolean }[]>`
-        SELECT correcta FROM intento_ejercicio WHERE asignacion_id = ${a.id} ORDER BY creado_en DESC, numero_intento DESC LIMIT 20`;
+    const intentos = await tx.intento_ejercicio.findMany({
+        where: { asignacion_id: a.id },
+        orderBy: [{ creado_en: "desc" }, { numero_intento: "desc" }],
+        take: 20,
+        select: { correcta: true },
+    });
     const errores = intentos.findIndex((i) => i.correcta);
-    const [ultimoCambio] = await tx`SELECT max(creado_en) AS t FROM ajuste_dificultad WHERE asignacion_id = ${a.id}`;
-    const desde: Date | null = ultimoCambio?.t ?? null;
-    const [{ acepto }] = await tx`
-        SELECT EXISTS (SELECT 1 FROM alerta WHERE asignacion_id = ${a.id} AND alumno_acepto_ayuda
-                         AND creado_en > coalesce(${desde}::timestamptz, '-infinity')) AS acepto`;
+    const ultimoCambio = await tx.ajuste_dificultad.aggregate({ where: { asignacion_id: a.id }, _max: { creado_en: true } });
+    const desde: Date | null = ultimoCambio._max.creado_en;
+    const acepto = (await tx.alerta.count({ where: { asignacion_id: a.id, alumno_acepto_ayuda: true, ...(desde ? { creado_en: { gt: desde } } : {}) } })) > 0;
     const ventana = await config(tx, "ventana_seg", 60);
-    const muestras = await tx<{ estado_derivado: string; emocion: string }[]>`SELECT * FROM fn_estados_recientes(${ventana})`;
+    const muestras = await tx.$queryRaw<{ estado_derivado: string; emocion: string }[]>`SELECT * FROM fn_estados_recientes(${ventana}::int)`;
     const conDato = muestras.filter((m) => m.estado_derivado !== "sin_dato");
     const estado = estadoVentana(muestras.map((m) => ({ estado: m.estado_derivado, emocion: m.emocion })), 0);
     const erroresConsecutivos = errores === -1 ? intentos.length : errores;
@@ -282,7 +298,7 @@ async function senalesNivel(tx: Tx, a: Asignacion, ayudas: number) {
             inactividadSeg: 0,
             ayudasEnEjercicio: ayudas,
         }),
-        aceptoAyuda: acepto as boolean,
+        aceptoAyuda: acepto,
         tiempoReferenciaMs: await config(tx, "tiempo_referencia_ms", 30_000),
         umbralAlerta: await config(tx, "umbral_alerta", 0.6),
     };
@@ -290,15 +306,15 @@ async function senalesNivel(tx: Tx, a: Asignacion, ayudas: number) {
 
 export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento): Promise<ResultadoIntento | FalloIntento> {
     // Idempotencia: el mismo clienteId devuelve la misma respuesta
-    const [previo] = await tx`SELECT resultado FROM intento_ejercicio WHERE cliente_id = ${d.clienteId}`;
-    if (previo?.resultado) return previo.resultado as ResultadoIntento;
+    const previo = await tx.intento_ejercicio.findUnique({ where: { cliente_id: d.clienteId }, select: { resultado: true } });
+    if (previo?.resultado) return previo.resultado as unknown as ResultadoIntento;
 
     const a = await cargarAsignacion(tx, alumnoId, d.asignacionId, true);
     if (!a) return { error: "no_encontrada" };
     if (a.estado === "completada") return { error: "completada" };
     if (a.ejercicio_actual_id !== d.ejercicioId) return { error: "ejercicio_no_vigente" };
 
-    const [{ n: previos }] = await tx`SELECT count(*)::int AS n FROM intento_ejercicio WHERE asignacion_id = ${a.id} AND ejercicio_id = ${d.ejercicioId}`;
+    const previos = await tx.intento_ejercicio.count({ where: { asignacion_id: a.id, ejercicio_id: d.ejercicioId } });
     const numeroIntento = previos + 1;
     const fila = await cargarEjercicio(tx, d.ejercicioId);
     const ejercicio = aEjercicio(fila);
@@ -313,41 +329,67 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
               : null;
     const puntos = puntosPorEjercicio(correcta, numeroIntento, conGuia);
 
+    // El trigger trg_intento_asignacion avanza la asignación al insertar. SAVEPOINT explícito: si el
+    // clienteId ya es de otro alumno (RLS lo oculta arriba) el UNIQUE falla sin abortar la transacción.
     let id: string;
+    await tx.$executeRaw`SAVEPOINT intento`;
     try {
-        [{ id }] = await tx.savepoint((sp) => sp`
-            INSERT INTO intento_ejercicio (asignacion_id, alumno_id, ejercicio_id, nivel, respuesta, correcta, tipo_error, numero_intento,
-                                           tiempo_ms, ayuda_solicitada, guia_mostrada, cliente_id)
-            VALUES (${a.id}, ${alumnoId}, ${d.ejercicioId}, ${fila.nivel}, ${tx.json({ valor: d.respuesta.slice(0, 200) })}, ${correcta},
-                    ${correcta ? null : clasificarError(ejercicio, d.respuesta)}, ${numeroIntento}, ${Math.round(Math.min(d.tiempoMs, 30 * 60_000))},
-                    ${conGuia}, ${guia?.modo ?? (conGuia ? "paso_a_paso" : "ninguna")}, ${d.clienteId})
-            RETURNING id`);
+        ({ id } = await tx.intento_ejercicio.create({
+            data: {
+                asignacion_id: a.id,
+                alumno_id: alumnoId,
+                ejercicio_id: d.ejercicioId,
+                nivel: fila.nivel,
+                respuesta: json({ valor: d.respuesta.slice(0, 200) }),
+                correcta,
+                tipo_error: correcta ? null : clasificarError(ejercicio, d.respuesta),
+                numero_intento: numeroIntento,
+                tiempo_ms: Math.round(Math.min(d.tiempoMs, 30 * 60_000)),
+                ayuda_solicitada: conGuia,
+                guia_mostrada: guia?.modo ?? (conGuia ? "paso_a_paso" : "ninguna"),
+                cliente_id: d.clienteId,
+            },
+            select: { id: true },
+        }));
+        await tx.$executeRaw`RELEASE SAVEPOINT intento`;
     } catch (e) {
-        // clienteId usado en un intento que no es de este alumno (RLS lo oculta en la búsqueda de arriba)
-        if ((e as { code?: string }).code === "23505") return { error: "cliente_repetido" };
+        await tx.$executeRaw`ROLLBACK TO SAVEPOINT intento`;
+        if (errorBd(e)?.codigo === "23505") return { error: "cliente_repetido" };
         throw e;
     }
 
     if (puntos > 0) {
-        await tx`UPDATE asignacion_alumno SET puntaje = puntaje + ${puntos} WHERE id = ${a.id}`;
-        const [p] = await tx`UPDATE perfil_gamificacion SET puntos_totales = puntos_totales + ${puntos} WHERE alumno_id = ${alumnoId} RETURNING puntos_totales`;
-        if (p) await tx`UPDATE perfil_gamificacion SET nivel_gamificacion = ${nivelGamificacion(p.puntos_totales)} WHERE alumno_id = ${alumnoId}`;
+        await tx.asignacion_alumno.update({ where: { id: a.id }, data: { puntaje: { increment: puntos } }, select: { id: true } });
+        // El perfil existe desde el primer login; updateMany no falla si aún no existe
+        const { count } = await tx.perfil_gamificacion.updateMany({ where: { alumno_id: alumnoId }, data: { puntos_totales: { increment: puntos } } });
+        if (count) {
+            const p = await tx.perfil_gamificacion.findUniqueOrThrow({ where: { alumno_id: alumnoId }, select: { puntos_totales: true } });
+            await tx.perfil_gamificacion.update({ where: { alumno_id: alumnoId }, data: { nivel_gamificacion: nivelGamificacion(p.puntos_totales) }, select: { alumno_id: true } });
+        }
     }
 
     // Estado tras el trigger (avance y posible cierre de la asignación)
     const despues = (await cargarAsignacion(tx, alumnoId, a.id))!;
     let nivel = { anterior: a.nivel_actual, actual: a.nivel_actual, motivo: null as MotivoAjuste | null };
     if (cerrado) {
-        await tx`UPDATE asignacion_alumno SET ejercicio_actual_id = NULL, ayuda_actual = false WHERE id = ${a.id}`;
+        await tx.asignacion_alumno.update({ where: { id: a.id }, data: { ejercicio_actual_id: null, ayuda_actual: false }, select: { id: true } });
         if (despues.estado !== "completada") {
             const senales = await senalesNivel(tx, a, conGuia ? 1 : 0);
             const decision = decidirNivel({ nivelActual: a.nivel_actual, ...senales });
             if (decision.motivo && decision.nivelNuevo !== a.nivel_actual) {
-                await tx`UPDATE asignacion_alumno SET nivel_actual = ${decision.nivelNuevo} WHERE id = ${a.id}`;
-                await tx`INSERT INTO ajuste_dificultad (asignacion_id, alumno_id, nivel_anterior, nivel_nuevo, motivo, detalle)
-                         VALUES (${a.id}, ${alumnoId}, ${a.nivel_actual}, ${decision.nivelNuevo}, ${decision.motivo},
-                                 ${tx.json({ reglas: decision.reglas, IF: senales.indiceFrustracion, estadoVentana: senales.estadoVentana,
-                                             ultimos3: senales.ultimos3, erroresConsecutivos: senales.erroresConsecutivos } as never)})`;
+                await tx.asignacion_alumno.update({ where: { id: a.id }, data: { nivel_actual: decision.nivelNuevo }, select: { id: true } });
+                await tx.ajuste_dificultad.create({
+                    data: {
+                        asignacion_id: a.id,
+                        alumno_id: alumnoId,
+                        nivel_anterior: a.nivel_actual,
+                        nivel_nuevo: decision.nivelNuevo,
+                        motivo: decision.motivo,
+                        detalle: json({ reglas: decision.reglas, IF: senales.indiceFrustracion, estadoVentana: senales.estadoVentana,
+                                        ultimos3: senales.ultimos3, erroresConsecutivos: senales.erroresConsecutivos }),
+                    },
+                    select: { id: true },
+                });
                 nivel = { anterior: a.nivel_actual, actual: decision.nivelNuevo, motivo: decision.motivo };
             }
         }
@@ -363,6 +405,6 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
         asignacion: { estado: despues.estado, resueltos: despues.ejercicios_resueltos, total: despues.num_ejercicios },
         recompensa: despues.estado === "completada" ? recompensa({ puntaje: a.puntaje + puntos, resultado_final: despues.resultado_final }) : null,
     };
-    await tx`UPDATE intento_ejercicio SET resultado = ${tx.json(resultado as never)} WHERE id = ${id}`;
+    await tx.intento_ejercicio.update({ where: { id }, data: { resultado: json(resultado) }, select: { id: true } });
     return resultado;
 }

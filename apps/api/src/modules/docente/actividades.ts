@@ -3,7 +3,7 @@
 import { tiposDeTema, type TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
 import { combinacionDisponible } from "@numotion/core/dominio/contenido";
 import { codificarCursor, decodificarCursor } from "@numotion/core/dominio/cursor";
-import type { Tx } from "../../infra/db";
+import { num, Prisma, type Tx } from "../../infra/db";
 
 export type Destino = { tipo: "grupo"; grupoId: string } | { tipo: "alumnos"; alumnoIds: string[] };
 
@@ -20,18 +20,18 @@ export interface NivelPrevisto {
 /** Niveles iniciales por alumno (paso 3 del asistente). null si el grupo o algún alumno no es del docente. */
 export async function previsualizarNiveles(tx: Tx, temaId: string, destino: Destino): Promise<NivelPrevisto[] | null> {
     if (destino.tipo === "grupo") {
-        const [g] = await tx`SELECT id FROM grupo WHERE id = ${destino.grupoId}`;
+        const g = await tx.grupo.findUnique({ where: { id: destino.grupoId }, select: { id: true } });
         if (!g) return null;
     }
     const ids = destino.tipo === "alumnos" ? [...new Set(destino.alumnoIds)] : [];
-    const filas = await tx<NivelPrevisto[]>`
+    const filas = await tx.$queryRaw<NivelPrevisto[]>`
         SELECT a.id AS "alumnoId", trim(a.nombre || ' ' || a.apellidos) AS nombre, a.avatar,
-               fn_nivel_inicial(a.id, ${temaId}) AS "nivelInicial",
+               fn_nivel_inicial(a.id, ${temaId}::uuid)::int AS "nivelInicial",
                NOT EXISTS (SELECT 1 FROM diagnostico_mat_resultado d
-                            WHERE d.alumno_id = a.id AND d.tema_id = ${temaId} AND d.creado_en > now() - interval '30 days') AS "sinDiagnostico",
+                            WHERE d.alumno_id = a.id AND d.tema_id = ${temaId}::uuid AND d.creado_en > now() - interval '30 days') AS "sinDiagnostico",
                (SELECT r.estado_inicial FROM retroalimentacion r WHERE r.alumno_id = a.id ORDER BY r.creado_en DESC LIMIT 1) AS "estadoInicial"
           FROM alumno a
-         WHERE a.activo AND ${destino.tipo === "grupo" ? tx`a.grupo_id = ${destino.grupoId}` : tx`a.id = ANY(${ids}::uuid[])`}
+         WHERE a.activo AND ${destino.tipo === "grupo" ? Prisma.sql`a.grupo_id = ${destino.grupoId}::uuid` : Prisma.sql`a.id = ANY(${ids}::uuid[])`}
          ORDER BY a.nombre, a.apellidos`;
     if (destino.tipo === "alumnos" && filas.length !== ids.length) return null;
     return filas;
@@ -52,7 +52,7 @@ export type ResultadoCrear =
 
 /** Crea la actividad y sus asignaciones en una sola transacción (fn_registrar_asignacion). */
 export async function crearActividad(tx: Tx, docenteId: string, d: DatosActividad): Promise<ResultadoCrear> {
-    const [tema] = await tx`SELECT clave FROM tema WHERE id = ${d.temaId}`;
+    const tema = await tx.tema.findUnique({ where: { id: d.temaId }, select: { clave: true } });
     if (!tema) return { ok: false, status: 404, message: "Tema no encontrado" };
     if (!tiposDeTema(tema.clave).includes(d.tipoInteraccion)) {
         return { ok: false, status: 422, message: "Ese tipo de ejercicio no está disponible para el tema" };
@@ -62,14 +62,14 @@ export async function crearActividad(tx: Tx, docenteId: string, d: DatosActivida
     }
     const grupo = d.destino.tipo === "grupo" ? d.destino.grupoId : null;
     const alumnos = d.destino.tipo === "alumnos" ? [...new Set(d.destino.alumnoIds)] : [];
-    const [{ id }] = await tx`
-        SELECT fn_registrar_asignacion(${docenteId}, ${d.nombre}, ${d.temaId}, ${d.tipoInteraccion}, ${d.fechaAsignacion}::text::date,
-                                       ${d.numEjercicios}::smallint, ${grupo}, ${alumnos}::uuid[]) AS id`;
-    const asignaciones = await tx<{ alumnoId: string; nivelInicial: number; sinDiagnostico: boolean }[]>`
+    const [{ id }] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT fn_registrar_asignacion(${docenteId}::uuid, ${d.nombre}, ${d.temaId}::uuid, ${d.tipoInteraccion}::tipo_interaccion,
+                                       ${d.fechaAsignacion}::text::date, ${d.numEjercicios}::smallint, ${grupo}::uuid, ${alumnos}::uuid[]) AS id`;
+    const asignaciones = await tx.$queryRaw<{ alumnoId: string; nivelInicial: number; sinDiagnostico: boolean }[]>`
         SELECT s.alumno_id AS "alumnoId", s.nivel_inicial AS "nivelInicial",
                NOT EXISTS (SELECT 1 FROM diagnostico_mat_resultado dm
-                            WHERE dm.alumno_id = s.alumno_id AND dm.tema_id = ${d.temaId} AND dm.creado_en > now() - interval '30 days') AS "sinDiagnostico"
-          FROM asignacion_alumno s WHERE s.actividad_id = ${id}`;
+                            WHERE dm.alumno_id = s.alumno_id AND dm.tema_id = ${d.temaId}::uuid AND dm.creado_en > now() - interval '30 days') AS "sinDiagnostico"
+          FROM asignacion_alumno s WHERE s.actividad_id = ${id}::uuid`;
     return { ok: true, actividadId: id, asignaciones };
 }
 
@@ -83,7 +83,20 @@ export interface AlumnoEnActividad {
     nivelInicial: number;
     nivelActual: number;
     resueltos: number;
-    resultadoFinal: string | null;
+    resultadoFinal: number | null;
+}
+
+interface FilaActividad {
+    id: string;
+    nombre: string;
+    tema: string;
+    tipo_interaccion: string;
+    fecha: string;
+    num_ejercicios: number;
+    grupo: string | null;
+    pendiente: number;
+    en_curso: number;
+    completada: number;
 }
 
 export interface ActividadAsignada {
@@ -109,7 +122,7 @@ export async function actividadesAsignadas(
 ): Promise<Pagina<ActividadAsignada>> {
     const limite = Math.min(f.limite ?? 20, 50);
     const desde = decodificarCursor(f.cursor);
-    const filas = await tx`
+    const filas = await tx.$queryRaw<FilaActividad[]>`
         SELECT ac.id, ac.nombre, t.nombre AS tema, ac.tipo_interaccion, to_char(ac.fecha_asignacion, 'YYYY-MM-DD') AS fecha,
                ac.num_ejercicios, g.nombre AS grupo,
                count(*) FILTER (WHERE s.estado = 'pendiente')::int AS pendiente,
@@ -121,22 +134,22 @@ export async function actividadesAsignadas(
           JOIN asignacion_alumno s ON s.actividad_id = ac.id
           JOIN alumno a ON a.id = s.alumno_id
          WHERE true
-           ${f.grupoId ? tx`AND a.grupo_id = ${f.grupoId}` : tx``}
-           ${desde ? tx`AND (ac.fecha_asignacion, ac.id) < (${desde.orden}::text::date, ${desde.id}::uuid)` : tx``}
+           ${f.grupoId ? Prisma.sql`AND a.grupo_id = ${f.grupoId}::uuid` : Prisma.empty}
+           ${desde ? Prisma.sql`AND (ac.fecha_asignacion, ac.id) < (${desde.orden}::text::date, ${desde.id}::uuid)` : Prisma.empty}
          GROUP BY ac.id, t.nombre, g.nombre
-        ${f.estado === "activas" ? tx`HAVING count(*) FILTER (WHERE s.estado <> 'completada') > 0` : tx``}
+        ${f.estado === "activas" ? Prisma.sql`HAVING count(*) FILTER (WHERE s.estado <> 'completada') > 0` : Prisma.empty}
          ORDER BY ac.fecha_asignacion DESC, ac.id DESC
          LIMIT ${limite + 1}`;
     const pagina = filas.slice(0, limite);
     const ids = pagina.map((p) => p.id as string);
     const alumnos = ids.length
-        ? await tx<(AlumnoEnActividad & { actividadId: string })[]>`
+        ? await tx.$queryRaw<(Omit<AlumnoEnActividad, "resultadoFinal"> & { actividadId: string; resultadoFinal: Prisma.Decimal | null })[]>`
             SELECT s.actividad_id AS "actividadId", s.alumno_id AS "alumnoId", trim(a.nombre || ' ' || a.apellidos) AS nombre, a.avatar,
                    s.estado, s.nivel_inicial AS "nivelInicial", s.nivel_actual AS "nivelActual",
                    s.ejercicios_resueltos AS resueltos, s.resultado_final AS "resultadoFinal"
               FROM asignacion_alumno s JOIN alumno a ON a.id = s.alumno_id
              WHERE s.actividad_id = ANY(${ids}::uuid[])
-               ${f.grupoId ? tx`AND a.grupo_id = ${f.grupoId}` : tx``}
+               ${f.grupoId ? Prisma.sql`AND a.grupo_id = ${f.grupoId}::uuid` : Prisma.empty}
              ORDER BY a.nombre, a.apellidos`
         : [];
     const ultimo = pagina.at(-1);
@@ -150,7 +163,7 @@ export async function actividadesAsignadas(
             numEjercicios: p.num_ejercicios,
             grupo: p.grupo,
             resumen: { pendiente: p.pendiente, enCurso: p.en_curso, completada: p.completada },
-            alumnos: alumnos.filter((a) => a.actividadId === p.id).map(({ actividadId: _, ...a }) => a),
+            alumnos: alumnos.filter((a) => a.actividadId === p.id).map(({ actividadId: _, ...a }) => ({ ...a, resultadoFinal: num(a.resultadoFinal) })),
         })),
         nextCursor: filas.length > limite && ultimo ? codificarCursor({ orden: ultimo.fecha, id: ultimo.id }) : null,
     };
@@ -165,7 +178,7 @@ export interface EntradaHistorial {
     alumno: string;
     tema: string;
     completadaEn: Date;
-    resultadoFinal: string | null;
+    resultadoFinal: number | null;
     nivelInicial: number;
     nivelFinal: number;
     tiempoTotalMs: number;
@@ -185,8 +198,8 @@ export interface FiltrosHistorial {
 export async function historial(tx: Tx, f: FiltrosHistorial): Promise<Pagina<EntradaHistorial>> {
     const limite = Math.min(f.limite ?? 25, 100);
     const desde = decodificarCursor(f.cursor);
-    const local = tx`(s.completada_en AT TIME ZONE 'America/Tijuana')::date`;
-    const filas = await tx<(EntradaHistorial & { orden: string })[]>`
+    const local = Prisma.sql`(s.completada_en AT TIME ZONE 'America/Tijuana')::date`;
+    const filas = await tx.$queryRaw<(Omit<EntradaHistorial, "resultadoFinal"> & { orden: string; resultadoFinal: Prisma.Decimal | null })[]>`
         SELECT s.id AS "asignacionId", ac.nombre AS actividad, a.id AS "alumnoId", trim(a.nombre || ' ' || a.apellidos) AS alumno,
                t.nombre AS tema, s.completada_en AS "completadaEn", s.resultado_final AS "resultadoFinal",
                s.nivel_inicial AS "nivelInicial", s.nivel_actual AS "nivelFinal",
@@ -197,18 +210,18 @@ export async function historial(tx: Tx, f: FiltrosHistorial): Promise<Pagina<Ent
           JOIN alumno a ON a.id = s.alumno_id
           JOIN tema t ON t.id = ac.tema_id
          WHERE s.estado = 'completada'
-           ${f.alumnoId ? tx`AND s.alumno_id = ${f.alumnoId}` : tx``}
-           ${f.temaId ? tx`AND ac.tema_id = ${f.temaId}` : tx``}
-           ${f.grupoId ? tx`AND a.grupo_id = ${f.grupoId}` : tx``}
-           ${f.desde ? tx`AND ${local} >= ${f.desde}::text::date` : tx``}
-           ${f.hasta ? tx`AND ${local} <= ${f.hasta}::text::date` : tx``}
-           ${desde ? tx`AND (s.completada_en, s.id) < ((${desde.orden}::text::timestamp AT TIME ZONE 'UTC'), ${desde.id}::uuid)` : tx``}
+           ${f.alumnoId ? Prisma.sql`AND s.alumno_id = ${f.alumnoId}::uuid` : Prisma.empty}
+           ${f.temaId ? Prisma.sql`AND ac.tema_id = ${f.temaId}::uuid` : Prisma.empty}
+           ${f.grupoId ? Prisma.sql`AND a.grupo_id = ${f.grupoId}::uuid` : Prisma.empty}
+           ${f.desde ? Prisma.sql`AND ${local} >= ${f.desde}::text::date` : Prisma.empty}
+           ${f.hasta ? Prisma.sql`AND ${local} <= ${f.hasta}::text::date` : Prisma.empty}
+           ${desde ? Prisma.sql`AND (s.completada_en, s.id) < ((${desde.orden}::text::timestamp AT TIME ZONE 'UTC'), ${desde.id}::uuid)` : Prisma.empty}
          ORDER BY s.completada_en DESC, s.id DESC
          LIMIT ${limite + 1}`;
     const pagina = filas.slice(0, limite);
     const ultimo = pagina.at(-1);
     return {
-        items: pagina.map(({ orden: _, ...e }) => e),
+        items: pagina.map(({ orden: _, ...e }) => ({ ...e, resultadoFinal: num(e.resultadoFinal) })),
         nextCursor: filas.length > limite && ultimo ? codificarCursor({ orden: ultimo.orden, id: ultimo.asignacionId }) : null,
     };
 }

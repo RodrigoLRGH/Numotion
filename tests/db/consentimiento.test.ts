@@ -132,7 +132,7 @@ describe("aceptar, cámara separada y revocar (EXP-01.5, HU-03)", () => {
         const eventos = await sql`SELECT accion FROM auditoria_acceso WHERE recurso_id = ${inv.alumnoId} ORDER BY id`;
         expect(eventos.map((e) => e.accion)).toEqual(["consentimiento", "arco"]);
         // El docente del grupo ve la solicitud
-        expect(await conContexto(inv.ctx, (tx) => tx`SELECT tipo FROM solicitud_arco WHERE alumno_id = ${inv.alumnoId}`)).toHaveLength(1);
+        expect(await conContexto(inv.ctx, (tx) => tx.$queryRaw<unknown[]>`SELECT tipo FROM solicitud_arco WHERE alumno_id = ${inv.alumnoId}::uuid`)).toHaveLength(1);
     });
 
     it("otro docente no puede generar enlaces para alumnos ajenos", async () => {

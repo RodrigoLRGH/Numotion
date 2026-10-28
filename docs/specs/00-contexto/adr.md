@@ -101,3 +101,19 @@ Formato: Contexto · Decisión · Consecuencias · Estado. Una decisión aceptad
 **Desviaciones respecto de ADR-008:** React 19 (no 18); sin TanStack Query ni Zustand (estado local + `AuthProvider` bastan por ahora); sin Prisma (SQL parametrizado); arrastre sin dnd-kit (nativo + alternativa por toque). Se pueden incorporar si una pantalla lo justifica.
 **Despliegue:** Vercel sirve `apps/web/dist` como estático y la API como función (`api/index.mjs`, que importa el bundle de `apps/api`); `vercel.json` reescribe `/api/*` a la función y el resto a `index.html`, y fija las cabeceras de seguridad del SPA.
 **Consecuencias:** En desarrollo, Vite (:5173) hace de proxy de `/api` hacia Express (:3000): mismo origen, sin CORS. Las guardas del cliente son UX; la API valida todo de nuevo (`decidirAcceso`, RLS).
+
+## ADR-012 · Prisma como capa de acceso a datos (T-02-08)
+**Estado:** Aceptado (2026-10-27, decisión del responsable del proyecto)
+**Contexto:** ADR-008 y T-02-08 piden Prisma con `prisma db pull` sobre las migraciones SQL. ADR-010/011 usaban postgres.js.
+**Decisión:**
+- **Prisma 6.19** (`prisma-client-js`, `binaryTargets` con `rhel-openssl-3.0.x` para Vercel). Prisma 7 se descartó por ahora: cambia a adaptadores obligatorios y `prisma.config.ts`, con menos recorrido.
+- **Las migraciones SQL siguen siendo la fuente de verdad** (RLS, funciones, triggers, CHECK y permisos por columna no caben en Prisma Migrate). `apps/api/prisma/schema.prisma` se genera con `npm run db:pull` y no se edita a mano.
+- `conContexto` usa transacciones interactivas de Prisma y fija `app.user_id`/`app.role` con `set_config(..., true)`.
+- **API tipada** para el CRUD simple (configuración, ítems, sesiones, grupos, ejercicios, intentos, ajustes, puntos). **`$queryRaw`** para lo que Prisma no expresa: llamadas a funciones `SECURITY DEFINER`, reportes con agregados y `LATERAL`, mezcla `jsonb`, `FOR UPDATE` y la fecha local de la escuela (`fn_hoy_local`).
+**Reglas (documentadas en `apps/api/src/infra/db.ts`):**
+- En `$queryRaw` los parámetros string viajan como `text`: UUID y enums llevan cast explícito (`::uuid`, `::tipo_interaccion`).
+- La app no puede leer `pin_hash`, `password_hash` ni `token_hash`: en esas tablas, `select` explícito siempre.
+- En `alumno` y `consentimiento_tutor` el `INSERT` va en SQL: Prisma agrega al `INSERT` los valores por defecto del esquema y la app solo tiene permiso sobre ciertas columnas (protege contadores de bloqueo y la aceptación del tutor).
+- Prisma no expone savepoints en transacciones interactivas: se usan `SAVEPOINT` explícitos donde se recupera de un `UNIQUE`.
+- `numeric` llega como `Decimal`: los servicios devuelven `number` (p. ej. `resultadoFinal: 6.67`).
+**Consecuencias:** postgres.js queda solo en pruebas y en `scripts/migrar.mjs` (rol dueño). En serverless con pooler (Neon/Supabase) la `DATABASE_URL` lleva `?pgbouncer=true&connection_limit=1`.

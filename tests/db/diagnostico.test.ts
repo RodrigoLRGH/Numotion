@@ -171,7 +171,7 @@ describe("diagnóstico matemático y retroalimentación (EXP-02.2–02.4, 02.6)"
         await completarPanas(a, { positivo: 3, negativo: 2 });
         await responderDiagnostico(a, () => true);
         await a.como((tx) => finalizarMatematico(tx, a.alumnoId));
-        const filas = await conContexto(a.ctxDocente, (tx) => tx`SELECT estado_inicial FROM retroalimentacion WHERE alumno_id = ${a.alumnoId}`);
+        const filas = await conContexto(a.ctxDocente, (tx) => tx.$queryRaw<unknown[]>`SELECT estado_inicial FROM retroalimentacion WHERE alumno_id = ${a.alumnoId}::uuid`);
         expect(filas).toHaveLength(1);
     });
 });

@@ -26,8 +26,26 @@ export interface VistaConsentimiento {
     aviso: { version: string | null; url: string | null };
 }
 
+interface FilaConsentimiento {
+    alumno_nombre: string;
+    grupo: string;
+    docente: string;
+    tutor_nombre: string;
+    tutor_email: string;
+    parentesco: string | null;
+    version_aviso: string;
+    version_vigente: string | null;
+    aviso_url: string | null;
+    acepta_plataforma: boolean;
+    acepta_camara: boolean;
+    aceptado_en: Date | null;
+    revocado_en: Date | null;
+    token_expira_en: Date;
+}
+
 export async function verConsentimiento(token: string): Promise<VistaConsentimiento | null> {
-    const [c] = await conContexto(null, (tx) => tx`SELECT * FROM fn_consentimiento_por_token(${hashToken(token)})`);
+    const [c] = await conContexto(null, (tx) =>
+        tx.$queryRaw<FilaConsentimiento[]>`SELECT * FROM fn_consentimiento_por_token(${hashToken(token)})`);
     if (!c) return null;
     return {
         alumno: c.alumno_nombre,
@@ -51,7 +69,9 @@ export async function verConsentimiento(token: string): Promise<VistaConsentimie
 export async function enviarCodigo(token: string): Promise<"ok" | "token_invalido" | "espera"> {
     const otp = randomInt(0, 1_000_000).toString().padStart(6, "0");
     const tokenHash = hashToken(token);
-    const [r] = await conContexto(null, (tx) => tx`SELECT * FROM fn_consentimiento_nuevo_otp(${tokenHash}, ${hashOtp(tokenHash, otp)})`);
+    const [r] = await conContexto(null, (tx) =>
+        tx.$queryRaw<{ resultado: "ok" | "token_invalido" | "espera"; tutor_email: string }[]>`
+            SELECT * FROM fn_consentimiento_nuevo_otp(${tokenHash}, ${hashOtp(tokenHash, otp)})`);
     if (r.resultado !== "ok") return r.resultado;
     await proveedorCorreo().enviar({
         para: r.tutor_email,
@@ -69,7 +89,7 @@ export async function aceptarConsentimiento(
     ip: string | null,
 ): Promise<Resultado> {
     const tokenHash = hashToken(token);
-    const [{ r }] = await conContexto(null, (tx) => tx`
+    const [{ r }] = await conContexto(null, (tx) => tx.$queryRaw<{ r: Resultado }[]>`
         SELECT fn_consentimiento_aceptar(${tokenHash}, ${hashOtp(tokenHash, d.otp)}, ${d.tutorNombre}, ${d.parentesco},
                                          ${d.aceptaCamara}, ${ip}::inet) AS r`);
     return r;
@@ -77,14 +97,14 @@ export async function aceptarConsentimiento(
 
 export async function revocarConsentimiento(token: string, otp: string, ip: string | null): Promise<Resultado> {
     const tokenHash = hashToken(token);
-    const [{ r }] = await conContexto(null, (tx) => tx`SELECT fn_consentimiento_revocar(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${ip}::inet) AS r`);
+    const [{ r }] = await conContexto(null, (tx) => tx.$queryRaw<{ r: Resultado }[]>`SELECT fn_consentimiento_revocar(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${ip}::inet) AS r`);
     return r;
 }
 
 export async function solicitarArco(token: string, otp: string, tipo: TipoArco, detalle: string, ip: string | null): Promise<Resultado> {
     const tokenHash = hashToken(token);
     const [{ r }] = await conContexto(null, (tx) =>
-        tx`SELECT fn_consentimiento_arco(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${tipo}, ${detalle}, ${ip}::inet) AS r`);
+        tx.$queryRaw<{ r: Resultado }[]>`SELECT fn_consentimiento_arco(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${tipo}::tipo_arco, ${detalle}, ${ip}::inet) AS r`);
     return r;
 }
 
@@ -94,7 +114,7 @@ export async function solicitarArco(token: string, otp: string, tipo: TipoArco, 
 export async function renovarInvitacion(tx: Tx, alumnoId: string): Promise<{ token: string; expira: Date; tutorEmail: string } | null> {
     const { token, hash } = nuevoToken();
     const expira = new Date(Date.now() + VIGENCIA_INVITACION_MS);
-    const [r] = await tx`SELECT * FROM fn_renovar_invitacion(${alumnoId}, ${hash}, ${expira})`;
+    const [r] = await tx.$queryRaw<{ resultado: string; tutor_email: string }[]>`SELECT * FROM fn_renovar_invitacion(${alumnoId}::uuid, ${hash}, ${expira})`;
     return r.resultado === "ok" ? { token, expira, tutorEmail: r.tutor_email } : null;
 }
 
