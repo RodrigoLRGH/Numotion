@@ -1,0 +1,27 @@
+{
+  "name": "@numotion/api",
+  "private": true,
+  "type": "module",
+  "version": "0.2.0",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/servidor.ts",
+    "start": "node --env-file-if-exists=../../.env dist/servidor.js",
+    "build": "esbuild src/servidor.ts src/app.ts --bundle --platform=node --format=esm --target=node20 --outdir=dist --packages=external --alias:@numotion/core=../../packages/core/src"
+  },
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.700.0",
+    "@numotion/core": "*",
+    "cookie-parser": "1.4.7",
+    "express": "4.21.2",
+    "nodemailer": "^10.0.16",
+    "postgres": "^3.4.5",
+    "zod": "3.24.4"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "1.4.8",
+    "@types/express": "4.17.21",
+    "@types/nodemailer": "^8.0.2",
+    "esbuild": "0.25.5",
+    "tsx": "4.19.4"
+  }
+}

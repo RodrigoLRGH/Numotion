@@ -1,6 +1,6 @@
 // T-03-01-03 · conContexto: la app se conecta como numotion_app y el contexto vive solo en la transacción.
 import { afterAll, describe, expect, it } from "vitest";
-import { conContexto, crearCliente } from "../../src/modules/shared/servidor/db";
+import { conContexto, crearCliente } from "../../apps/api/src/infra/db";
 
 const url = process.env.TEST_DATABASE_URL ?? "postgres://numotion_app:numotion_app@localhost:5433/numotion_test";
 const app = crearCliente(url);

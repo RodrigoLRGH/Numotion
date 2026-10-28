@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TIPOS_INTERACCION, TIPOS_POR_TEMA, tiposDeTema } from "../../src/modules/shared/dominio/catalogo";
-import { codificarCursor, decodificarCursor } from "../../src/modules/shared/dominio/cursor";
+import { TIPOS_INTERACCION, TIPOS_POR_TEMA, tiposDeTema } from "@numotion/core/dominio/catalogo";
+import { codificarCursor, decodificarCursor } from "@numotion/core/dominio/cursor";
 
 describe("catálogo de tipos por tema (A-25)", () => {
     it("cada tema del catálogo de BD tiene al menos un tipo y todos existen en el enum", () => {

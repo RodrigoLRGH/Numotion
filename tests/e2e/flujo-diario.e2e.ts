@@ -3,7 +3,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import postgres from "postgres";
-import { ICONOS_PIN } from "../../src/modules/shared/dominio/acceso";
+import { ICONOS_PIN } from "@numotion/core/dominio/acceso";
 
 const owner = postgres(process.env.DATABASE_OWNER_URL ?? "postgres://numotion_owner:numotion_owner@localhost:5433/numotion", { max: 1, onnotice: () => {} });
 test.afterAll(() => owner.end());
@@ -39,7 +39,7 @@ test("alumno: entra con c처digo, avatar y PIN; responde los diagn처sticos del d�
     test.setTimeout(120_000); // ~15 preguntas con su pausa de retroalimentaci처n
     const { grupo, alta } = await prepararGrupo(page);
 
-    await page.goto("/entrar");
+    await page.goto("/alumno/entrar");
     await sinViolacionesSerias(page);
     await captura(page, "01-codigo");
     await page.getByLabel("C처digo del grupo").fill(grupo.codigoAcceso.toLowerCase());
@@ -97,7 +97,7 @@ test("docente: entra, ve su grupo con c처digo y da de alta un alumno", async ({ 
     const { email } = await prepararGrupo(page);
 
     await page.goto("/docente");
-    await expect(page).toHaveURL(/\/login\?siguiente=%2Fdocente$/);
+    await expect(page).toHaveURL(/\/docente\/entrar\?next=%2Fdocente$/);
     await sinViolacionesSerias(page);
     await captura(page, "07-login");
     await page.getByLabel("Correo").fill(email);
@@ -124,5 +124,5 @@ test("docente: entra, ve su grupo con c처digo y da de alta un alumno", async ({ 
     await page.getByRole("button", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.goto("/docente/grupos");
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/docente\/entrar/);
 });

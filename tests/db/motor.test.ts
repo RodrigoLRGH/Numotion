@@ -1,10 +1,10 @@
 // P-API-02 · motor de ejercicios (EXP-04.1, 04.4–04.6, 04.10) y P-DB-05 · ajustes de nivel registrados.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { registrarDocente } from "../../src/modules/shared/servidor/auth";
-import { conContexto, type Contexto } from "../../src/modules/shared/servidor/db";
-import { crearAlumno, crearGrupo } from "../../src/modules/docente/servidor/grupos";
-import { crearActividad } from "../../src/modules/docente/servidor/actividades";
+import { registrarDocente } from "../../apps/api/src/modules/core/auth";
+import { conContexto, type Contexto } from "../../apps/api/src/infra/db";
+import { crearAlumno, crearGrupo } from "../../apps/api/src/modules/docente/grupos";
+import { crearActividad } from "../../apps/api/src/modules/docente/actividades";
 import {
     hashRespuesta,
     iniciarActividad,
@@ -13,7 +13,7 @@ import {
     registrarIntento,
     siguienteEjercicio,
     type ResultadoIntento,
-} from "../../src/modules/alumno/servidor/motor";
+} from "../../apps/api/src/modules/alumno/motor";
 import { sql } from "./fixture";
 
 async function escenario(opciones: { num?: number; fecha?: string; alumnos?: number; tipo?: "seleccion_multiple" | "completar_operacion" } = {}) {

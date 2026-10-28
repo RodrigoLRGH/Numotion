@@ -5,16 +5,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const irA = vi.fn();
-vi.mock("../../src/modules/shared/cliente/api", async (original) => ({
-    ...(await original<typeof import("../../src/modules/shared/cliente/api")>()),
+vi.mock("../../apps/web/src/shared/cliente/api", async (original) => ({
+    ...(await original<typeof import("../../apps/web/src/shared/cliente/api")>()),
     irA: (ruta: string) => irA(ruta),
 }));
 
-import { EjercicioArrastrar } from "../../src/modules/alumno/ejercicios/EjercicioArrastrar";
-import { EjercicioOpciones } from "../../src/modules/alumno/ejercicios/EjercicioOpciones";
-import { GuiaPasoAPaso } from "../../src/modules/alumno/componentes/GuiaPasoAPaso";
-import ResolverActividad from "../../src/modules/alumno/componentes/ResolverActividad";
-import { textoParaHash } from "../../src/modules/shared/dominio/respuesta";
+import { EjercicioArrastrar } from "../../apps/web/src/modules/alumno/ejercicios/EjercicioArrastrar";
+import { EjercicioOpciones } from "../../apps/web/src/modules/alumno/ejercicios/EjercicioOpciones";
+import { GuiaPasoAPaso } from "../../apps/web/src/modules/alumno/componentes/GuiaPasoAPaso";
+import ResolverActividad from "../../apps/web/src/modules/alumno/componentes/ResolverActividad";
+import { textoParaHash } from "@numotion/core/dominio/respuesta";
 
 const hash = (id: string, v: string) => createHash("sha256").update(textoParaHash(id, v)).digest("hex");
 const ejercicio = (extra = {}) => ({

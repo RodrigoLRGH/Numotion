@@ -11,10 +11,6 @@ async function sinViolacionesSerias(page: Page) {
     expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join()}`)).toEqual([]);
 }
 
-async function hidratada(page: Page) {
-    await expect(page.locator("astro-island[ssr]")).toHaveCount(0);
-}
-
 test("docente: asigna con el asistente, ve el avance y el historial", async ({ page }) => {
     test.setTimeout(90_000);
     const sufijo = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
@@ -38,7 +34,6 @@ test("docente: asigna con el asistente, ve el avance y el historial", async ({ p
 
     // Asistente
     await page.goto("/docente/actividades/nueva");
-    await hidratada(page);
     await page.getByLabel("Nombre").fill("Sumas E2E");
     await page.getByLabel("Tema").selectOption({ label: "Suma" });
     await page.getByLabel("Número de ejercicios").fill("3");
@@ -66,7 +61,6 @@ test("docente: asigna con el asistente, ve el avance y el historial", async ({ p
 
     // Seguimiento
     await page.getByRole("link", { name: /ver actividades asignadas/i }).click();
-    await hidratada(page);
     const tarjeta = page.getByRole("article").filter({ hasText: "Sumas E2E" });
     await expect(tarjeta.getByText(/1\s*completadas · 0\s*en curso · 1\s*pendientes/)).toBeVisible();
     await tarjeta.getByText("Ver alumnos").click();
@@ -76,7 +70,6 @@ test("docente: asigna con el asistente, ve el avance y el historial", async ({ p
 
     // Historial con filtro por alumno persistido en la URL
     await page.getByRole("link", { name: "Historial", exact: true }).click();
-    await hidratada(page);
     await page.getByLabel("Grupo").selectOption(grupo.id);
     await page.getByLabel("Alumno").selectOption({ label: "Lucía" });
     await expect(page).toHaveURL(new RegExp(`alumnoId=${alumnos[0].alumno.id}`));

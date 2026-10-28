@@ -2,10 +2,10 @@
 // y P-SEC-01 (aislamiento entre docentes) sobre los servicios del módulo docente.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { registrarDocente } from "../../src/modules/shared/servidor/auth";
-import { conContexto, type Contexto } from "../../src/modules/shared/servidor/db";
-import { crearAlumno, crearGrupo } from "../../src/modules/docente/servidor/grupos";
-import { actividadesAsignadas, crearActividad, historial, previsualizarNiveles, type DatosActividad } from "../../src/modules/docente/servidor/actividades";
+import { registrarDocente } from "../../apps/api/src/modules/core/auth";
+import { conContexto, type Contexto } from "../../apps/api/src/infra/db";
+import { crearAlumno, crearGrupo } from "../../apps/api/src/modules/docente/grupos";
+import { actividadesAsignadas, crearActividad, historial, previsualizarNiveles, type DatosActividad } from "../../apps/api/src/modules/docente/actividades";
 import { sql } from "./fixture";
 
 const tema = async (clave: string): Promise<string> => (await sql`SELECT id FROM tema WHERE clave = ${clave}`)[0].id;

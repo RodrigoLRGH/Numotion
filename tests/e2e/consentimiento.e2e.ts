@@ -61,7 +61,6 @@ test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso
     const tutorCtx = await browser.newContext();
     const t = await tutorCtx.newPage();
     await t.goto(new URL(alta.invitacion.url).pathname);
-    await expect(t.locator("astro-island[ssr]")).toHaveCount(0); // isla hidratada
     await expect(t.getByRole("heading", { name: "Permiso para Tomás" })).toBeVisible();
     await expect(t.getByText(/esperando tu autorización/i)).toBeVisible();
     await expect(t.getByText(/nunca se guardan/i)).toBeVisible();
@@ -94,7 +93,6 @@ test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso
     // 5. El docente ve el estado y puede generar un enlace nuevo
     await req.post("/api/v1/auth/docente/login", { data: { email: `d.${sufijo}@escuela.mx`, password: "contraseña-e2e" } });
     await page.goto("/docente/grupos");
-    await expect(page.locator("astro-island[ssr]")).toHaveCount(0);
     await expect(page.getByText("Revocado")).toBeVisible();
     await page.getByRole("button", { name: /nuevo enlace para el tutor de tomás/i }).click();
     await expect(page.getByRole("heading", { name: /nuevo enlace para el tutor de tomás/i })).toBeVisible();
@@ -103,9 +101,11 @@ test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso
     await tutorCtx.close();
 });
 
-test("un enlace inventado responde 404 sin revelar nada", async ({ page }) => {
-    const r = await page.goto("/consentimiento/no-existe");
-    expect(r?.status()).toBe(404);
+test("un enlace inventado no revela nada y la página no filtra el token por Referer", async ({ page }) => {
+    const api = await page.request.get("/api/v1/consentimiento/no-existe");
+    expect(api.status()).toBe(404);
+    expect(api.headers()["referrer-policy"]).toBe("no-referrer");
+    await page.goto("/consentimiento/no-existe");
     await expect(page.getByRole("heading", { name: /este enlace no es válido/i })).toBeVisible();
-    expect(r?.headers()["referrer-policy"]).toBe("no-referrer");
+    await expect(page.locator("meta[name=referrer]")).toHaveAttribute("content", "no-referrer");
 });

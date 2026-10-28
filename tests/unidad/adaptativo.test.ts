@@ -1,7 +1,7 @@
 // P-UNIT-01 (decidirNivel, tabla 02-…§3.4), índice de frustración (§3.3), estado de ventana (§3.1) y puntos (§4)
 import { describe, expect, it } from "vitest";
-import { decidirNivel, estadoVentana, indiceFrustracion, type EntradaAdaptativa } from "../../src/modules/shared/dominio/adaptativo";
-import { estrellas, nivelGamificacion, puntosPorEjercicio } from "../../src/modules/shared/dominio/puntos";
+import { decidirNivel, estadoVentana, indiceFrustracion, type EntradaAdaptativa } from "@numotion/core/dominio/adaptativo";
+import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
 
 const bien = { correctoPrimerIntento: true, correcto: true, tiempoMs: 10_000 };
 const tarde = { correctoPrimerIntento: false, correcto: true, tiempoMs: 20_000 };

@@ -1,9 +1,9 @@
 // P-UNIT-03/04/08 · reglas por tipo (RF-40, RF-42), evaluación y clasificación de errores (RF-19)
 import { describe, expect, it } from "vitest";
-import { crearRng } from "../../src/modules/shared/dominio/aleatorio";
-import { combinacionDisponible, clasificarError, esCorrecta, generarParaActividad } from "../../src/modules/shared/dominio/contenido";
-import { TIPOS_POR_TEMA } from "../../src/modules/shared/dominio/catalogo";
-import type { Ejercicio } from "../../src/modules/shared/dominio/ejercicios";
+import { crearRng } from "@numotion/core/dominio/aleatorio";
+import { combinacionDisponible, clasificarError, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { TIPOS_POR_TEMA } from "@numotion/core/dominio/catalogo";
+import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
 
 describe("combinaciones disponibles", () => {
     it("son un subconjunto del catálogo y todas generan ejercicios válidos en los 5 niveles", () => {

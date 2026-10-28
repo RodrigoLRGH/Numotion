@@ -1,9 +1,9 @@
 // P-API-03 · Diagnósticos → retroalimentación y compuerta (EXP-02), servicios contra PostgreSQL.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { registrarDocente } from "../../src/modules/shared/servidor/auth";
-import { conContexto, type Contexto } from "../../src/modules/shared/servidor/db";
-import { crearAlumno, crearGrupo } from "../../src/modules/docente/servidor/grupos";
+import { registrarDocente } from "../../apps/api/src/modules/core/auth";
+import { conContexto, type Contexto } from "../../apps/api/src/infra/db";
+import { crearAlumno, crearGrupo } from "../../apps/api/src/modules/docente/grupos";
 import {
     estadoDiagnosticos,
     finalizarMatematico,
@@ -12,7 +12,7 @@ import {
     responderPanas,
     responderPregunta,
     siguientePregunta,
-} from "../../src/modules/alumno/servidor/diagnostico";
+} from "../../apps/api/src/modules/alumno/diagnostico";
 import { sql } from "./fixture";
 
 async function nuevoAlumno(grado = 3) {

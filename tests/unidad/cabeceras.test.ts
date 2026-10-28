@@ -1,6 +1,6 @@
 // P-SEC-05 · cabeceras de seguridad (RI-09)
 import { describe, expect, it } from "vitest";
-import { cabecerasSeguridad } from "../../src/modules/shared/servidor/cabeceras";
+import { cabecerasSeguridad } from "../../apps/api/src/modules/core/cabeceras";
 
 describe("cabeceras de seguridad", () => {
     it("permiten la cámara solo al propio origen y prohíben incrustar la app", () => {

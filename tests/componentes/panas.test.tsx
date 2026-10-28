@@ -4,12 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const irA = vi.fn();
-vi.mock("../../src/modules/shared/cliente/api", async (original) => ({
-    ...(await original<typeof import("../../src/modules/shared/cliente/api")>()),
+vi.mock("../../apps/web/src/shared/cliente/api", async (original) => ({
+    ...(await original<typeof import("../../apps/web/src/shared/cliente/api")>()),
     irA: (ruta: string) => irA(ruta),
 }));
 
-import PanasC from "../../src/modules/alumno/componentes/PanasC";
+import PanasC from "../../apps/web/src/modules/alumno/componentes/PanasC";
 
 const items = Array.from({ length: 10 }, (_, i) => ({ id: `i${i + 1}`, orden: i + 1, texto: `Pregunta ${i + 1}` }));
 const escala = ["Nada", "Un poco", "Más o menos", "Bastante", "Muchísimo"].map((etiqueta, i) => ({ valor: i + 1, etiqueta }));

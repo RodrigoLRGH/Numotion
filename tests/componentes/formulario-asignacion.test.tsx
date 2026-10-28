@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import FormularioAsignacion from "../../src/modules/docente/componentes/FormularioAsignacion";
+import FormularioAsignacion from "../../apps/web/src/modules/docente/componentes/FormularioAsignacion";
 
 const TEMAS = [
     { id: "t-suma", clave: "suma", nombre: "Suma", gradoMin: 1, gradoMax: 6, tiposInteraccion: ["seleccion_multiple", "arrastrar", "completar_operacion", "suma_figuras"] },

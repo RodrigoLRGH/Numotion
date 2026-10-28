@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crearRng } from "../../src/modules/shared/dominio/aleatorio";
+import { crearRng } from "@numotion/core/dominio/aleatorio";
 import {
     aPublico,
     calificarDiagnostico,
@@ -8,9 +8,9 @@ import {
     generarDiagnostico,
     generarEjercicio,
     TEMAS,
-} from "../../src/modules/shared/dominio/ejercicios";
-import { coincideTolerante, numeroAPalabras } from "../../src/modules/shared/dominio/numeros";
-import { balancePanas } from "../../src/modules/shared/dominio/panas";
+} from "@numotion/core/dominio/ejercicios";
+import { coincideTolerante, numeroAPalabras } from "@numotion/core/dominio/numeros";
+import { balancePanas } from "@numotion/core/dominio/panas";
 
 describe("generarEjercicio", () => {
     for (const tema of TEMAS) {

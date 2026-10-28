@@ -1,7 +1,7 @@
 // T-03-01-09 · proveedor SMTP (Google Workspace) sin enviar correos reales: transporte de flujo de nodemailer
 import nodemailer, { type SendMailOptions } from "nodemailer";
 import { describe, expect, it } from "vitest";
-import { configSmtp, smtp } from "../../src/modules/shared/servidor/correo";
+import { configSmtp, smtp } from "../../apps/api/src/infra/correo";
 
 const env = (valores: Record<string, string>) => (k: string) => valores[k];
 

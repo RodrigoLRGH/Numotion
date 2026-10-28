@@ -4,12 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const irA = vi.fn();
-vi.mock("../../src/modules/shared/cliente/api", async (original) => ({
-    ...(await original<typeof import("../../src/modules/shared/cliente/api")>()),
+vi.mock("../../apps/web/src/shared/cliente/api", async (original) => ({
+    ...(await original<typeof import("../../apps/web/src/shared/cliente/api")>()),
     irA: (ruta: string) => irA(ruta),
 }));
 
-import EntrarAlumno from "../../src/modules/alumno/componentes/EntrarAlumno";
+import EntrarAlumno from "../../apps/web/src/modules/alumno/componentes/EntrarAlumno";
 
 const GRUPO = {
     grupoId: "g1",

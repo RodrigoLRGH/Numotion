@@ -10,9 +10,9 @@ import {
     registrarDocente,
     usuarioDeToken,
     cerrarSesionToken,
-} from "../../src/modules/shared/servidor/auth";
-import { conContexto } from "../../src/modules/shared/servidor/db";
-import { alumnosDelGrupo, crearAlumno, crearGrupo, gruposDelDocente } from "../../src/modules/docente/servidor/grupos";
+} from "../../apps/api/src/modules/core/auth";
+import { conContexto } from "../../apps/api/src/infra/db";
+import { alumnosDelGrupo, crearAlumno, crearGrupo, gruposDelDocente } from "../../apps/api/src/modules/docente/grupos";
 import { sql } from "./fixture";
 
 const PASSWORD = "contraseña-segura";

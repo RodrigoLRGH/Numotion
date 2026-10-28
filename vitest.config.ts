@@ -13,7 +13,7 @@ export default defineConfig({
             {
                 test: {
                     name: "db",
-                    include: ["tests/db/**/*.test.ts"],
+                    include: ["tests/db/**/*.test.ts", "tests/api/**/*.test.ts"],
                     environment: "node",
                     globalSetup: ["tests/db/setup-global.ts"],
                     // Los servicios se conectan como la app (numotion_app) a la base de pruebas

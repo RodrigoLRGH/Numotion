@@ -6,7 +6,7 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 ## EXP-01 · Base, módulos, auth y consentimiento
 - [~] T-03-01-01 · *(en curso: código Astro DB apartado en `legacy/`; auth, middleware y grupos ya sobre PostgreSQL)* · Mover el código existente a la estructura `modules/{docente,alumno}` + `shared`/`core` según el mapeo de `estado-actual.md §4` (sin cambiar comportamiento) → web y api · build verde
 - [ ] T-03-01-02 · `infra/config`: carga y validación de variables de entorno con Zod (falla al arrancar si faltan) → `apps/api/src/infra/config.ts` · P-UNIT-10
-- [x] T-03-01-03 · `infra/db/withContext` + middleware `withDbContext` → P-DB-04 *(`conContexto` en `src/modules/shared/servidor/db.ts`, usado por middleware y endpoints)*
+- [x] T-03-01-03 · `infra/db/withContext` + middleware `withDbContext` → P-DB-04 *(`conContexto` en `apps/api/src/infra/db.ts`, usado por middleware y endpoints)*
 - [x] T-03-01-04 · *(ADR-010: scrypt + sesiones opacas en BD, docente 8 h / alumno 4 h, en lugar de bcrypt + JWT)* · Hash de contraseña (bcrypt 12) y emisión/verificación JWT RS256 (acceso 15 min, refresh 7 días rotativo en cookie) → `core/auth/{password,jwt}.ts` · P-SEC-02
 - [x] T-03-01-05 · *(`/api/v1/auth/docente/{login,registro}`, `/api/v1/auth/logout`; bloqueo 15 min tras 10 fallos en BD; sin refresh por ADR-010; rate-limit por IP pendiente)* · `POST /auth/docente/login|refresh`, `POST /auth/logout` con rate-limit y bloqueo → P-SEC-02
 - [x] T-03-01-06 · *(`/api/v1/auth/alumno/grupo/:codigo`, `/api/v1/auth/alumno/login`)* · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
@@ -29,7 +29,7 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-02-03 · *(`shared/dominio/diagnostico.ts`)* · `core/diagnostico/matematico.ts`: selección escalonada y `nivelDominio` → P-UNIT-06
 - [x] T-03-02-04 · *(`/api/v1/alumno/diagnostico/matematico/*`; preguntas del generador, A-20; versión corta, A-19)* · Endpoints diagnóstico matemático (siguiente, responder, finalizar) incl. versión corta → P-API-03
 - [x] T-03-02-05 · `fn_generar_retroalimentacion` invocada al finalizar; idempotente → P-API-03
-- [x] T-03-02-06 · *(en `src/middleware.ts` vía `decidirAcceso` + `estadoDiagnosticos`)* · Middleware API `requireDiagnosticos` en rutas de panel/actividades/práctica → P-API-03
+- [x] T-03-02-06 · *(en `apps/api/src/app.ts` vía `decidirAcceso` + `estadoDiagnosticos`)* · Middleware API `requireDiagnosticos` en rutas de panel/actividades/práctica → P-API-03
 - [x] T-03-02-07 · *(`EscalaIntensidad` (A-22) + `BotonAudio`/`voz.ts`)* · Web: `EscalaCaritas` + `BotonAudio` (`useSpeak` es-MX) → P-COMP-05, P-A11Y-01
 - [x] T-03-02-08 · Web: página `PanasC` (un ítem por pantalla, progreso, retomar) → P-E2E-01
 - [x] T-03-02-09 · *(isla propia; se unificará con los componentes de ejercicio de EXP-04)* · Web: página `DiagnosticoMatematico` (reutiliza componentes de ejercicio) → P-E2E-01

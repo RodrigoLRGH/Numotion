@@ -1,9 +1,9 @@
 // P-SEC-04 · Consentimiento del tutor: OTP, aceptar, cámara separada, revocar, ARCO, renovar enlace.
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { loginAlumno, registrarDocente, usuarioDeToken } from "../../src/modules/shared/servidor/auth";
-import { bandejaMemoria } from "../../src/modules/shared/servidor/correo";
-import { conContexto } from "../../src/modules/shared/servidor/db";
+import { loginAlumno, registrarDocente, usuarioDeToken } from "../../apps/api/src/modules/core/auth";
+import { bandejaMemoria } from "../../apps/api/src/infra/correo";
+import { conContexto } from "../../apps/api/src/infra/db";
 import {
     aceptarConsentimiento,
     enviarCodigo,
@@ -12,8 +12,8 @@ import {
     revocarConsentimiento,
     solicitarArco,
     verConsentimiento,
-} from "../../src/modules/shared/servidor/consentimiento";
-import { crearAlumno, crearGrupo } from "../../src/modules/docente/servidor/grupos";
+} from "../../apps/api/src/modules/core/consentimiento";
+import { crearAlumno, crearGrupo } from "../../apps/api/src/modules/docente/grupos";
 import { sql } from "./fixture";
 
 beforeEach(() => {

@@ -2,7 +2,7 @@
 
 | ID | Tarea | Entregable | Depende de | Estado |
 |---|---|---|---|---|
-| T-02-01 | Crear monorepo `apps/web`, `apps/api`, `packages/contracts`, `db/` (o adaptar la estructura existente según T-00-01) | Estructura de `convenciones.md §3` + workspaces | T-00-03 | ✅ Adaptada (ADR-010): se conserva `src/modules/{docente,alumno,shared}`; sin monorepo |
+| T-02-01 | Crear monorepo `apps/web`, `apps/api`, `packages/contracts`, `db/` (o adaptar la estructura existente según T-00-01) | Estructura de `convenciones.md §3` + workspaces | T-00-03 | ✅ Monorepo npm workspaces `apps/web`, `apps/api`, `packages/core` (ADR-011) |
 | T-02-02 | Configurar `eslint-plugin-boundaries` con la regla docente ↮ alumno | Lint falla si un módulo importa al otro | T-02-01 | ⬜ |
 | T-02-03 | Escribir `db/migrations/0001_esquema.sql` (enums, tablas, índices, checks) | Migración aplicable en BD vacía | T-02-01 | ✅ |
 | T-02-04 | Escribir `0002_funciones_triggers.sql` (calendario, racha, nivel inicial, registro de asignación, avance de asignación, retroalimentación, purga, anonimización, auditoría inmutable) | Migración + pgTAP básicos | T-02-03 | ✅ Pruebas en Vitest (`tests/db`) en lugar de pgTAP |

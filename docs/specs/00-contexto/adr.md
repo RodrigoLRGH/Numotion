@@ -66,7 +66,7 @@ Formato: Contexto · Decisión · Consecuencias · Estado. Una decisión aceptad
 **Consecuencias:** RC-03 (dispositivo con cámara) aplica solo a alumnos con consentimiento de cámara; se documenta como modo degradado.
 
 ## ADR-010 · Stack real: Astro + PostgreSQL + Vercel (reemplaza ADR-008)
-**Estado:** Aceptado (2026-10-27, decisión del responsable del proyecto tras T-00-01)
+**Estado:** Aceptado (2026-10-27, decisión del responsable tras T-00-01). La capa web/API (Astro) la **reemplaza ADR-011**; siguen vigentes PostgreSQL + RLS, sesiones opacas, scrypt, Vercel y el correo por Google Workspace.
 **Contexto:** El inventario (T-00-01) mostró que el código usa Astro 5 SSR + Astro DB (libSQL) + Vercel, con dominio y API avanzados y sin pantallas. ADR-003 exige PostgreSQL con RLS, imposible en libSQL.
 **Decisión:**
 | Capa | Tecnología |
@@ -86,3 +86,18 @@ Formato: Contexto · Decisión · Consecuencias · Estado. Una decisión aceptad
 - Sesiones: se usan **sesiones opacas en BD** (cookie `HttpOnly`, token aleatorio, hash SHA-256 en `sesion_auth`) en lugar de JWT RS256. Cumplen lo que exige el spec (expiración, revocación en logout y al revocar consentimiento) sin manejar llaves. Duración: docente 8 h, alumno 4 h.
 - Hash de contraseñas y PIN con `scrypt` de Node (sin dependencia nativa) en lugar de bcrypt.
 - La app se conecta con el rol `numotion_app` (sin `BYPASSRLS`); las migraciones, con el rol dueño.
+
+## ADR-011 · Stack del spec: SPA React + Vite y API Express (reemplaza la capa web/API de ADR-010)
+**Estado:** Aceptado (2026-10-27, decisión del responsable del proyecto)
+**Contexto:** El código se había conservado sobre Astro (ADR-010). El responsable pidió alinearlo con el stack del spec (ADR-008): SPA con React Router y backend Express separado.
+**Decisión:** Monorepo con npm workspaces (`convenciones.md §3`):
+| Paquete | Contenido |
+|---|---|
+| `apps/web` | SPA React 19 + Vite 6 + React Router 6 (`createBrowserRouter`), Tailwind 4. Rutas y guardas de `06-navegacion` (`RequireRole`, `RedirectIfAuth`, `RequireConsent`, `RequirePanas`, `RequireDiagnosticos`); módulos docente y alumno en trozos separados (code splitting) |
+| `apps/api` | Express 4 + Zod. Módulos `core` (auth, consentimiento, sesión, http), `docente`, `alumno`; `infra` (db, correo, entorno). Errores con `ErrorHttp` y un manejador central |
+| `packages/core` | Dominio puro compartido (reglas de diagnóstico, adaptación, puntos, catálogos, guardas). Sin dependencias de framework ni de BD |
+| `db/`, `scripts/`, `tests/` | Sin cambios de ubicación |
+**Se conserva de ADR-010:** PostgreSQL + RLS con `conContexto`, sesiones opacas en BD (cookie `HttpOnly; SameSite=Strict`), scrypt, Vercel, correo por Google Workspace.
+**Desviaciones respecto de ADR-008:** React 19 (no 18); sin TanStack Query ni Zustand (estado local + `AuthProvider` bastan por ahora); sin Prisma (SQL parametrizado); arrastre sin dnd-kit (nativo + alternativa por toque). Se pueden incorporar si una pantalla lo justifica.
+**Despliegue:** Vercel sirve `apps/web/dist` como estático y la API como función (`api/index.mjs`, que importa el bundle de `apps/api`); `vercel.json` reescribe `/api/*` a la función y el resto a `index.html`, y fija las cabeceras de seguridad del SPA.
+**Consecuencias:** En desarrollo, Vite (:5173) hace de proxy de `/api` hacia Express (:3000): mismo origen, sin CORS. Las guardas del cliente son UX; la API valida todo de nuevo (`decidirAcceso`, RLS).

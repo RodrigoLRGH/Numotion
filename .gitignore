@@ -30,3 +30,6 @@ private/
 test-results/
 playwright-report/
 tmp/
+
+# Builds del monorepo
+apps/*/dist/

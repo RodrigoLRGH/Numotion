@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crearRng } from "../../src/modules/shared/dominio/aleatorio";
+import { crearRng } from "@numotion/core/dominio/aleatorio";
 import {
     AVATARES,
     avatarDisponible,
@@ -9,7 +9,7 @@ import {
     normalizarCodigo,
     pinAleatorio,
     pinATexto,
-} from "../../src/modules/shared/dominio/acceso";
+} from "@numotion/core/dominio/acceso";
 
 describe("acceso del alumno (ADR-004)", () => {
     it("el PIN usa 4 de 12 íconos", () => {

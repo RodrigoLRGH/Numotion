@@ -9,7 +9,7 @@
 | Requerimientos | Matriz de clasificación v actual (37 RF, 6 RNF, 7 RI, 7 RC) |
 | SDD y specs | v1.0 — este documento |
 | Código | Inventariado (T-00-01, 2026-10-27). Backend de dominio y API avanzados; **sin pantallas** |
-| Stack | **ADR-010 aceptado**: Astro 5 SSR + PostgreSQL 16 (RLS) + Vercel. Migración desde Astro DB en curso (§9) |
+| Stack | **ADR-011**: SPA React + Vite + React Router (`apps/web`), API Express (`apps/api`), dominio compartido (`packages/core`), PostgreSQL 16 con RLS, Vercel |
 | Despliegue | Por definir (AWS, RC-02) |
 
 ## 2. T-00-01 · Inventario del repositorio (obligatorio primero)
@@ -22,7 +22,7 @@ El agente debe llenar esta tabla inspeccionando el repositorio:
 | Framework del backend (o BaaS: Supabase/Firebase) | Endpoints de Astro (`src/pages/api/**`) + `src/middleware.ts`. Validación con `astro/zod`. Adaptador `@astrojs/vercel` (despliegue en Vercel, no AWS). Sin Express. |
 | Base de datos y ORM / migraciones existentes | **Astro DB** (libSQL/SQLite, Drizzle por debajo). Esquema en `db/config.ts` con 15 tablas: Usuario, Sesion, Grupo, Alumno, Tema, DiagnosticoPanas, DiagnosticoMatematico, Actividad, AsignacionAlumno, SesionPractica, Intento, RegistroEmocion, Alerta, Nota, InsigniaAlumno. Sin migraciones SQL versionadas (Astro DB usa `db push`). Sin PostgreSQL ni RLS. |
 | ¿Existe autenticación? ¿Qué proveedor? | Propia: usuario/contraseña con scrypt + sesión opaca en cookie `ff_sesion` (httpOnly, 8 h; en BD solo el hash SHA-256). Bloqueo de 5 fallos/15 min **en memoria** (no sobrevive entre instancias serverless). El alumno entra con usuario+contraseña creados por el docente (**no** código+avatar+PIN de ADR-004). Guardas por rol como función pura en `shared/servidor/guardas.ts` + compuerta de diagnósticos diarios (RF-63). |
-| ¿Existe integración con Rekognition? ¿Dónde? ¿Guarda imágenes? | Sí: `src/modules/shared/servidor/proveedor-emociones.ts` (`DetectFacesCommand` con `Image.Bytes`, `Attributes: ["EMOTIONS"]`), seleccionable con `EMOTION_PROVIDER=simulado\|rekognition`. Endpoint `POST /api/alumno/emocion`. **No guarda imágenes**: buffer solo en memoria, persiste emoción+confianza en `RegistroEmocion`, sin logs. ⚠ La respuesta del endpoint devuelve la emoción detectada al cliente del alumno (riesgo RF-65, ver §8). Límite de frecuencia por alumno en memoria (8 s). |
+| ¿Existe integración con Rekognition? ¿Dónde? ¿Guarda imágenes? | Sí: `src/modules/shared/servidor/proveedor-emociones.ts` (hoy en `legacy/`, se migra con EXP-05) (`DetectFacesCommand` con `Image.Bytes`, `Attributes: ["EMOTIONS"]`), seleccionable con `EMOTION_PROVIDER=simulado\|rekognition`. Endpoint `POST /api/alumno/emocion`. **No guarda imágenes**: buffer solo en memoria, persiste emoción+confianza en `RegistroEmocion`, sin logs. ⚠ La respuesta del endpoint devuelve la emoción detectada al cliente del alumno (riesgo RF-65, ver §8). Límite de frecuencia por alumno en memoria (8 s). |
 | ¿Existe integración con OpenAI? | No. Los ejercicios se generan por reglas deterministas (`shared/dominio/ejercicios.ts`, RNG con semilla). |
 | Pantallas existentes (lista) | **Ninguna página.** Solo `src/layouts/BaseLayout.astro` y `src/components/core/{Head,Header,Footer}.astro`. El middleware y el Header ya apuntan a `/login`, `/registro`, `/docente`, `/alumno`, `/alumno/diagnostico/{emocional,matematico}` y `/privacidad`, que no existen. |
 | Endpoints existentes (lista) | `POST /api/auth/{login,logout,registro}`; alumno: `POST /api/alumno/{panas,diagnostico,emocion,alerta,practica}`, `POST /api/alumno/ejercicio/{siguiente\|responder\|guia}`; docente: `/api/docente/{grupos,alumnos,actividades,alertas,notas}`. Sin prefijo `/api/v1`; errores `{ok:false,error}` (no el formato de `convenciones.md §5`); JSON en `snake_case`. |
@@ -54,11 +54,11 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 | Artefacto existente | Ruta | Destino en la refactorización | Acción (conservar / mover / reescribir / eliminar) |
 |---|---|---|---|
 | Módulos docente/alumno/shared | `src/modules/{docente,alumno,shared}/{dominio,servidor}` | Ya cumple ADR-001 (sin imports cruzados, verificado con grep). Falta el lint que lo bloquee (EXP-01.1). `shared` ≙ `core`. | Conservar; añadir regla de lint |
-| Dominio puro (ejercicios, dificultad, frustración, PANAS, racha, gamificación, números, retroalimentación, motivación, fechas, RNG) | `src/modules/shared/dominio/*.ts` | Equivale a las funciones de `02-diseno/diseno/02-…` (decidirNivel, IF, racha). Contrastar las reglas exactas en cada Expect. | Conservar; ajustar a las tablas del spec (TDD) |
-| Servicios del alumno (diagnóstico, motor de ejercicios, panel) | `src/modules/alumno/servidor/` | EXP-02, EXP-04, EXP-06 | Conservar |
-| Servicios del docente (grupos, actividades, notas, reportes) | `src/modules/docente/servidor/` | EXP-03, EXP-07 | Conservar |
-| Auth + sesiones | `src/modules/shared/servidor/auth.ts` | EXP-01. Docente OK (sesión opaca en lugar de JWT 15 min + refresh 7 d). Alumno: falta código de grupo + avatar + PIN (ADR-004). | Conservar y ampliar |
-| Guardas + middleware | `src/modules/shared/servidor/guardas.ts`, `src/middleware.ts` | EXP-01.3, EXP-02.4 (P-ROUTE-01..03 como pruebas de la función pura) | Conservar |
+| Dominio puro (ejercicios, dificultad, frustración, PANAS, racha, gamificación, números, retroalimentación, motivación, fechas, RNG) | `packages/core/src/dominio/*.ts` | Equivale a las funciones de `02-diseno/diseno/02-…` (decidirNivel, IF, racha). Contrastar las reglas exactas en cada Expect. | Conservar; ajustar a las tablas del spec (TDD) |
+| Servicios del alumno (diagnóstico, motor de ejercicios, panel) | `apps/api/src/modules/alumno/` | EXP-02, EXP-04, EXP-06 | Conservar |
+| Servicios del docente (grupos, actividades, notas, reportes) | `apps/api/src/modules/docente/` | EXP-03, EXP-07 | Conservar |
+| Auth + sesiones | `apps/api/src/modules/core/auth.ts` | EXP-01. Docente OK (sesión opaca en lugar de JWT 15 min + refresh 7 d). Alumno: falta código de grupo + avatar + PIN (ADR-004). | Conservar y ampliar |
+| Guardas + middleware | `packages/core/src/guardas.ts`, `apps/api/src/app.ts` | EXP-01.3, EXP-02.4 (P-ROUTE-01..03 como pruebas de la función pura) | Conservar |
 | Consentimiento | Columnas `consentimiento_tutor`, `tutor_*`, `consentimiento_fecha` en `Alumno` | ADR-009 pide `consentimiento_tutor` versionado, revocable y con `acepta_camara` separado. | Reescribir como tabla |
 | Proveedor emocional | `shared/servidor/proveedor-emociones.ts`, `pages/api/alumno/emocion.ts` | EXP-05.1/05.2 (`EmotionGateway`). Quitar la emoción de la respuesta al alumno (RF-65). El límite diario (RC-04) y el de frecuencia deben persistir fuera de memoria. | Conservar; corregir |
 | Esquema de BD | `db/config.ts` | `02-diseno/diseno/01-modelo…` (faltan, p. ej., `ajuste_dificultad`, `auditoria_acceso`, `guia_actuacion`, `retroalimentacion`, `config_adaptativa`, `estado_derivado` en eventos emocionales). Depende de la decisión de §7. | Ampliar |
@@ -115,10 +115,10 @@ ADR aceptados que entran en conflicto con el código y requieren decisión: **AD
 | Migraciones 0001 esquema, 0002 funciones/triggers + auth, 0004 RLS | ✅ Aplican en BD vacía | `db/migrations/`, `npm run db:migrar` |
 | 0003 vistas (T-02-05) y 0005 seed de catálogos (T-02-07) | ⬜ | — |
 | Pruebas de BD: P-DB-01…08, RLS, auth | ✅ 28 en verde (`npm run test:db`) | `tests/db/` |
-| `conContexto` (contexto RLS por transacción) | ✅ | `src/modules/shared/servidor/db.ts` |
-| Dominio del acceso del alumno (íconos PIN, avatares, código) | ✅ con pruebas | `src/modules/shared/dominio/acceso.ts` |
-| Auth, middleware y endpoints sobre PostgreSQL (T-03-01-04…07) | ✅ Probado de punta a punta con `npm run dev` | `src/modules/shared/servidor/auth.ts`, `src/middleware.ts`, `src/pages/api/v1/auth/` |
-| Grupos y alta de alumnos del docente | ✅ | `src/modules/docente/servidor/grupos.ts`, `src/pages/api/v1/docente/grupos/` |
+| `conContexto` (contexto RLS por transacción) | ✅ | `apps/api/src/infra/db.ts` |
+| Dominio del acceso del alumno (íconos PIN, avatares, código) | ✅ con pruebas | `packages/core/src/dominio/acceso.ts` |
+| Auth, middleware y endpoints sobre PostgreSQL (T-03-01-04…07) | ✅ Probado de punta a punta con `npm run dev` | `apps/api/src/modules/core/auth.ts`, `apps/api/src/app.ts`, `apps/api/src/modules/*/rutas.ts` |
+| Grupos y alta de alumnos del docente | ✅ | `apps/api/src/modules/docente/grupos.ts`, `apps/api/src/modules/*/rutas.ts` |
 | Seed de demostración | ✅ `npm run db:seed` | `db/seed/0001_demo.sql` |
 | Servicios docente/alumno sobre PostgreSQL y retiro de `astro:db` (T-03-01-01) | 🟨 `@astrojs/db` retirado; diagnósticos, actividades, motor, emociones, gamificación y reportes siguen en `legacy/` por migrar | `legacy/` |
 
@@ -129,5 +129,5 @@ La app ya corre sobre PostgreSQL. Diagnósticos migrados (EXP-02, `0005_catalogo
 | Comando | Qué corre | Requisitos |
 |---|---|---|
 | `npm test` | Unitarias + componentes (Testing Library/jsdom) | — |
-| `npm run test:db` | P-DB, RLS, auth y diagnósticos contra PostgreSQL | `docker compose up -d` |
-| `npm run test:e2e` | P-E2E-01/02 + axe (P-A11Y-01) en escritorio y tableta; capturas en `test-results/capturas/` | Docker + `npm run db:migrar`; Playwright ≥ 1.63 (la 1.52 se cuelga con Node 24) |
+| `npm run test:db` | P-DB, RLS y servicios + capa Express con Supertest (`tests/api`) contra PostgreSQL | `docker compose up -d` |
+| `npm run test:e2e` | P-E2E + axe (P-A11Y-01) en escritorio y tableta contra el SPA (:5173) y la API (:3000), que arranca solo; capturas en `test-results/capturas/` | Docker + `npm run db:migrar`; Playwright ≥ 1.63 (la 1.52 se cuelga con Node 24) |

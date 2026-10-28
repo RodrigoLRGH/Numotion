@@ -1,7 +1,7 @@
 // P-UNIT-05 (PANAS-C) y P-UNIT-06 (diagnóstico matemático escalonado)
 import { describe, expect, it } from "vitest";
-import { calcularPanas, esValorPanas, estadoInicialDesdePanas, ESCALA_PANAS } from "../../src/modules/shared/dominio/panas";
-import { nivelDominio, siguienteNivel, type Modo, type RespuestaNivel } from "../../src/modules/shared/dominio/diagnostico";
+import { calcularPanas, esValorPanas, estadoInicialDesdePanas, ESCALA_PANAS } from "@numotion/core/dominio/panas";
+import { nivelDominio, siguienteNivel, type Modo, type RespuestaNivel } from "@numotion/core/dominio/diagnostico";
 
 const r = (nivel: number, correcta: boolean): RespuestaNivel => ({ nivel, correcta });
 

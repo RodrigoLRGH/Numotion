@@ -76,7 +76,6 @@ test("alumno: resuelve una actividad con acierto, guía tras 3 fallos y recompen
     await sinViolacionesSerias(page);
     await captura(page, "13-mis-actividades");
     await page.getByRole("link", { name: /empezar/i }).click();
-    await expect(page.locator("astro-island[ssr]")).toHaveCount(0);
 
     // Ejercicio 1: acierto al primer intento
     let ej = await respuestaCorrecta(alumnoId, "Sumas del día");
@@ -125,7 +124,6 @@ test("alumno: arrastrar y soltar se puede resolver solo con toques", async ({ pa
     const { alumnoId } = await preparar(page, [{ nombre: "Arrastra", tipo: "arrastrar", num: 3 }]);
     await page.goto("/alumno");
     await page.getByRole("link", { name: /empezar/i }).click();
-    await expect(page.locator("astro-island[ssr]")).toHaveCount(0);
     const { valor } = await respuestaCorrecta(alumnoId, "Arrastra");
     await page.getByRole("group", { name: /fichas/i }).getByRole("button", { name: valor, exact: true }).click();
     await expect(page.getByRole("status", { name: `Recuadro: ${valor}` })).toBeVisible();
