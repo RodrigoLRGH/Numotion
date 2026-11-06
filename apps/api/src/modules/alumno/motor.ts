@@ -6,6 +6,7 @@ import { decidirNivel, estadoVentana, indiceFrustracion, type MotivoAjuste } fro
 import { semillaDeTexto, crearRng } from "@numotion/core/dominio/aleatorio";
 import type { TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
 import { clasificarError, esCorrecta, generarParaActividad, validacionLocal } from "@numotion/core/dominio/contenido";
+import { interesPara, pedidoDeHistoria, type PedidoHistoria } from "@numotion/core/dominio/historias";
 import { textoParaHash } from "@numotion/core/dominio/respuesta";
 import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
 import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
@@ -171,8 +172,67 @@ export type Siguiente =
     | { completada: true; recompensa: Recompensa; actividad: { nombre: string } }
     | { error: "no_encontrada" | "sin_contenido" };
 
+const contarPresentados = async (tx: Tx, asignacionId: string) =>
+    (await tx.intento_ejercicio.findMany({ where: { asignacion_id: asignacionId }, distinct: ["ejercicio_id"], select: { ejercicio_id: true } })).length;
+
+/** Ejercicio n.º `presentados` de la asignación al nivel dado: determinista para que plan y creación coincidan. */
+const generarSiguiente = (a: Asignacion, presentados: number) =>
+    generarParaActividad(a.tema_clave, a.tipo_interaccion, a.nivel_actual, crearRng(semillaDeTexto(`actividad|${a.id}|${presentados}|${a.nivel_actual}`)));
+
+async function crearEjercicio(tx: Tx, a: Asignacion, e: Ejercicio, origen: "generador" | "openai", contexto?: string): Promise<FilaEjercicio> {
+    return (await tx.ejercicio.create({
+        data: {
+            tema_id: a.tema_id,
+            tipo_interaccion: a.tipo_interaccion,
+            nivel: a.nivel_actual,
+            enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, lienzo: e.lienzo }),
+            respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos, ...(contexto ? { contexto } : {}) }),
+            opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
+            pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),
+            origen,
+        },
+        select: columnasEjercicio,
+    })) as unknown as FilaEjercicio;
+}
+
+// ───────────── Historias con OpenAI (T-03-04-20, EXP-04.7) ─────────────
+
+/** Cómo servir el próximo ejercicio nuevo con historia; vale solo si nivel y presentados no cambiaron. */
+export type PlanHistoria = { nivel: number; presentados: number } & (
+    | { reusarId: string }
+    | { pedido: PedidoHistoria; ejercicio: Ejercicio }
+);
+
+/** Propuesta para siguienteEjercicio: una historia ya generada y validada, o una de la caché. */
+export type Propuesta = { nivel: number; presentados: number } & ({ reusarId: string } | { ejercicio: Ejercicio; contexto: string });
+
+/**
+ * Fase 1 (transacción corta, sin bloqueo): si toca crear un ejercicio nuevo que se puede contar como
+ * historia, devuelve la de la caché (mismo tema, tipo, nivel e interés, no vista en esta asignación)
+ * o el pedido para OpenAI. null si hay un ejercicio vigente, la actividad terminó o no aplica.
+ */
+export async function planHistoria(tx: Tx, alumnoId: string, asignacionId: string): Promise<PlanHistoria | null> {
+    const a = await cargarAsignacion(tx, alumnoId, asignacionId);
+    if (!a || a.estado === "completada" || a.ejercicio_actual_id) return null;
+    const presentados = await contarPresentados(tx, a.id);
+    const e = generarSiguiente(a, presentados);
+    if (!e) return null;
+    const { intereses } = await tx.alumno.findUniqueOrThrow({ where: { id: alumnoId }, select: { intereses: true } });
+    const pedido = pedidoDeHistoria(e, a.tipo_interaccion, interesPara(intereses, presentados));
+    if (!pedido) return null;
+    const [cache] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT e.id FROM ejercicio e
+         WHERE e.origen = 'openai' AND e.activo AND e.tema_id = ${a.tema_id}::uuid
+           AND e.tipo_interaccion = ${a.tipo_interaccion}::tipo_interaccion AND e.nivel = ${a.nivel_actual}
+           AND e.respuesta->>'contexto' = ${pedido.interes}
+           AND NOT EXISTS (SELECT 1 FROM intento_ejercicio i WHERE i.asignacion_id = ${a.id}::uuid AND i.ejercicio_id = e.id)
+         ORDER BY e.creado_en LIMIT 1`;
+    const base = { nivel: a.nivel_actual, presentados };
+    return cache ? { ...base, reusarId: cache.id } : { ...base, pedido, ejercicio: e };
+}
+
 /** Ejercicio vigente (retoma el que quedó abierto) o uno nuevo del tema, tipo y nivel actual (RF-21). */
-export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId: string): Promise<Siguiente> {
+export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId: string, propuesta?: Propuesta | null): Promise<Siguiente> {
     const a = await cargarAsignacion(tx, alumnoId, asignacionId, true);
     if (!a) return { error: "no_encontrada" };
     if (a.estado === "completada") return { completada: true, recompensa: recompensa(a), actividad: { nombre: a.nombre } };
@@ -183,23 +243,18 @@ export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId:
         fila = await cargarEjercicio(tx, a.ejercicio_actual_id);
         intentosUsados = await tx.intento_ejercicio.count({ where: { asignacion_id: a.id, ejercicio_id: a.ejercicio_actual_id } });
     } else {
-        const presentados = (await tx.intento_ejercicio.findMany({ where: { asignacion_id: a.id }, distinct: ["ejercicio_id"], select: { ejercicio_id: true } })).length;
-        const rng = crearRng(semillaDeTexto(`actividad|${a.id}|${presentados}|${a.nivel_actual}`));
-        const e = generarParaActividad(a.tema_clave, a.tipo_interaccion, a.nivel_actual, rng);
-        if (!e) return { error: "sin_contenido" };
-        fila = (await tx.ejercicio.create({
-            data: {
-                tema_id: a.tema_id,
-                tipo_interaccion: a.tipo_interaccion,
-                nivel: a.nivel_actual,
-                enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, lienzo: e.lienzo }),
-                respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos }),
-                opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
-                pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),
-                origen: "generador",
-            },
-            select: columnasEjercicio,
-        })) as unknown as FilaEjercicio;
+        const presentados = await contarPresentados(tx, a.id);
+        // La propuesta se preparó fuera de la transacción: solo vale si nada cambió desde el plan
+        const vigente = propuesta && propuesta.nivel === a.nivel_actual && propuesta.presentados === presentados ? propuesta : null;
+        if (vigente && "reusarId" in vigente) {
+            fila = await cargarEjercicio(tx, vigente.reusarId);
+        } else if (vigente) {
+            fila = await crearEjercicio(tx, a, vigente.ejercicio, "openai", vigente.contexto);
+        } else {
+            const e = generarSiguiente(a, presentados);
+            if (!e) return { error: "sin_contenido" };
+            fila = await crearEjercicio(tx, a, e, "generador");
+        }
         await tx.asignacion_alumno.update({ where: { id: a.id }, data: { ejercicio_actual_id: fila.id, ayuda_actual: false }, select: { id: true } });
         a.ayuda_actual = false;
     }
@@ -214,9 +269,15 @@ export async function siguienteEjercicio(tx: Tx, alumnoId: string, asignacionId:
 }
 
 /** Al empezar: si el diagnóstico del día cambió el nivel sugerido, se recalcula una vez (02-…§3.5). */
-export async function iniciarActividad(tx: Tx, alumnoId: string, asignacionId: string): Promise<Siguiente> {
+export async function iniciarActividad(tx: Tx, alumnoId: string, asignacionId: string, propuesta?: Propuesta | null): Promise<Siguiente> {
+    if (!(await ajustarNivelInicial(tx, alumnoId, asignacionId))) return { error: "no_encontrada" };
+    return siguienteEjercicio(tx, alumnoId, asignacionId, propuesta);
+}
+
+/** Recalcula el nivel con el diagnóstico del día si la actividad no ha empezado. false si no existe. */
+export async function ajustarNivelInicial(tx: Tx, alumnoId: string, asignacionId: string): Promise<boolean> {
     const a = await cargarAsignacion(tx, alumnoId, asignacionId, true);
-    if (!a) return { error: "no_encontrada" };
+    if (!a) return false;
     if (a.estado === "pendiente" && !a.ejercicio_actual_id) {
         const [{ nivel }] = await tx.$queryRaw<{ nivel: number }[]>`SELECT fn_nivel_inicial(${alumnoId}::uuid, ${a.tema_id}::uuid)::int AS nivel`;
         if (nivel !== a.nivel_actual) {
@@ -227,7 +288,7 @@ export async function iniciarActividad(tx: Tx, alumnoId: string, asignacionId: s
             });
         }
     }
-    return siguienteEjercicio(tx, alumnoId, asignacionId);
+    return true;
 }
 
 // ───────────── Guía (RF-11, RF-45) ─────────────

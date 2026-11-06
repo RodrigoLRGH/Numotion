@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
 import { BotonAudio } from "../../../shared/ui/BotonAudio";
+import { precargarResolver } from "./precarga";
 
 interface Actividad {
     asignacionId: string;
@@ -25,6 +26,10 @@ export default function MisActividades() {
             .then((r) => setItems(r.items))
             .catch((e) => setError(e instanceof ErrorApi ? e.message : "No pudimos cargar tus actividades."));
     }, []);
+
+    // Si hay algo por hacer, la pantalla de actividad se descarga mientras el alumno elige (T-03-04-21)
+    const hayPendientes = items?.some((a) => a.estado !== "completada") ?? false;
+    useEffect(() => (hayPendientes ? precargarResolver() : undefined), [hayPendientes]);
 
     if (error) return <Aviso tipo="error">{error}</Aviso>;
     if (!items) return <p role="status">Cargando tus actividades…</p>;

@@ -65,8 +65,8 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-04-17 · Web: `GuiaPasoAPaso` (modos paso_a_paso / final) → P-COMP-02
 - [x] T-03-04-18 · Web: `RecompensaModal` al completar → P-E2E-01
 - [x] T-03-04-19 · *(`shared/cliente/cola-intentos.ts` con idb-keyval, A-32)* · Web: `useColaIntentos` (IndexedDB con try/catch, backoff, indicador "Guardando…") → P-E2E-05
-- [ ] T-03-04-20 · `core/content/ContentGateway` (OpenAI): prompt sin PII, timeout 20 s, validación del ejercicio generado, caché, presupuesto mensual, respaldo de catálogo → P-INT-02
-- [ ] T-03-04-21 · Precarga del siguiente ejercicio y code splitting del módulo alumno → P-PERF-01
+- [x] T-03-04-20 · `core/content/ContentGateway` (OpenAI): prompt sin PII, timeout 20 s, validación del ejercicio generado, caché, presupuesto mensual, respaldo de catálogo → P-INT-02 (dominio en `packages/core/src/dominio/historias.ts`, gateway en `apps/api/src/infra/openai.ts`, migración 0010)
+- [x] T-03-04-21 · Precarga del siguiente ejercicio y code splitting del módulo alumno → P-PERF-01 (auxiliar: `tests/e2e/code-splitting.e2e.ts`)
 
 ## EXP-05 · Emoción y alertas
 - [ ] T-03-05-01 · `core/emotion/emotionGateway.ts` (DetectFaces con bytes, descarte, timeout 3 s) → P-INT-01

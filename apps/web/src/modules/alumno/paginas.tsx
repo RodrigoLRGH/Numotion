@@ -1,11 +1,16 @@
-// Páginas del módulo alumno (06-navegacion §1). Se cargan en un trozo aparte (code splitting).
+// Páginas del módulo alumno (06-navegacion §1). Se cargan en un trozo aparte (code splitting) y,
+// dentro de él, la pantalla de actividad (motor, tipos de ejercicio, guía y cola sin conexión) va
+// en otro: se descarga en segundo plano desde "Mis actividades" (T-03-04-21, P-PERF-01).
+import { lazy, Suspense } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../app/auth";
 import DiagnosticoMatematico from "./componentes/DiagnosticoMatematico";
 import EntrarAlumno from "./componentes/EntrarAlumno";
 import MisActividades from "./componentes/MisActividades";
 import PanasC from "./componentes/PanasC";
-import ResolverActividad from "./componentes/ResolverActividad";
+import { cargarResolver } from "./componentes/precarga";
+
+const ResolverActividad = lazy(cargarResolver);
 
 export function Entrar() {
     const [params] = useSearchParams();
@@ -32,5 +37,9 @@ export const Actividades = MisActividades;
 
 export function Resolver() {
     const { asignacionId = "" } = useParams();
-    return <ResolverActividad key={asignacionId} asignacionId={asignacionId} />;
+    return (
+        <Suspense fallback={<p className="text-center text-xl" role="status">Preparando tu actividad…</p>}>
+            <ResolverActividad key={asignacionId} asignacionId={asignacionId} />
+        </Suspense>
+    );
 }

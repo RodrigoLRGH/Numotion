@@ -2,6 +2,9 @@
 // tiempo (solo con la pestaña visible, EXP-04.4), se da retroalimentación inmediata con el hash
 // (EXP-04.8) y se muestran guía, explicación final y recompensa. Sin conexión, los intentos se
 // encolan y el alumno ve "Guardando…" (EXP-04.9).
+// Precarga (T-03-04-21): en cuanto se cierra un ejercicio se pide el siguiente mientras el alumno
+// lee la retroalimentación o la guía; "Siguiente" usa esa misma petición. Es seguro porque el
+// servidor deja fijo el ejercicio vigente: pedirlo dos veces devuelve el mismo.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { enviarIntento, sincronizarPendientes } from "../../../shared/cliente/cola-intentos";
@@ -79,6 +82,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
     // Al cerrar la actividad con la explicación final, la recompensa se muestra al pulsar "Seguir"
     const [recompensaPendiente, setRecompensaPendiente] = useState<Recompensa | null>(null);
     const cronometro = useCronometro();
+    const precarga = useRef<Promise<Siguiente> | null>(null);
 
     const mostrar = useCallback((s: Siguiente) => {
         setEstado(s);
@@ -100,10 +104,21 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
             .catch((e) => setError(e instanceof ErrorApi ? e.message : "No pudimos abrir la actividad."));
     }, [asignacionId, mostrar]);
 
+    const pedirSiguiente = () => api<Siguiente>("GET", `/alumno/actividades/${asignacionId}/siguiente`);
+
+    function precargar() {
+        if (precarga.current) return;
+        const p = pedirSiguiente();
+        p.catch(() => {}); // si falla, "Siguiente" vuelve a pedirlo
+        precarga.current = p;
+    }
+
     async function siguiente() {
         setOcupado(true);
+        const precargado = precarga.current;
+        precarga.current = null;
         try {
-            mostrar(await api<Siguiente>("GET", `/alumno/actividades/${asignacionId}/siguiente`));
+            mostrar(await (precargado ?? Promise.reject(new Error("sin precarga"))).catch(pedirSiguiente));
         } catch (e) {
             setError(e instanceof ErrorApi ? e.message : "No pudimos cargar el siguiente ejercicio.");
         } finally {
@@ -134,6 +149,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
             if (!r.correcta) setDescartadas((d) => [...d, respuesta]);
             if (r.guia) setGuia(r.guia);
             setCerrado(r.ejercicioCerrado);
+            if (r.ejercicioCerrado && !r.recompensa) precargar();
             setEstado((s) => (s && "ejercicio" in s ? { ...s, progreso: { resueltos: r.asignacion.resueltos, total: r.asignacion.total } } : s));
             if (r.recompensa) {
                 const recompensa = r.recompensa;
@@ -203,7 +219,9 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
             </div>
 
             <div className="mb-6 flex items-center justify-center gap-3 text-center">
-                <h1 id="enunciado" className="text-3xl font-extrabold sm:text-4xl">{ejercicio.enunciado}</h1>
+                <h1 id="enunciado" className={`font-extrabold ${ejercicio.enunciado.length > 60 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`}>
+                    {ejercicio.enunciado}
+                </h1>
                 <BotonAudio texto={ejercicio.enunciado} />
             </div>
 

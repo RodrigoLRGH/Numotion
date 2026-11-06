@@ -5,7 +5,8 @@ import { z } from "zod";
 import { conContexto } from "../../infra/db";
 import { alumnoDe, contextoDe, ErrorHttp, noEncontrado, paramId, ruta, validar } from "../core/http";
 import { finalizarMatematico, finalizarPanas, panasDelDia, responderPanas, responderPregunta, siguientePregunta } from "./diagnostico";
-import { iniciarActividad, misActividades, pedirGuia, registrarIntento, siguienteEjercicio, type FalloIntento, type Siguiente } from "./motor";
+import { servirEjercicio } from "./contenido";
+import { misActividades, pedirGuia, registrarIntento, type FalloIntento, type Siguiente } from "./motor";
 
 export const rutasAlumno = Router();
 
@@ -88,17 +89,17 @@ rutasAlumno.get("/actividades", ruta(async (_req, res) => {
     res.json({ items: await conContexto(contextoDe(alumno), (tx) => misActividades(tx, alumno.id)) });
 }));
 
-// Nivel del día + ejercicio vigente
+// Nivel del día + ejercicio vigente (con historia de OpenAI si está activo, EXP-04.7)
 rutasAlumno.post("/actividades/:id/iniciar", ruta(async (req, res) => {
     const alumno = alumnoDe(res);
     const id = paramId(req, "id", "Actividad no encontrada");
-    res.json(responderSiguiente(await conContexto(contextoDe(alumno), (tx) => iniciarActividad(tx, alumno.id, id))));
+    res.json(responderSiguiente(await servirEjercicio(contextoDe(alumno), id, true)));
 }));
 
 rutasAlumno.get("/actividades/:id/siguiente", ruta(async (req, res) => {
     const alumno = alumnoDe(res);
     const id = paramId(req, "id", "Actividad no encontrada");
-    res.json(responderSiguiente(await conContexto(contextoDe(alumno), (tx) => siguienteEjercicio(tx, alumno.id, id))));
+    res.json(responderSiguiente(await servirEjercicio(contextoDe(alumno), id, false)));
 }));
 
 // POST y no GET: abrir la guía cambia los puntos del ejercicio (tras guía = 3)
