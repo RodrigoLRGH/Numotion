@@ -1,0 +1,12 @@
+{
+  "name": "@numotion/core",
+  "private": true,
+  "type": "module",
+  "version": "0.2.0",
+  "description": "Dominio puro compartido por web y api (sin dependencias de framework ni de BD)",
+  "exports": {
+    "./dominio/*": "./src/dominio/*.ts",
+    "./guardas": "./src/guardas.ts",
+    "./marca": "./src/marca.ts"
+  }
+}

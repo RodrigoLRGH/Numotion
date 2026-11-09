@@ -86,13 +86,18 @@ describe("Autenticación por funciones SECURITY DEFINER", () => {
         enTransaccion(async (tx) => {
             await crearFixture(tx);
             await comoApp(tx, null, null);
-            const avatares = await tx`SELECT avatar FROM fn_avatares_grupo('aaa111')`;
-            expect(avatares.map((r) => r.avatar)).toEqual(["gato", "perro"]);
-            const [datos] = await tx`SELECT * FROM fn_auth_alumno('AAA111', 'gato')`;
+            const avatares = await tx`SELECT * FROM fn_avatares_grupo('aaa111')`;
+            expect(avatares).toEqual([
+                { grupo_id: IDS.grupoA, alumno_id: IDS.alumnoA1, avatar: "gato", nombre_corto: "Ana" },
+                { grupo_id: IDS.grupoA, alumno_id: IDS.alumnoA2, avatar: "perro", nombre_corto: "Beto" },
+            ]);
+            const [datos] = await tx`SELECT * FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoA1})`;
             expect(datos).toMatchObject({ id: IDS.alumnoA1, consentimiento: true, acepta_camara: true, pin_hash: "pin" });
+            // Un alumno de otro grupo no entra con el código de este
+            expect(await tx`SELECT * FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoB1})`).toHaveLength(0);
 
             for (let i = 0; i < 5; i++) await tx`SELECT fn_auth_alumno_resultado(${IDS.alumnoA1}, false, NULL)`;
-            const [bloq] = await tx`SELECT bloqueado_hasta FROM fn_auth_alumno('AAA111', 'gato')`;
+            const [bloq] = await tx`SELECT bloqueado_hasta FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoA1})`;
             expect(bloq.bloqueado_hasta).not.toBeNull();
 
             const [{ s }] = await tx`SELECT fn_auth_alumno_resultado(${IDS.alumnoA1}, true, NULL) AS s`;

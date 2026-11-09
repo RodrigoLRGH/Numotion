@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { rachaVigente, registrarActividadLudica, type EstadoRacha } from "../../src/modules/shared/dominio/racha";
-import { diaHabilAnterior, esDiaHabil } from "../../src/modules/shared/dominio/fechas";
+import { rachaVigente, registrarActividadLudica, type EstadoRacha } from "@numotion/core/dominio/racha";
+import { diaHabilAnterior, esDiaHabil } from "@numotion/core/dominio/fechas";
 
 const vacio: EstadoRacha = { racha_actual: 0, mejor_racha: 0, ultima_fecha_racha: null };
 

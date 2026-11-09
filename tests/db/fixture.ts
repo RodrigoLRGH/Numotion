@@ -62,7 +62,8 @@ export const IDS = {
 /** Datos base: 2 docentes con un grupo cada uno, 3 alumnos con consentimiento, 2 temas. */
 export async function crearFixture(tx: Tx) {
     await comoDueno(tx);
-    await tx`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', now() - interval '1 day', '/privacidad')`;
+    await tx`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', now() - interval '1 day', '/privacidad')
+             ON CONFLICT (version) DO NOTHING`;
     await tx`INSERT INTO docente (id, nombre, email, password_hash) VALUES
         (${IDS.docenteA}, 'Docente A', 'a@escuela.mx', 'x'), (${IDS.docenteB}, 'Docente B', 'b@escuela.mx', 'x')`;
     await tx`INSERT INTO grupo (id, docente_id, nombre, grado, ciclo_escolar, codigo_acceso) VALUES
@@ -75,9 +76,9 @@ export async function crearFixture(tx: Tx) {
     await tx`INSERT INTO consentimiento_tutor (alumno_id, tutor_nombre, tutor_email, version_aviso,
                acepta_plataforma, acepta_camara, aceptado_en, token_hash, token_expira_en)
              SELECT id, 'Tutor', 't@correo.mx', 'v1', true, true, now(), 'tok-' || id, now() + interval '7 days'
-               FROM alumno`;
+               FROM alumno WHERE id IN (${IDS.alumnoA1}, ${IDS.alumnoA2}, ${IDS.alumnoB1})`;
     await tx`INSERT INTO tema (id, clave, nombre, orden) VALUES
-        (${IDS.temaSuma}, 'suma', 'Suma', 1), (${IDS.temaResta}, 'resta', 'Resta', 2)`;
+        (${IDS.temaSuma}, 'suma_prueba', 'Suma', 91), (${IDS.temaResta}, 'resta_prueba', 'Resta', 92)`;
 }
 
 export async function crearEjercicio(tx: Tx, tema: string = IDS.temaSuma, nivel = 2): Promise<string> {

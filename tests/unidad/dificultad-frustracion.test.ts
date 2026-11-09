@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ajustarNivel, nivelInicial, NIVEL_MAX, NIVEL_MIN } from "../../src/modules/shared/dominio/dificultad";
-import { detectarFrustracion } from "../../src/modules/shared/dominio/frustracion";
+import { ajustarNivel, nivelInicial, NIVEL_MAX, NIVEL_MIN } from "@numotion/core/dominio/dificultad";
+import { detectarFrustracion } from "@numotion/core/dominio/frustracion";
 
 const ok = { es_correcta: true, numero_intento: 1 };
 const mal = { es_correcta: false, numero_intento: 3 };

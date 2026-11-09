@@ -25,3 +25,11 @@ pnpm-debug.log*
 
 .vercel/
 private/
+
+# Playwright
+test-results/
+playwright-report/
+tmp/
+
+# Builds del monorepo
+apps/*/dist/
