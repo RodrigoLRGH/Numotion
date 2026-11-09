@@ -1,21 +1,19 @@
 // Motor de ejercicios de las actividades asignadas (EXP-04: RF-01, RF-03, RF-11, RF-21, RF-45, RF-47, RF-60).
 // Todo en contexto del alumno (RLS). El avance de la asignación lo hace el trigger de BD; aquí se
 // deciden puntos, guía y nivel, y se registra cada ajuste en ajuste_dificultad (ADR-005).
-import { createHash } from "node:crypto";
 import { decidirNivel, estadoVentana, indiceFrustracion, type MotivoAjuste } from "@numotion/core/dominio/adaptativo";
 import { semillaDeTexto, crearRng } from "@numotion/core/dominio/aleatorio";
 import type { TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
-import { clasificarError, esCorrecta, generarParaActividad, validacionLocal } from "@numotion/core/dominio/contenido";
+import { clasificarError, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
 import { interesPara, pedidoDeHistoria, type PedidoHistoria } from "@numotion/core/dominio/historias";
-import { textoParaHash } from "@numotion/core/dominio/respuesta";
 import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
-import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
+import { estrellas, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
 import { errorBd, num, Prisma, type Tx } from "../../infra/db";
+import { aEjercicio, aPublico, cargarEjercicio, insertarEjercicio, json, type EjercicioPublico, type FilaEjercicio } from "./ejercicio";
+import { evaluarFrustracion, type OfertaAyuda } from "./emociones";
+import { otorgarInsignias, sumarPuntos, type InsigniaObtenida } from "./gamificacion";
 
 export const MAX_INTENTOS = 4;
-
-/** Valor para una columna jsonb (sin `undefined`, que Prisma rechaza). */
-const json = (v: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 
 async function config<T>(tx: Tx, clave: string, porDefecto: T): Promise<T> {
     const c = await tx.config_adaptativa.findUnique({ where: { clave }, select: { valor: true } });
@@ -49,75 +47,8 @@ export async function misActividades(tx: Tx, alumnoId: string): Promise<Activida
     return filas.map((f) => ({ ...f, resultadoFinal: num(f.resultadoFinal) }));
 }
 
-// ───────────── Representación del ejercicio ─────────────
-
-interface FilaEjercicio {
-    id: string;
-    nivel: number;
-    tipo_interaccion: string;
-    enunciado: { texto: string; expresion?: string; figuras?: Ejercicio["figuras"]; numeroMostrado?: number; lienzo?: Ejercicio["lienzo"] };
-    opciones: string[] | null;
-    respuesta: { valor: string; generador: Ejercicio["tema"]; datos: Ejercicio["datos"] };
-    pasos_solucion: { orden: number; texto: string }[];
-}
-
-export interface EjercicioPublico {
-    id: string;
-    tipoInteraccion: string;
-    nivel: number;
-    enunciado: string;
-    expresion?: string;
-    figuras?: Ejercicio["figuras"];
-    numeroMostrado?: number;
-    lienzo?: Ejercicio["lienzo"];
-    opciones?: string[];
-    /**
-     * SHA-256 de `${id}:${respuesta normalizada}`: validación optimista en el cliente (EXP-04.8).
-     * null en texto libre y coloreo, donde solo el servidor puede decidir (validacionLocal).
-     */
-    hashRespuesta: string | null;
-}
-
-export function hashRespuesta(ejercicioId: string, valor: string): string {
-    return createHash("sha256").update(textoParaHash(ejercicioId, valor)).digest("hex");
-}
-
-function aEjercicio(f: FilaEjercicio): Ejercicio {
-    return {
-        tema: f.respuesta.generador,
-        nivel: f.nivel,
-        interaccion: "seleccion_multiple",
-        enunciado: f.enunciado.texto,
-        expresion: f.enunciado.expresion,
-        opciones: f.opciones ?? undefined,
-        figuras: f.enunciado.figuras,
-        numeroMostrado: f.enunciado.numeroMostrado,
-        lienzo: f.enunciado.lienzo,
-        respuesta: f.respuesta.valor,
-        pasos: f.pasos_solucion.map((p) => p.texto),
-        datos: f.respuesta.datos,
-    };
-}
-
-function aPublico(f: FilaEjercicio): EjercicioPublico {
-    return {
-        id: f.id,
-        tipoInteraccion: f.tipo_interaccion,
-        nivel: f.nivel,
-        enunciado: f.enunciado.texto,
-        ...(f.enunciado.expresion ? { expresion: f.enunciado.expresion } : {}),
-        ...(f.enunciado.figuras ? { figuras: f.enunciado.figuras } : {}),
-        ...(f.enunciado.numeroMostrado !== undefined ? { numeroMostrado: f.enunciado.numeroMostrado } : {}),
-        ...(f.enunciado.lienzo ? { lienzo: f.enunciado.lienzo } : {}),
-        ...(f.opciones ? { opciones: f.opciones } : {}),
-        hashRespuesta: validacionLocal(f.respuesta.generador) ? hashRespuesta(f.id, f.respuesta.valor) : null,
-    };
-}
-
-const columnasEjercicio = { id: true, nivel: true, tipo_interaccion: true, enunciado: true, opciones: true, respuesta: true, pasos_solucion: true } as const;
-
-const cargarEjercicio = async (tx: Tx, id: string) =>
-    (await tx.ejercicio.findUniqueOrThrow({ where: { id }, select: columnasEjercicio })) as unknown as FilaEjercicio;
+// Representación del ejercicio: ./ejercicio (compartida con la práctica libre)
+export { hashRespuesta, type EjercicioPublico } from "./ejercicio";
 
 // ───────────── Asignación ─────────────
 
@@ -179,21 +110,8 @@ const contarPresentados = async (tx: Tx, asignacionId: string) =>
 const generarSiguiente = (a: Asignacion, presentados: number) =>
     generarParaActividad(a.tema_clave, a.tipo_interaccion, a.nivel_actual, crearRng(semillaDeTexto(`actividad|${a.id}|${presentados}|${a.nivel_actual}`)));
 
-async function crearEjercicio(tx: Tx, a: Asignacion, e: Ejercicio, origen: "generador" | "openai", contexto?: string): Promise<FilaEjercicio> {
-    return (await tx.ejercicio.create({
-        data: {
-            tema_id: a.tema_id,
-            tipo_interaccion: a.tipo_interaccion,
-            nivel: a.nivel_actual,
-            enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, lienzo: e.lienzo }),
-            respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos, ...(contexto ? { contexto } : {}) }),
-            opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
-            pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),
-            origen,
-        },
-        select: columnasEjercicio,
-    })) as unknown as FilaEjercicio;
-}
+const crearEjercicio = (tx: Tx, a: Asignacion, e: Ejercicio, origen: "generador" | "openai", contexto?: string) =>
+    insertarEjercicio(tx, { temaId: a.tema_id, tipo: a.tipo_interaccion, nivel: a.nivel_actual }, e, origen, contexto);
 
 // ───────────── Historias con OpenAI (T-03-04-20, EXP-04.7) ─────────────
 
@@ -328,6 +246,12 @@ export interface ResultadoIntento {
     guia: Guia | null;
     asignacion: { estado: string; resueltos: number; total: number };
     recompensa: Recompensa | null;
+    /** Insignias ganadas con este intento (animación en el cliente) */
+    nuevasInsignias: InsigniaObtenida[];
+    /** Nuevo nivel de gamificación si este intento lo subió */
+    subioNivel: number | null;
+    /** IF alto 2 veces seguidas: se pregunta al alumno si quiere ayuda (RF-27) */
+    ofrecerAyuda: OfertaAyuda | null;
 }
 
 export type FalloIntento = { error: "no_encontrada" | "completada" | "ejercicio_no_vigente" | "cliente_repetido" };
@@ -425,14 +349,10 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
         throw e;
     }
 
+    let subioNivel: number | null = null;
     if (puntos > 0) {
         await tx.asignacion_alumno.update({ where: { id: a.id }, data: { puntaje: { increment: puntos } }, select: { id: true } });
-        // El perfil existe desde el primer login; updateMany no falla si aún no existe
-        const { count } = await tx.perfil_gamificacion.updateMany({ where: { alumno_id: alumnoId }, data: { puntos_totales: { increment: puntos } } });
-        if (count) {
-            const p = await tx.perfil_gamificacion.findUniqueOrThrow({ where: { alumno_id: alumnoId }, select: { puntos_totales: true } });
-            await tx.perfil_gamificacion.update({ where: { alumno_id: alumnoId }, data: { nivel_gamificacion: nivelGamificacion(p.puntos_totales) }, select: { alumno_id: true } });
-        }
+        subioNivel = (await sumarPuntos(tx, alumnoId, puntos)).subioA;
     }
 
     // Estado tras el trigger (avance y posible cierre de la asignación)
@@ -462,6 +382,11 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
         }
     }
 
+    // Insignias tras cada ejercicio cerrado (EXP-06.1): una sola vez cada una
+    const nuevasInsignias = cerrado ? await otorgarInsignias(tx, alumnoId) : [];
+    // IF en cada intento (EXP-05.4); sin muestras recientes de cámara se renormaliza sin E
+    const evaluacion = despues.estado === "completada" ? null : await evaluarFrustracion(tx, alumnoId, a.id, 0, true);
+
     const resultado: ResultadoIntento = {
         correcta,
         puntos,
@@ -471,6 +396,9 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
         guia,
         asignacion: { estado: despues.estado, resueltos: despues.ejercicios_resueltos, total: despues.num_ejercicios },
         recompensa: despues.estado === "completada" ? recompensa({ puntaje: a.puntaje + puntos, resultado_final: despues.resultado_final }) : null,
+        nuevasInsignias,
+        subioNivel,
+        ofrecerAyuda: evaluacion?.ofrecerAyuda ?? null,
     };
     await tx.intento_ejercicio.update({ where: { id }, data: { resultado: json(resultado) }, select: { id: true } });
     return resultado;

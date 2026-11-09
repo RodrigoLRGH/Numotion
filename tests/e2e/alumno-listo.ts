@@ -16,14 +16,15 @@ export const captura = (page: Page, nombre: string) =>
     page.screenshot({ path: `test-results/capturas/${test.info().project.name}-${nombre}.png`, fullPage: true });
 
 /** Docente con un alumno listo para trabajar hoy (consentimiento y diagnósticos del día hechos). */
-export async function preparar(page: Page, actividades: { nombre: string; tipo: string; num: number; tema?: string }[]) {
+export async function preparar(page: Page, actividades: { nombre: string; tipo: string; num: number; tema?: string }[], opciones: { camara?: boolean } = {}) {
     const sufijo = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
     const req = page.request;
-    await req.post("/api/v1/auth/docente/registro", { data: { nombre: "Docente Motor", email: `m.${sufijo}@escuela.mx`, password: "contraseña-e2e", aceptaAviso: true } });
+    const docente = { email: `m.${sufijo}@escuela.mx`, password: "contraseña-e2e" };
+    await req.post("/api/v1/auth/docente/registro", { data: { nombre: "Docente Motor", ...docente, aceptaAviso: true } });
     const grupo = await (await req.post("/api/v1/docente/grupos", { data: { nombre: "M", grado: 3, cicloEscolar: "2026-2027" } })).json();
     const alta = await (await req.post(`/api/v1/docente/grupos/${grupo.id}/alumnos`, { data: { nombre: "Sofía", tutorNombre: "Tutor Sofía", tutorEmail: "t@ejemplo.mx" } })).json();
     const alumnoId: string = alta.alumno.id;
-    await owner`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true WHERE alumno_id = ${alumnoId}`;
+    await owner`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true, acepta_camara = ${opciones.camara ?? false} WHERE alumno_id = ${alumnoId}`;
     const temas = (await (await req.get("/api/v1/catalogo/temas")).json()).items;
     const [{ hoy }] = await owner`SELECT to_char(fn_hoy_local(), 'YYYY-MM-DD') AS hoy`;
     for (const a of actividades) {
@@ -39,7 +40,7 @@ export async function preparar(page: Page, actividades: { nombre: string; tipo: 
     await req.post("/api/v1/auth/logout");
     await page.context().clearCookies();
     expect((await req.post("/api/v1/auth/alumno/login", { data: { grupoId: grupo.id, alumnoId, pin: alta.pin } })).status()).toBe(200);
-    return { alumnoId };
+    return { alumnoId, grupoId: grupo.id as string, docente };
 }
 
 /** Respuesta del ejercicio vigente; espera a que la página haya pedido uno nuevo (distinto de `anterior`). */

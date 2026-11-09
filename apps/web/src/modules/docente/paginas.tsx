@@ -1,11 +1,13 @@
 // Páginas del módulo docente (06-navegacion §1). Se cargan en un trozo aparte (code splitting).
-import { Link, useSearchParams } from "react-router-dom";
-import { useAuth } from "../../app/auth";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import ActividadesAsignadas from "./componentes/ActividadesAsignadas";
 import FormularioAcceso from "./componentes/FormularioAcceso";
 import FormularioAsignacion from "./componentes/FormularioAsignacion";
 import GestionGrupos from "./componentes/GestionGrupos";
+import FichaAlumno from "./componentes/FichaAlumno";
 import Historial from "./componentes/Historial";
+import Panel from "./componentes/PanelDocente";
+import ReportesTemas from "./componentes/Reportes";
 
 export function LoginDocente() {
     const [params] = useSearchParams();
@@ -21,16 +23,13 @@ export function LoginDocente() {
 
 export const RegistroDocente = () => <FormularioAcceso modo="registro" />;
 
-// Provisional: el resumen previo del grupo (D1) llega con EXP-07
-export function PanelDocente() {
-    const { usuario } = useAuth();
-    return (
-        <section className="tarjeta">
-            <h1 className="text-2xl font-extrabold">Hola, {usuario?.nombre}</h1>
-            <p className="mt-2 text-tinta-suave">El resumen de cómo llega tu grupo cada día aparecerá aquí.</p>
-            <Link to="/docente/grupos" className="boton mt-4">Ver mis grupos y alumnos</Link>
-        </section>
-    );
+// D1 · resumen previo y alertas (EXP-07.1, EXP-05.5); D4 · ficha; D6 · reportes
+export const PanelDocente = Panel;
+export const Reportes = ReportesTemas;
+
+export function Ficha() {
+    const { alumnoId = "" } = useParams();
+    return <FichaAlumno key={alumnoId} alumnoId={alumnoId} />;
 }
 
 export const Grupos = GestionGrupos;

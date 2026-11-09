@@ -22,7 +22,7 @@ describe("combinaciones disponibles", () => {
                 }
             }
         }
-        expect(generarParaActividad("geometria", "regla_y_compas", 2, crearRng(1) as never)).toBeNull();
+        expect(generarParaActividad("geometria", "regla_y_compas" as never, 2, crearRng(1) as never)).toBeNull();
     });
 
     it("RF-40: en «encuentra el número» ningún par de opciones es consecutivo", () => {

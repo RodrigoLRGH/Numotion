@@ -4,7 +4,12 @@ import { z } from "zod";
 import { AVATARES, ICONOS_PIN } from "@numotion/core/dominio/acceso";
 import { conContexto } from "../../infra/db";
 import { enviarInvitacion, renovarInvitacion } from "../core/consentimiento";
-import { consulta, contextoDe, docenteDe, ErrorHttp, noEncontrado, paramId, ruta, validar } from "../core/http";
+import { consulta, contextoDe, docenteDe, ErrorHttp, ipDe, noEncontrado, paramId, ruta, validar } from "../core/http";
+import { alertas, atenderAlerta, guia } from "./alertas";
+import {
+    auditarVista, capturarResultado, crearNota, cruce, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
+    serieEmocional, TIPOS_CAPTURABLES,
+} from "./seguimiento";
 import { actividadesAsignadas, crearActividad, historial, previsualizarNiveles, type DatosActividad } from "./actividades";
 import { CrearActividad, DestinoActividad, Fecha } from "./esquemas";
 import { alumnosDelGrupo, crearAlumno, crearGrupo, gruposDelDocente } from "./grupos";
@@ -138,4 +143,209 @@ const FiltrosHistorial = z.object({
 rutasDocente.get("/historial", ruta(async (req, res) => {
     const f = validar(FiltrosHistorial, consulta(req));
     res.json(await conContexto(contextoDe(docenteDe(res)), (tx) => historial(tx, f)));
+}));
+
+// ───────────── Resumen previo y retroalimentación (§4.2, RF-14, RF-62) ─────────────
+
+rutasDocente.get("/grupos/:id/resumen", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Grupo no encontrado");
+    const { fecha } = validar(z.object({ fecha: Fecha.optional() }), consulta(req));
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => resumenGrupo(tx, id, fecha));
+    if (!r) throw noEncontrado("Grupo no encontrado");
+    res.json(r);
+}));
+
+// ───────────── Alertas y guías (§4.4, RF-16, RF-27) ─────────────
+
+const FiltrosAlertas = z.object({
+    pendientes: z.enum(["true", "false"]).default("true"),
+    grupoId: z.string().uuid().optional(),
+    alumnoId: z.string().uuid().optional(),
+});
+
+rutasDocente.get("/alertas", ruta(async (req, res) => {
+    const f = validar(FiltrosAlertas, consulta(req));
+    res.json({ items: await conContexto(contextoDe(docenteDe(res)), (tx) => alertas(tx, { ...f, pendientes: f.pendientes === "true" })) });
+}));
+
+export const SSE_SONDEO_MS = 2500;
+export const SSE_LATIDO_MS = 25_000;
+export const SSE_DURACION_MS = 50_000;
+
+/**
+ * Alertas en vivo (SSE). Cada instancia consulta la BD cada 2.5 s en lugar de depender de memoria
+ * compartida, así funciona con varias instancias serverless; la alerta llega en < 5 s (EXP-05.5).
+ */
+rutasDocente.get("/alertas/stream", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    res.status(200).set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    res.flushHeaders();
+    let desde = new Date(Date.now() - 1000);
+    const ultimoId = req.get("last-event-id");
+    if (ultimoId && !Number.isNaN(Date.parse(ultimoId))) desde = new Date(ultimoId);
+    let cerrado = false;
+    let ocupado = false;
+    const enviar = (evento: string, datos: unknown, id?: string) => {
+        if (!cerrado) res.write(`${id ? `id: ${id}\n` : ""}event: ${evento}\ndata: ${JSON.stringify(datos)}\n\n`);
+    };
+    res.write("retry: 3000\n\n");
+    const sondeo = setInterval(async () => {
+        if (ocupado || cerrado) return;
+        ocupado = true;
+        try {
+            const nuevas = await conContexto(contextoDe(docente), (tx) => alertas(tx, { despuesDe: desde, pendientes: true, limite: 20 }));
+            for (const a of nuevas.reverse()) {
+                desde = new Date(a.creadaEn);
+                enviar("alerta.nueva", a, a.creadaEn);
+            }
+        } catch {
+            // Fallo transitorio de BD: se reintenta en el siguiente sondeo
+        } finally {
+            ocupado = false;
+        }
+    }, SSE_SONDEO_MS);
+    const latido = setInterval(() => enviar("ping", { t: Date.now() }), SSE_LATIDO_MS);
+    // res "close" (no req): en Node ≥ 16 req emite "close" al terminar de leer el cuerpo, no al
+    // desconectarse el cliente. El stream se cierra solo a los 50 s y EventSource reconecta con
+    // Last-Event-ID: no quedan conexiones colgadas detrás de proxies ni funciones serverless.
+    await new Promise<void>((fin) => {
+        const terminar = () => {
+            if (cerrado) return;
+            cerrado = true;
+            clearInterval(sondeo);
+            clearInterval(latido);
+            clearTimeout(limite);
+            fin();
+        };
+        const limite = setTimeout(() => {
+            terminar();
+            res.end();
+        }, SSE_DURACION_MS);
+        res.on("close", terminar);
+    });
+}));
+
+rutasDocente.get("/guias/:id", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Guía no encontrada");
+    const g = await conContexto(contextoDe(docenteDe(res)), (tx) => guia(tx, id));
+    if (!g) throw noEncontrado("Guía no encontrada");
+    res.json(g);
+}));
+
+rutasDocente.post("/alertas/:id/atender", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Alerta no encontrada");
+    const { nota } = validar(z.object({ nota: z.string().trim().max(500).optional() }), req.body ?? {});
+    if (!(await conContexto(contextoDe(docente), (tx) => atenderAlerta(tx, docente.id, id, nota)))) throw noEncontrado("Alerta no encontrada");
+    res.status(204).end();
+}));
+
+// ───────────── Ficha del alumno (§4.5, RF-29, RF-19, RF-50, RF-35, RF-52) ─────────────
+
+rutasDocente.get("/alumnos/:id", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const f = await conContexto(contextoDe(docente), async (tx) => {
+        const r = await ficha(tx, id);
+        // Cada apertura de la ficha se audita (EXP-07.2, RC-07)
+        if (r) await auditarVista(tx, docente.id, "ver_alumno", "alumno", id, ipDe(req));
+        return r;
+    });
+    if (!f) throw noEncontrado("Alumno no encontrado");
+    res.json(f);
+}));
+
+rutasDocente.get("/alumnos/:id/perfil-estadistico", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const { temaId } = validar(z.object({ temaId: z.string().uuid().optional() }), consulta(req));
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => perfilEstadistico(tx, id, temaId));
+    if (!r) throw noEncontrado("Alumno no encontrado");
+    res.json({ porTema: r });
+}));
+
+rutasDocente.get("/alumnos/:id/notas", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const r = await conContexto(contextoDe(docenteDe(res)), async (tx) => ((await tx.alumno.findUnique({ where: { id }, select: { id: true } })) ? notas(tx, id) : null));
+    if (!r) throw noEncontrado("Alumno no encontrado");
+    res.json({ items: r });
+}));
+
+const NuevaNota = z.object({
+    texto: z.string().trim().min(1).max(500),
+    etiqueta: z.enum(["conducta", "emocional", "academico", "otro"]).nullish(),
+});
+
+rutasDocente.post("/alumnos/:id/notas", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const d = validar(NuevaNota, req.body);
+    const n = await conContexto(contextoDe(docente), (tx) => crearNota(tx, docente.id, id, d));
+    if (!n) throw noEncontrado("Alumno no encontrado");
+    res.status(201).json(n);
+}));
+
+rutasDocente.get("/alumnos/:id/resultados", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => resultados(tx, id));
+    if (!r) throw noEncontrado("Alumno no encontrado");
+    res.json(r);
+}));
+
+const NuevoResultado = z.object({
+    temaId: z.string().uuid(),
+    tipo: z.enum(TIPOS_CAPTURABLES),
+    titulo: z.string().trim().min(1).max(120),
+    calificacion: z.number().min(0).max(10),
+    fecha: Fecha,
+});
+
+rutasDocente.post("/alumnos/:id/resultados", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const d = validar(NuevoResultado, req.body);
+    const r = await conContexto(contextoDe(docente), (tx) => capturarResultado(tx, docente.id, id, { ...d, calificacion: Math.round(d.calificacion * 100) / 100 }));
+    if (!r) throw noEncontrado("Alumno o tema no encontrado");
+    res.status(201).json(r);
+}));
+
+rutasDocente.get("/alumnos/:id/cruce", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => cruce(tx, id));
+    if (!r) throw noEncontrado("Alumno no encontrado");
+    res.json({ porTema: r });
+}));
+
+rutasDocente.get("/alumnos/:id/emociones", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Alumno no encontrado");
+    const q = validar(z.object({ desde: Fecha.optional(), hasta: Fecha.optional() }), consulta(req));
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => serieEmocional(tx, id, q.desde, q.hasta));
+    if (!r) throw noEncontrado("Alumno no encontrado");
+    res.json({ items: r });
+}));
+
+// ───────────── Reportes (§4.6, RF-18) ─────────────
+
+const FiltrosReporte = z.object({ desde: Fecha.optional(), hasta: Fecha.optional(), orden: z.enum(["error", "frustracion"]).default("error") });
+
+rutasDocente.get("/grupos/:id/reportes/temas", ruta(async (req, res) => {
+    const id = paramId(req, "id", "Grupo no encontrado");
+    const f = validar(FiltrosReporte, consulta(req));
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => reporteTemas(tx, id, f));
+    if (!r) throw noEncontrado("Grupo no encontrado");
+    res.json({ items: r });
+}));
+
+// CSV auditado (acción "exportar", RC-07)
+rutasDocente.get("/grupos/:id/reportes/temas.csv", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Grupo no encontrado");
+    const f = validar(FiltrosReporte, consulta(req));
+    const r = await conContexto(contextoDe(docente), async (tx) => {
+        const filas = await reporteTemas(tx, id, f);
+        if (filas) await auditarVista(tx, docente.id, "exportar", "reporte_temas", id, ipDe(req));
+        return filas;
+    });
+    if (!r) throw noEncontrado("Grupo no encontrado");
+    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="reporte-temas-${f.desde ?? "inicio"}-${f.hasta ?? "hoy"}.csv"` });
+    res.send(reporteCsv(r));
 }));

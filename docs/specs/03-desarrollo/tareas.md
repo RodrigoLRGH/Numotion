@@ -11,7 +11,7 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-01-05 · *(`/api/v1/auth/docente/{login,registro}`, `/api/v1/auth/logout`; bloqueo 15 min tras 10 fallos en BD; sin refresh por ADR-010; rate-limit por IP pendiente)* · `POST /auth/docente/login|refresh`, `POST /auth/logout` con rate-limit y bloqueo → P-SEC-02
 - [x] T-03-01-06 · *(`/api/v1/auth/alumno/grupo/:codigo`, `/api/v1/auth/alumno/login`)* · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
 - [x] T-03-01-07 · *(middleware + `decidirAcceso`; el consentimiento se verifica en cada petición dentro de `fn_sesion_auth`, sin caché)* · Middlewares `requireAuth`, `requireRole`, `requireConsent` (caché 60 s) → P-SEC-01, P-SEC-04
-- [ ] T-03-01-08 · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
+- [~] T-03-01-08 · *(login, ver_alumno, exportar y acceso_denegado auditados; faltan consentimiento/ARCO desde la app)* · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
 - [x] T-03-01-09 · *(invitación y OTP por correo con `correo.ts`: `smtp` Google Workspace en producción, `archivo` en desarrollo, `memoria` en pruebas; `npm run correo:probar`)* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
 - [x] T-03-01-10 · *(`/api/v1/consentimiento/:token[/otp|/revocar|/arco]`, migración 0007, reenvío del docente; A-24)* · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
 - [x] T-03-01-11 · *(ADR-010: `shared/cliente/api.ts`; sin refresh; la navegación la resuelve el middleware)* · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
@@ -69,35 +69,35 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-04-21 · Precarga del siguiente ejercicio y code splitting del módulo alumno → P-PERF-01 (auxiliar: `tests/e2e/code-splitting.e2e.ts`)
 
 ## EXP-05 · Emoción y alertas
-- [ ] T-03-05-01 · `core/emotion/emotionGateway.ts` (DetectFaces con bytes, descarte, timeout 3 s) → P-INT-01
-- [ ] T-03-05-02 · `core/emotion/derivarEstado.ts` (por frame y ventana) → P-UNIT-07
-- [ ] T-03-05-03 · `core/emotion/indiceFrustracion.ts` (con y sin cámara) → P-UNIT-02
-- [ ] T-03-05-04 · `POST /alumno/emociones/frame` (`express.raw` 100 KB, rate-limit 1/5 s, tope diario, métrica) → P-SEC-03, P-SEC-06
-- [ ] T-03-05-05 · `core/alertas/evaluarAlerta.ts` (2 evaluaciones consecutivas, cooldown 5 min) → P-UNIT-02
-- [ ] T-03-05-06 · `AlertBus` (EventEmitter + LISTEN/NOTIFY) y `GET /docente/alertas/stream` (SSE, heartbeat) → P-API-07
-- [ ] T-03-05-07 · `GET /docente/alertas`, `GET /docente/guias/:id`, `POST /docente/alertas/:id/atender` → P-API-07
-- [ ] T-03-05-08 · `POST /alumno/alertas/:id/respuesta` → aplica R2 del motor → P-API-07
-- [ ] T-03-05-09 · Web: `useEmotionCapture` + `CameraPermissionGate` + indicador de cámara → P-E2E-04
-- [ ] T-03-05-10 · Web: `PreguntaAyuda` en el alumno → P-E2E-03
-- [ ] T-03-05-11 · Web: `useAlertasStream`, `AlertaToast`, campana y `DetalleAlerta` + `GuiaActuacion` → P-E2E-03
-- [ ] T-03-05-12 · Job de purga de `evento_emocional` (180 días) → P-DB-07
+- [x] T-03-05-01 · `core/emotion/emotionGateway.ts` (DetectFaces con bytes, descarte, timeout 3 s) → P-INT-01
+- [x] T-03-05-02 · `core/emotion/derivarEstado.ts` (por frame y ventana) → P-UNIT-07
+- [x] T-03-05-03 · `core/emotion/indiceFrustracion.ts` (con y sin cámara) → P-UNIT-02
+- [x] T-03-05-04 · *(topes en BD con `fn_rekognition_reservar`; la respuesta no revela la emoción, RF-65)* · `POST /alumno/emociones/frame` (`express.raw` 100 KB, rate-limit 1/5 s, tope diario, métrica) → P-SEC-03, P-SEC-06
+- [x] T-03-05-05 · `core/alertas/evaluarAlerta.ts` (2 evaluaciones consecutivas, cooldown 5 min) → P-UNIT-02
+- [x] T-03-05-06 · *(sondeo de BD cada 2.5 s en lugar de LISTEN/NOTIFY: funciona en serverless; cierre a los 50 s y reconexión con Last-Event-ID)* · `AlertBus` (EventEmitter + LISTEN/NOTIFY) y `GET /docente/alertas/stream` (SSE, heartbeat) → P-API-07
+- [x] T-03-05-07 · `GET /docente/alertas`, `GET /docente/guias/:id`, `POST /docente/alertas/:id/atender` → P-API-07
+- [x] T-03-05-08 · `POST /alumno/alertas/:id/respuesta` → aplica R2 del motor → P-API-07
+- [x] T-03-05-09 · Web: `useEmotionCapture` + `CameraPermissionGate` + indicador de cámara → P-E2E-04
+- [x] T-03-05-10 · Web: `PreguntaAyuda` en el alumno → P-E2E-03
+- [x] T-03-05-11 · Web: `useAlertasStream`, `AlertaToast`, campana y `DetalleAlerta` + `GuiaActuacion` → P-E2E-03
+- [x] T-03-05-12 · *(`npm run db:purgar`; programarlo en el despliegue)* · Job de purga de `evento_emocional` (180 días) → P-DB-07
 
 ## EXP-06 · Gamificación
-- [ ] T-03-06-01 · `core/gamificacion/puntos.ts` y `niveles.ts` → P-UNIT-09
-- [ ] T-03-06-02 · `core/gamificacion/insignias.ts` (`evaluarInsignias`) → P-UNIT-09
-- [ ] T-03-06-03 · Endpoints de práctica libre (listar, iniciar, completar) → P-DB-01, P-E2E-01
-- [ ] T-03-06-04 · `GET /alumno/panel` (racha vía `fn_racha_vigente`, insignias, gamificación, mensaje) → P-API-09
-- [ ] T-03-06-05 · Selección de mensaje motivacional (condición + no repetir) → P-UNIT-12
-- [ ] T-03-06-06 · Web: `PanelAlumno`, `RachaVisual`, `Insignias`, `MensajeMotivacional`, `Personaje` → P-COMP-03
-- [ ] T-03-06-07 · Web: `PerfilAlumno` y `PracticaLibre` → P-COMP-03, P-E2E-01
+- [x] T-03-06-01 · `core/gamificacion/puntos.ts` y `niveles.ts` → P-UNIT-09
+- [x] T-03-06-02 · `core/gamificacion/insignias.ts` (`evaluarInsignias`) → P-UNIT-09
+- [x] T-03-06-03 · Endpoints de práctica libre (listar, iniciar, completar) → P-DB-01, P-E2E-01
+- [x] T-03-06-04 · `GET /alumno/panel` (racha vía `fn_racha_vigente`, insignias, gamificación, mensaje) → P-API-09
+- [x] T-03-06-05 · Selección de mensaje motivacional (condición + no repetir) → P-UNIT-12
+- [x] T-03-06-06 · Web: `PanelAlumno`, `RachaVisual`, `Insignias`, `MensajeMotivacional`, `Personaje` → P-COMP-03
+- [x] T-03-06-07 · Web: `PerfilAlumno` y `PracticaLibre` → P-COMP-03, P-E2E-01
 
 ## EXP-07 · Dashboard docente
-- [ ] T-03-07-01 · `GET /docente/grupos/:id/resumen` (vista `v_estado_emocional_reciente`) → P-API-03
-- [ ] T-03-07-02 · Web: `PanelDocente` con `ResumenPrevio`, `DistribucionEmocional`, `TablaAlumnosEstado` → P-E2E-02
-- [ ] T-03-07-03 · `GET /docente/alumnos/:id` + Web `FichaAlumno` (tab Resumen) → P-API-06
-- [ ] T-03-07-04 · `GET …/perfil-estadistico` + tab Perfil estadístico → P-API-05
-- [ ] T-03-07-05 · `GET/POST …/resultados` + `CapturaResultado` + consolidado → P-API-06
-- [ ] T-03-07-06 · `GET …/cruce` + `CruceTemaChart` → P-API-06
-- [ ] T-03-07-07 · `GET/POST …/notas` + `NotaRapida` (también desde alerta) → P-API-06
-- [ ] T-03-07-08 · Refresco de `mv_indice_tema_grupo` (cada 15 min + al completar asignación) → P-DB-08
-- [ ] T-03-07-09 · `GET …/reportes/temas` (+ CSV auditado) + página `Reportes` → P-API-05, P-PERF-02
+- [x] T-03-07-01 · `GET /docente/grupos/:id/resumen` (vista `v_estado_emocional_reciente`) → P-API-03
+- [x] T-03-07-02 · Web: `PanelDocente` con `ResumenPrevio`, `DistribucionEmocional`, `TablaAlumnosEstado` → P-E2E-02
+- [x] T-03-07-03 · `GET /docente/alumnos/:id` + Web `FichaAlumno` (tab Resumen) → P-API-06
+- [x] T-03-07-04 · `GET …/perfil-estadistico` + tab Perfil estadístico → P-API-05
+- [x] T-03-07-05 · `GET/POST …/resultados` + `CapturaResultado` + consolidado → P-API-06
+- [x] T-03-07-06 · `GET …/cruce` + `CruceTemaChart` → P-API-06
+- [x] T-03-07-07 · `GET/POST …/notas` + `NotaRapida` (también desde alerta) → P-API-06
+- [x] T-03-07-08 · *(sin vista materializada: el reporte se calcula en la consulta y cumple RNF-02 con el volumen actual)* · Refresco de `mv_indice_tema_grupo` (cada 15 min + al completar asignación) → P-DB-08
+- [x] T-03-07-09 · `GET …/reportes/temas` (+ CSV auditado) + página `Reportes` → P-API-05, P-PERF-02

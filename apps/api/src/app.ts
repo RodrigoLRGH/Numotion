@@ -43,7 +43,13 @@ export function crearApp(): Express {
         }
         const decision = decidirAcceso(ruta, usuario, diagnosticos);
         if (decision.tipo === "noAutorizado") enviarError(res, "NO_AUTENTICADO", "Inicia sesión para continuar", 401);
-        else if (decision.tipo === "prohibido") enviarError(res, "PROHIBIDO", "No tienes permiso para este recurso", 403);
+        else if (decision.tipo === "prohibido") {
+            // Acceso a un área de otro rol: queda en la auditoría (RC-07, T-03-01-08)
+            if (usuario) {
+                await conContexto(null, (tx) => tx.$executeRaw`SELECT fn_auditar(${usuario.id}::uuid, ${usuario.rol}::rol_usuario, 'acceso_denegado', ${ruta.slice(0, 200)}, NULL, ${req.ip ?? null}::inet)`).catch(() => {});
+            }
+            enviarError(res, "PROHIBIDO", "No tienes permiso para este recurso", 403);
+        }
         else if (decision.tipo === "diagnosticosPendientes") enviarError(res, "DIAGNOSTICOS_PENDIENTES", "Primero completa los diagnósticos de hoy", 403);
     }));
 

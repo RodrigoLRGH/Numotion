@@ -1,0 +1,36 @@
+// Etiquetas de estados emocionales para el docente: siempre ícono + texto (nunca solo color, RI-01)
+// y lenguaje de señales observadas, no diagnósticos (EXP-07, Lenguaje).
+
+export const ESTADO: Record<string, { icono: string; texto: string; clase: string }> = {
+    positivo: { icono: "🙂", texto: "Positivo", clase: "bg-exito-suave text-exito" },
+    neutral: { icono: "😐", texto: "Neutral", clase: "bg-slate-100 text-tinta" },
+    frustracion: { icono: "😟", texto: "Frustración", clase: "bg-alerta-suave text-alerta" },
+    desinteres: { icono: "😶", texto: "Desinterés", clase: "bg-acento-suave text-tinta" },
+    sin_dato: { icono: "░", texto: "Sin dato", clase: "bg-slate-100 text-tinta-suave" },
+};
+
+export function EtiquetaEstado({ estado }: { estado: string | null }) {
+    const e = ESTADO[estado ?? "sin_dato"] ?? ESTADO.sin_dato;
+    return (
+        <span className={`insignia-estado gap-1 ${e.clase}`}>
+            <span aria-hidden="true">{e.icono}</span> {e.texto}
+        </span>
+    );
+}
+
+export const AVISO_ESTIMACION = "Los estados emocionales son estimaciones automáticas de apoyo y no sustituyen el criterio docente.";
+
+export const fechaCorta = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+export const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/** Barra horizontal con su valor en texto (accesible sin depender del color). */
+export function Barra({ valor, max, etiqueta, clase = "bg-marca" }: { valor: number; max: number; etiqueta: string; clase?: string }) {
+    const pct = max > 0 ? Math.max(0, Math.min(100, (valor / max) * 100)) : 0;
+    return (
+        <div className="flex items-center gap-2">
+            <div className="h-3 min-w-24 flex-grow overflow-hidden rounded-full bg-slate-200" role="img" aria-label={etiqueta}>
+                <div className={`h-full rounded-full ${clase}`} style={{ width: `${pct}%` }} />
+            </div>
+        </div>
+    );
+}

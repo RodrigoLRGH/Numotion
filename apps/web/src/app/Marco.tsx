@@ -11,8 +11,13 @@ const ENLACES = {
         { to: "/docente/grupos", texto: "Grupos" },
         { to: "/docente/actividades", texto: "Actividades" },
         { to: "/docente/historial", texto: "Historial" },
+        { to: "/docente/reportes", texto: "Reportes" },
     ],
-    alumno: [{ to: "/alumno", texto: "🏠 Mi panel", fin: true }],
+    alumno: [
+        { to: "/alumno", texto: "🏠 Mi panel", fin: true },
+        { to: "/alumno/practica", texto: "🎮 Jugar" },
+        { to: "/alumno/perfil", texto: "👤 Perfil" },
+    ],
 } as const;
 
 function Encabezado() {
@@ -36,7 +41,8 @@ function Encabezado() {
                                 to={e.to}
                                 end={"fin" in e && e.fin}
                                 className={({ isActive }) =>
-                                    `rounded-lg px-3 py-2 font-semibold hover:bg-white/15 ${isActive ? "bg-marca-fuerte underline underline-offset-4" : ""}`
+                                    // hover con marca-fuerte (no blanco translúcido): mantiene el texto blanco ≥ 4.5:1
+                                    `rounded-lg px-3 py-2 font-semibold hover:bg-marca-fuerte ${isActive ? "bg-marca-fuerte underline underline-offset-4" : ""}`
                                 }
                             >
                                 {e.texto}

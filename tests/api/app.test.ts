@@ -136,3 +136,49 @@ describe("consentimiento público", () => {
         expect(r.headers["referrer-policy"]).toBe("no-referrer");
     });
 });
+
+describe("EXP-05 por HTTP: alertas en vivo (SSE), fotogramas y acceso denegado auditado", () => {
+    it("el stream SSE entrega una alerta creada después de conectarse en < 5 s", async () => {
+        const { docente: d, alta } = await alumnoConSesion();
+        const servidor = app.listen(0);
+        const puerto = (servidor.address() as { port: number }).port;
+        const control = new AbortController();
+        try {
+            const r = await fetch(`http://localhost:${puerto}/api/v1/docente/alertas/stream`, { headers: { cookie: d.cookie.join("; ") }, signal: control.signal });
+            expect(r.headers.get("content-type")).toMatch(/text\/event-stream/);
+            const [doc] = await sql`SELECT g.docente_id FROM alumno a JOIN grupo g ON g.id = a.grupo_id WHERE a.id = ${alta.alumno.id}`;
+            const inicio = Date.now();
+            await sql`INSERT INTO alerta (alumno_id, docente_id, indice) VALUES (${alta.alumno.id}, ${doc.docente_id}, 0.7)`;
+            const lector = r.body!.getReader();
+            let texto = "";
+            while (!texto.includes("alerta.nueva") && Date.now() - inicio < 5000) texto += new TextDecoder().decode((await lector.read()).value);
+            expect(texto).toContain("event: alerta.nueva");
+            expect(texto).toContain(alta.alumno.id);
+            expect(Date.now() - inicio).toBeLessThan(5000);
+        } finally {
+            control.abort();
+            servidor.close();
+        }
+    });
+
+    it("fotograma: solo imágenes ≤ 100 KB; sin consentimiento de cámara → 403", async () => {
+        const { agente, alta } = await alumnoConSesion();
+        const [s] = await sql`INSERT INTO sesion_alumno (alumno_id, fecha) VALUES (${alta.alumno.id}, fn_hoy_local()) ON CONFLICT (alumno_id, fecha) DO UPDATE SET fecha = EXCLUDED.fecha RETURNING id`;
+        await sql`INSERT INTO panas_resultado (sesion_id, alumno_id, afecto_positivo, afecto_negativo, completado_en) VALUES (${s.id}, ${alta.alumno.id}, 4, 1, now()) ON CONFLICT DO NOTHING`;
+        await sql`INSERT INTO retroalimentacion (sesion_id, alumno_id, estado_inicial) VALUES (${s.id}, ${alta.alumno.id}, 'positivo') ON CONFLICT DO NOTHING`;
+        const sinImagen = await agente.post("/api/v1/alumno/emociones/frame").set("Content-Type", "image/jpeg").send(Buffer.alloc(0));
+        expect(sinImagen.status).toBe(400);
+        const grande = await agente.post("/api/v1/alumno/emociones/frame").set("Content-Type", "image/jpeg").send(Buffer.alloc(101 * 1024, 1));
+        expect(grande.status).toBe(413);
+        const ok = await agente.post("/api/v1/alumno/emociones/frame").set("Content-Type", "image/jpeg").send(Buffer.from([0xff, 0xd8, 0xff, 1]));
+        expect(ok.status).toBe(403);
+        expect(ok.body.error.code).toBe("CONSENTIMIENTO_REQUERIDO");
+    });
+
+    it("un alumno que intenta entrar al área docente queda auditado como acceso_denegado", async () => {
+        const { agente, alta } = await alumnoConSesion();
+        expect((await agente.get("/api/v1/docente/grupos")).status).toBe(403);
+        const filas = await sql`SELECT accion, recurso FROM auditoria_acceso WHERE actor_id = ${alta.alumno.id} AND accion = 'acceso_denegado'`;
+        expect(filas).toEqual([{ accion: "acceso_denegado", recurso: "/api/v1/docente/grupos" }]);
+    });
+});

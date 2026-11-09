@@ -10,7 +10,7 @@
 | SDD y specs | v1.0 — este documento |
 | Código | Inventariado (T-00-01, 2026-10-27). Backend de dominio y API avanzados; **sin pantallas** |
 | Stack | **ADR-011**: SPA React + Vite + React Router (`apps/web`), API Express (`apps/api`), dominio compartido (`packages/core`), PostgreSQL 16 con RLS vía Prisma 6 (ADR-012), Vercel |
-| Despliegue | Por definir (AWS, RC-02) |
+| Despliegue | Vercel; AWS (RC-02) por definir: requiere cuenta, IaC y presupuesto |
 
 ## 2. T-00-01 · Inventario del repositorio (obligatorio primero)
 
@@ -60,7 +60,7 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 | Auth + sesiones | `apps/api/src/modules/core/auth.ts` | EXP-01. Docente OK (sesión opaca en lugar de JWT 15 min + refresh 7 d). Alumno: falta código de grupo + avatar + PIN (ADR-004). | Conservar y ampliar |
 | Guardas + middleware | `packages/core/src/guardas.ts`, `apps/api/src/app.ts` | EXP-01.3, EXP-02.4 (P-ROUTE-01..03 como pruebas de la función pura) | Conservar |
 | Consentimiento | Columnas `consentimiento_tutor`, `tutor_*`, `consentimiento_fecha` en `Alumno` | ADR-009 pide `consentimiento_tutor` versionado, revocable y con `acepta_camara` separado. | Reescribir como tabla |
-| Proveedor emocional | `shared/servidor/proveedor-emociones.ts`, `pages/api/alumno/emocion.ts` | EXP-05.1/05.2 (`EmotionGateway`). Quitar la emoción de la respuesta al alumno (RF-65). El límite diario (RC-04) y el de frecuencia deben persistir fuera de memoria. | Conservar; corregir |
+| Proveedor emocional | `shared/servidor/proveedor-emociones.ts`, `pages/api/alumno/emocion.ts` | EXP-05 Detección emocional y alertas | ✅ Hecho (pendiente validar guías) | `EmotionGateway` (Rekognition/simulado, timeout 3 s, buffer a ceros, sin imágenes en BD ni logs), `POST /alumno/emociones/frame` con topes por alumno en BD (`uso_rekognition`, 0012), IF en cada fotograma e intento, alerta a la 2.ª evaluación alta con enfriamiento, SSE `/docente/alertas/stream` (sondeo de BD, multi-instancia), guía de actuación, "¿Quieres que te ayude?" → R2, captura de cámara con indicador y consentimiento, `npm run db:purgar`. Contenido de guías provisional (T-01-05) |
 | Esquema de BD | `db/config.ts` | `02-diseno/diseno/01-modelo…` (faltan, p. ej., `ajuste_dificultad`, `auditoria_acceso`, `guia_actuacion`, `retroalimentacion`, `config_adaptativa`, `estado_derivado` en eventos emocionales). Depende de la decisión de §7. | Ampliar |
 | Seed | `db/seed.ts` | Seed del esquema actual (temas, docente y alumnos demo) | **Reescribir** (roto) |
 | API REST | `src/pages/api/**` | `05-contratos-de-api.md` (`/api/v1`, camelCase, error con `code`) | Conservar; alinear contratos gradualmente |
@@ -79,10 +79,16 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 | EXP-03 Asignación y seguimiento | ✅ Hecho | Asistente de 3 pasos con previsualización, seguimiento con refresco y historial con filtros/cursor. Las asignaciones se completan cuando exista el motor (EXP-04) |
 | EXP-04 Motor de ejercicios y adaptación | ✅ Entrega 2 de 2 | ✅ Motor completo (nivel, puntos, guía, idempotencia, ajuste_dificultad) + Mis actividades + los 7 tipos del catálogo (selección, encuentra el número, completar operación, arrastrar, con letras, suma con figuras, colorear) + contenido provisional de geometría y fracciones (A-30) + cola sin conexión con IndexedDB (EXP-04.9, P-E2E-05, A-32). Problemas con historia de OpenAI (T-03-04-20) y precarga + code splitting de la pantalla de actividad (T-03-04-21) |
 | EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔; faltan IF según spec, SSE, guías de actuación y límite diario |
-| EXP-06 Gamificación | 🟨 En curso | Puntos, racha, insignias y frases en dominio; falta UI |
-| EXP-07 Dashboard docente, perfil y reportes | 🟨 En curso | Reportes y notas en servicio; faltan UI, CSV y auditoría de fichas |
+| EXP-06 Gamificación | ✅ Hecho | Panel (personaje + accesorios por nivel, mensaje del día sin repetir, racha L–V y mejor racha), perfil sin datos emocionales, insignias del catálogo (0011) evaluadas tras cada ejercicio cerrado/práctica, práctica libre de 5 ejercicios que dispara la racha, celebraciones de insignia y nivel |
+| EXP-07 Dashboard docente, perfil y reportes | ✅ Hecho | Resumen previo por grupo (distribución, AP/AN, dominio, "sin datos hoy"), alertas en vivo, ficha auditada (resumen, perfil estadístico, cruce emoción-desempeño, resultados con captura y consolidado, notas rápidas), reporte por tema/habilidad con CSV auditado. Las habilidades usan tipo de ejercicio + nivel mientras no haya subtemas en el catálogo |
 
 Leyenda: ⬜ Pendiente · 🟨 En curso · ✅ Hecho · ⛔ Bloqueado
+
+### Pendientes fuera del código (2026-11-06)
+- **RC-02** despliegue en AWS (T-03-01-18): requiere cuenta, credenciales y decisión de infraestructura.
+- **RNF-01/RNF-02** medición de latencia con k6 (P-PERF) y **RNF-06** prueba de usabilidad con 10 alumnos.
+- **RNF-10/RC-07/RC-08** revisión legal del aviso y del flujo de consentimiento; atención de solicitudes ARCO por un rol administrador.
+- **RC-03**: la app avisa "sin cámara" y continúa (EXP-05.1); exigir dispositivo con cámara es una decisión operativa.
 
 ## 6. Pendientes de validación con stakeholders
 Ver `01-analisis/requerimientos.md §3` (ambigüedades A-01 a A-16). Mientras no se validen, el agente aplica la **interpretación adoptada** de esa tabla.

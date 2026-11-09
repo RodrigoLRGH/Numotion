@@ -14,6 +14,8 @@ import { Aviso } from "../../../shared/ui/Aviso";
 import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { registroEjercicios } from "../ejercicios/registro";
 import type { EjercicioPublico } from "../ejercicios/tipos";
+import { IndicadorCamara, PreguntaAyuda, useCapturaEmocional, type OfertaAyuda } from "./CapturaEmocional";
+import { Celebracion, type Insignia } from "./Gamificacion";
 import { GuiaPasoAPaso, type Guia } from "./GuiaPasoAPaso";
 
 interface Recompensa {
@@ -32,6 +34,9 @@ interface ResultadoIntento {
     guia: Guia | null;
     asignacion: { estado: string; resueltos: number; total: number };
     recompensa: Recompensa | null;
+    nuevasInsignias?: Insignia[];
+    subioNivel?: number | null;
+    ofrecerAyuda?: OfertaAyuda | null;
 }
 
 type Retro = { tipo: "bien"; puntos: number | null } | { tipo: "casi"; restantes: number | null } | null;
@@ -63,7 +68,8 @@ function useCronometro() {
     };
 }
 
-export default function ResolverActividad({ asignacionId }: { asignacionId: string }) {
+/** `camaraPermitida`: el tutor autorizó la cámara (consentimiento vigente, de la sesión). */
+export default function ResolverActividad({ asignacionId, camaraPermitida = false }: { asignacionId: string; camaraPermitida?: boolean }) {
     const [estado, setEstado] = useState<Siguiente | null>(null);
     const [descartadas, setDescartadas] = useState<string[]>([]);
     const [guia, setGuia] = useState<Guia | null>(null);
@@ -83,6 +89,30 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
     const [recompensaPendiente, setRecompensaPendiente] = useState<Recompensa | null>(null);
     const cronometro = useCronometro();
     const precarga = useRef<Promise<Siguiente> | null>(null);
+    // Gamificación y alerta temprana (EXP-05, EXP-06)
+    const [insignias, setInsignias] = useState<Insignia[]>([]);
+    const [nivelSubido, setNivelSubido] = useState<number | null>(null);
+    const [oferta, setOferta] = useState<OfertaAyuda | null>(null);
+    // Lo ganado en el último intento (se celebra entre ejercicios)
+    const [celebrar, setCelebrar] = useState<{ insignias: Insignia[]; nivel: number | null } | null>(null);
+    const ultimaInteraccion = useRef(performance.now());
+    useEffect(() => {
+        const tocar = () => void (ultimaInteraccion.current = performance.now());
+        window.addEventListener("pointerdown", tocar);
+        window.addEventListener("keydown", tocar);
+        return () => {
+            window.removeEventListener("pointerdown", tocar);
+            window.removeEventListener("keydown", tocar);
+        };
+    }, []);
+    const enEjercicio = Boolean(estado && "ejercicio" in estado) && !cerrado && !guia;
+    const camara = useCapturaEmocional({
+        permitida: camaraPermitida,
+        activa: enEjercicio,
+        asignacionId,
+        inactividadSeg: () => (performance.now() - ultimaInteraccion.current) / 1000,
+        onOfrecerAyuda: (o) => setOferta((actual) => actual ?? o),
+    });
 
     const mostrar = useCallback((s: Siguiente) => {
         setEstado(s);
@@ -93,7 +123,9 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
         if ("ejercicio" in s) {
             setAyuda(s.ayudaUsada);
             cronometro.reiniciar();
+            ultimaInteraccion.current = performance.now();
         }
+        setCelebrar(null);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
@@ -144,6 +176,10 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
             );
             setGuardando(false);
             setPuntosSesion((p) => p + r.puntos);
+            if (r.nuevasInsignias?.length) setInsignias((l) => [...l, ...r.nuevasInsignias!.filter((n) => !l.some((x) => x.clave === n.clave))]);
+            if (r.subioNivel) setNivelSubido(r.subioNivel);
+            if (!r.recompensa && (r.nuevasInsignias?.length || r.subioNivel)) setCelebrar({ insignias: r.nuevasInsignias ?? [], nivel: r.subioNivel ?? null });
+            if (r.ofrecerAyuda && !r.ejercicioCerrado) setOferta(r.ofrecerAyuda);
             setRetro(r.correcta ? { tipo: "bien", puntos: r.puntos } : { tipo: "casi", restantes: r.ejercicioCerrado ? 0 : r.intentosRestantes });
             hablar(r.correcta ? "¡Muy bien!" : r.ejercicioCerrado ? "Veamos cómo se resuelve" : "¡Casi! Intenta otra vez");
             if (!r.correcta) setDescartadas((d) => [...d, respuesta]);
@@ -176,6 +212,14 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
         }
     }
 
+    async function responderOferta(acepta: boolean) {
+        const o = oferta;
+        setOferta(null);
+        if (!o) return;
+        await api("POST", `/alumno/alertas/${o.alertaId}/respuesta`, { aceptaAyuda: acepta }).catch(() => {});
+        if (acepta) await pedirAyuda();
+    }
+
     function cerrarGuia() {
         setGuia(null);
         if (recompensaPendiente && estado) return setEstado({ completada: true, recompensa: recompensaPendiente, actividad: estado.actividad });
@@ -197,6 +241,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
                     <span className="opacity-25">{"⭐".repeat(3 - recompensa.estrellas)}</span>
                 </p>
                 <p className="mt-3 text-3xl font-extrabold text-exito">+{recompensa.puntos} puntos</p>
+                <Celebracion insignias={insignias} nivel={nivelSubido} />
                 <a href="/alumno" className="boton mt-6 min-h-14 px-8 text-2xl">Volver al inicio</a>
             </section>
         );
@@ -216,6 +261,7 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
                 </div>
                 <span className="font-bold whitespace-nowrap">{progreso.resueltos}/{progreso.total}</span>
                 {puntosSesion > 0 && <span className="rounded-full bg-exito-suave px-3 py-1 font-bold text-exito">+{puntosSesion}</span>}
+                <IndicadorCamara estado={camara} />
             </div>
 
             <div className="mb-6 flex items-center justify-center gap-3 text-center">
@@ -236,7 +282,10 @@ export default function ResolverActividad({ asignacionId }: { asignacionId: stri
                 {retro?.tipo === "bien" && <Aviso tipo="exito">¡Muy bien!{retro.puntos ? ` +${retro.puntos} puntos` : ""} <span aria-hidden="true">🎉</span></Aviso>}
                 {retro?.tipo === "casi" && retro.restantes !== 0 && <Aviso tipo="info">¡Casi! Intenta otra vez <span aria-hidden="true">💪</span></Aviso>}
                 {error && <Aviso tipo="error">{error}</Aviso>}
+                {celebrar && <Celebracion insignias={celebrar.insignias} nivel={celebrar.nivel} />}
             </div>
+
+            {oferta && !guia && !cerrado && <PreguntaAyuda oferta={oferta} onResponder={responderOferta} />}
 
             {guia ? (
                 <GuiaPasoAPaso key={guia.modo} guia={guia} onCerrar={cerrarGuia} />

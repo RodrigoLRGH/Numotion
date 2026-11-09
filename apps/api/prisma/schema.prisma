@@ -102,6 +102,7 @@ model alumno {
   retroalimentacion         retroalimentacion[]
   sesion_alumno             sesion_alumno[]
   solicitud_arco            solicitud_arco[]
+  uso_rekognition           uso_rekognition[]
 
   @@unique([grupo_id, avatar])
 }
@@ -135,6 +136,8 @@ model asignacion_alumno {
   creado_en            DateTime              @default(now()) @db.Timestamptz(6)
   ejercicio_actual_id  String?               @db.Uuid
   ayuda_actual         Boolean               @default(false)
+  if_consecutivos      Int                   @default(0) @db.SmallInt
+  ultimo_if            Decimal?              @db.Decimal(3, 2)
   ajuste_dificultad    ajuste_dificultad[]
   alerta               alerta[]
   actividad            actividad             @relation(fields: [actividad_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -333,6 +336,8 @@ model guia_actuacion {
   pasos          Json
   mensaje_alumno String
   alerta         alerta[]
+
+  @@unique([estado, titulo], map: "guia_actuacion_estado_titulo_uidx")
 }
 
 model insignia {
@@ -375,9 +380,10 @@ model intento_ejercicio {
 }
 
 model mensaje_motivacional {
-  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  texto     String
-  condicion Json   @default("{}")
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  texto               String                @unique(map: "mensaje_motivacional_texto_uidx")
+  condicion           Json                  @default("{}")
+  perfil_gamificacion perfil_gamificacion[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -425,11 +431,14 @@ model panas_resultado {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model perfil_gamificacion {
-  alumno_id          String @id @db.Uuid
-  puntos_totales     Int    @default(0)
-  nivel_gamificacion Int    @default(1) @db.SmallInt
-  personaje          String @default("explorador")
-  alumno             alumno @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  alumno_id            String                @id @db.Uuid
+  puntos_totales       Int                   @default(0)
+  nivel_gamificacion   Int                   @default(1) @db.SmallInt
+  personaje            String                @default("explorador")
+  ultimo_mensaje_id    String?               @db.Uuid
+  ultimo_mensaje_fecha DateTime?             @db.Date
+  alumno               alumno                @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mensaje_motivacional mensaje_motivacional? @relation(fields: [ultimo_mensaje_id], references: [id], onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -444,6 +453,7 @@ model practica_libre {
   completada_en     DateTime?           @db.Timestamptz(6)
   puntos            Int                 @default(0)
   creado_en         DateTime            @default(now()) @db.Timestamptz(6)
+  ejercicios        String[]            @default([]) @db.Uuid
   intento_ejercicio intento_ejercicio[]
   alumno            alumno              @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   tema              tema                @relation(fields: [tema_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -588,6 +598,28 @@ model tema {
   pregunta_diagnostico      pregunta_diagnostico[]
   resultado_academico       resultado_academico[]
   subtema                   subtema[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model uso_openai {
+  mes            DateTime @id @db.Date
+  costo_usd      Decimal  @default(0) @db.Decimal(12, 6)
+  llamadas       Int      @default(0)
+  rechazadas     Int      @default(0)
+  actualizado_en DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model uso_rekognition {
+  alumno_id String    @db.Uuid
+  fecha     DateTime  @db.Date
+  llamadas  Int       @default(0)
+  ultima_en DateTime? @db.Timestamptz(6)
+  alumno    alumno    @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([alumno_id, fecha])
 }
 
 enum accion_auditoria {

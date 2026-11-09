@@ -8,6 +8,9 @@ import DiagnosticoMatematico from "./componentes/DiagnosticoMatematico";
 import EntrarAlumno from "./componentes/EntrarAlumno";
 import MisActividades from "./componentes/MisActividades";
 import PanasC from "./componentes/PanasC";
+import Panel from "./componentes/PanelAlumno";
+import PerfilAlumno from "./componentes/PerfilAlumno";
+import PracticaLibre from "./componentes/PracticaLibre";
 import { cargarResolver } from "./componentes/precarga";
 
 const ResolverActividad = lazy(cargarResolver);
@@ -20,26 +23,19 @@ export function Entrar() {
 export const Panas = PanasC;
 export const Matematico = DiagnosticoMatematico;
 
-// Racha, puntos, insignias y frase motivacional llegan con EXP-06
-export function PanelAlumno() {
-    const { usuario } = useAuth();
-    return (
-        <>
-            <h1 className="mb-6 text-3xl font-extrabold">
-                ¡Hola, {usuario?.nombre.split(" ")[0]}! <span aria-hidden="true">👋</span>
-            </h1>
-            <MisActividades />
-        </>
-    );
-}
+// Panel con racha, nivel, insignias y frase del día (EXP-06); perfil y práctica libre
+export const PanelAlumno = Panel;
+export const Perfil = PerfilAlumno;
+export const Practica = PracticaLibre;
 
 export const Actividades = MisActividades;
 
 export function Resolver() {
     const { asignacionId = "" } = useParams();
+    const { camaraPermitida } = useAuth();
     return (
         <Suspense fallback={<p className="text-center text-xl" role="status">Preparando tu actividad…</p>}>
-            <ResolverActividad key={asignacionId} asignacionId={asignacionId} />
+            <ResolverActividad key={asignacionId} asignacionId={asignacionId} camaraPermitida={camaraPermitida} />
         </Suspense>
     );
 }
