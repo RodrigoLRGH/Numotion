@@ -2,7 +2,7 @@
 // resultados, cruce) y P-SEC-01 (aislamiento entre docentes + auditoría) de EXP-07.
 import { describe, expect, it } from "vitest";
 import {
-    auditarVista, capturarResultado, consolidar, crearNota, cruce, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
+    auditarVista, borrarNota, capturarResultado, consolidar, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
 } from "../../apps/api/src/modules/docente/seguimiento";
 import { escenarioCompleto, responderActividad } from "./escenario";
 import { sql } from "./fixture";
@@ -62,6 +62,33 @@ describe("ficha, notas y auditoría (RF-29, RF-50, RC-07)", () => {
         expect(await otro.comoDocente((tx) => perfilEstadistico(tx, e.alumnos[0]))).toBeNull();
         expect(await otro.comoDocente((tx) => cruce(tx, e.alumnos[0]))).toBeNull();
     });
+
+    it("CRUD de notas: el autor edita (conserva la fecha) y borra; otro docente no puede", async () => {
+        const e = await escenarioCompleto();
+        const otro = await escenarioCompleto();
+        const n = await e.comoDocente((tx) => crearNota(tx, e.docenteId, e.alumnos[0], { texto: "Original", etiqueta: "academico" }));
+        expect(n).toMatchObject({ texto: "Original", etiqueta: "academico", propia: true });
+        expect((await e.comoDocente((tx) => notas(tx, e.alumnos[0])))[0].propia).toBe(true);
+
+        const editada = await e.comoDocente((tx) => editarNota(tx, e.docenteId, e.alumnos[0], n!.id, { texto: "Corregida", etiqueta: null }));
+        expect(editada).toMatchObject({ id: n!.id, texto: "Corregida", etiqueta: null, fecha: n!.fecha, propia: true });
+
+        // Otro docente: ni edita ni borra (no ve al alumno); con el alumno equivocado tampoco
+        expect(await otro.comoDocente((tx) => editarNota(tx, otro.docenteId, e.alumnos[0], n!.id, { texto: "hack" }))).toBeNull();
+        expect(await otro.comoDocente((tx) => borrarNota(tx, otro.docenteId, e.alumnos[0], n!.id))).toBe(false);
+        expect(await e.comoDocente((tx) => editarNota(tx, e.docenteId, crypto.randomUUID(), n!.id, { texto: "x" }))).toBeNull();
+        expect(await sql`SELECT texto FROM nota_docente WHERE id = ${n!.id}`).toEqual([{ texto: "Corregida" }]);
+
+        // Una nota de otro autor sobre el mismo alumno se ve, pero no es propia ni editable
+        const [ajena] = await sql`INSERT INTO nota_docente (docente_id, alumno_id, texto) VALUES (${otro.docenteId}, ${e.alumnos[0]}, 'ajena') RETURNING id`;
+        expect((await e.comoDocente((tx) => notas(tx, e.alumnos[0]))).find((x) => x.id === ajena.id)?.propia).toBe(false);
+        expect(await e.comoDocente((tx) => editarNota(tx, e.docenteId, e.alumnos[0], ajena.id, { texto: "x" }))).toBeNull();
+        expect(await e.comoDocente((tx) => borrarNota(tx, e.docenteId, e.alumnos[0], ajena.id))).toBe(false);
+
+        expect(await e.comoDocente((tx) => borrarNota(tx, e.docenteId, e.alumnos[0], n!.id))).toBe(true);
+        expect(await e.comoDocente((tx) => borrarNota(tx, e.docenteId, e.alumnos[0], n!.id))).toBe(false);
+        expect((await e.comoDocente((tx) => notas(tx, e.alumnos[0]))).map((x) => x.texto)).toEqual(["ajena"]);
+    });
 });
 
 describe("perfil estadístico, consolidado y cruce (RF-19, RF-35, RF-52)", () => {
@@ -103,15 +130,15 @@ describe("reporte grupal (RF-18)", () => {
         await responderActividad(e, false, e.alumnos[0]);
         await responderActividad(e, true, e.alumnos[0]);
         await responderActividad(e, true, e.alumnos[1]);
-        const r = await e.comoDocente((tx) => reporteTemas(tx, e.grupoId, { orden: "error" }));
+        const r = await e.comoDocente((tx) => reporteTemas(tx, e.grupoId, {}));
         expect(r?.length).toBeGreaterThan(0);
         const total = r!.reduce((s, f) => s + f.intentos, 0);
         expect(total).toBe(3);
         expect(r![0].alumnosAfectados).toBe(1);
-        const csv = reporteCsv([{ temaId: "x", tema: "=HYPERLINK(1)", subtema: "a,b", intentos: 1, indiceError: 0.5, indiceFrustracion: null, alumnosAfectados: 1 }]);
+        const csv = reporteCsv([{ temaId: "x", tema: "=HYPERLINK(1)", subtema: "a,b", intentos: 1, indiceError: 0.5, alumnosAfectados: 1 }]);
         expect(csv).toContain("'=HYPERLINK(1)");
         expect(csv).toContain('"a,b"');
         const otro = await escenarioCompleto();
-        expect(await otro.comoDocente((tx) => reporteTemas(tx, e.grupoId, { orden: "error" }))).toBeNull();
+        expect(await otro.comoDocente((tx) => reporteTemas(tx, e.grupoId, {}))).toBeNull();
     });
 });

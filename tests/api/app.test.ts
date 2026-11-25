@@ -182,3 +182,36 @@ describe("EXP-05 por HTTP: alertas en vivo (SSE), fotogramas y acceso denegado a
         expect(filas).toEqual([{ accion: "acceso_denegado", recurso: "/api/v1/docente/grupos" }]);
     });
 });
+
+describe("notas del docente por HTTP (CRUD)", () => {
+    it("crear 201, listar, editar 200, borrar 204; validación 400 y 404 para ajenos o inexistentes", async () => {
+        const d = await docente();
+        const grupo = (await d.agente.post("/api/v1/docente/grupos").send({ nombre: "Notas", grado: 3, cicloEscolar: "2026-2027" })).body;
+        const alumnoId = (await d.agente.post(`/api/v1/docente/grupos/${grupo.id}/alumnos`).send({ nombre: "Leo", tutorNombre: "Tutor Leo", tutorEmail: "t@c.mx" })).body.alumno.id;
+        const base = `/api/v1/docente/alumnos/${alumnoId}/notas`;
+
+        const creada = await d.agente.post(base).send({ texto: "Primera", etiqueta: "academico" });
+        expect(creada.status).toBe(201);
+        expect(creada.body).toMatchObject({ texto: "Primera", etiqueta: "academico", propia: true });
+        const url = `${base}/${creada.body.id}`;
+
+        const editada = await d.agente.put(url).send({ texto: "  Corregida  ", etiqueta: null });
+        expect(editada.status).toBe(200);
+        expect(editada.body).toMatchObject({ id: creada.body.id, texto: "Corregida", etiqueta: null, fecha: creada.body.fecha });
+        expect((await d.agente.put(url).send({ texto: "" })).status).toBe(400);
+        expect((await d.agente.put(url).send({ texto: "x".repeat(501) })).status).toBe(400);
+        expect((await d.agente.put(url).send({ texto: "ok", etiqueta: "inventada" })).status).toBe(400);
+        expect((await d.agente.get(base)).body.items.map((n: { texto: string }) => n.texto)).toEqual(["Corregida"]);
+
+        // Otro docente: 404 al editar y al borrar, y la nota no cambia
+        const otro = await docente();
+        expect((await otro.agente.put(url).send({ texto: "hack" })).status).toBe(404);
+        expect((await otro.agente.delete(url)).status).toBe(404);
+        expect((await d.agente.get(base)).body.items).toHaveLength(1);
+
+        expect((await d.agente.delete(url)).status).toBe(204);
+        expect((await d.agente.delete(url)).status).toBe(404);
+        expect((await d.agente.put(`${base}/no-es-uuid`).send({ texto: "x" })).status).toBe(404);
+        expect((await d.agente.get(base)).body.items).toEqual([]);
+    });
+});

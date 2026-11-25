@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { precargarResolver } from "./precarga";
 
 interface Actividad {
@@ -41,7 +40,6 @@ export default function MisActividades() {
         <section aria-labelledby="mis-actividades" className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
                 <h2 id="mis-actividades" className="text-3xl font-extrabold">Mis actividades</h2>
-                <BotonAudio texto={porHacer.length ? `Tienes ${porHacer.length} actividades por hacer.` : "No tienes actividades pendientes."} />
             </div>
             {porHacer.length === 0 && <p className="tarjeta text-tinta-suave">¡No tienes actividades pendientes! <span aria-hidden="true">🌟</span></p>}
             <ul className="flex flex-col gap-3">

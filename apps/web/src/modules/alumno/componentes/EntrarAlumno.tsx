@@ -5,7 +5,6 @@ import { useRef, useState } from "react";
 import { AVATARES, ICONOS_PIN, LONGITUD_PIN, normalizarCodigo } from "@numotion/core/dominio/acceso";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 
 interface Grupo {
     grupoId: string;
@@ -69,7 +68,6 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
             <form onSubmit={buscarGrupo} className="tarjeta mx-auto flex max-w-lg flex-col items-center gap-5 text-center" noValidate>
                 <div className="flex items-center gap-3">
                     <h1 className="text-3xl font-extrabold">Escribe el código de tu grupo</h1>
-                    <BotonAudio texto="Escribe el código de tu grupo. Te lo da tu maestra o maestro." />
                 </div>
                 <label htmlFor="codigo" className="sr-only">Código del grupo</label>
                 <input
@@ -96,7 +94,6 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
             <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="quien">
                 <div className="mb-5 flex items-center justify-center gap-3">
                     <h1 id="quien" className="text-3xl font-extrabold">¿Quién eres?</h1>
-                    <BotonAudio texto="¿Quién eres? Toca tu animal." />
                 </div>
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="list">
                     {paso.grupo.alumnos.map((a) => (
@@ -131,7 +128,6 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
             <p className="text-xl font-bold">{paso.alumno.nombreCorto}</p>
             <div className="my-4 flex items-center justify-center gap-3">
                 <h1 id="clave" className="text-3xl font-extrabold">Toca tu clave secreta</h1>
-                <BotonAudio texto="Toca tus cuatro dibujos secretos, en orden." />
             </div>
             <p className="sr-only" aria-live="polite">{`${pin.length} de ${LONGITUD_PIN} dibujos`}</p>
             <div className="mb-4 flex justify-center gap-3" aria-hidden="true">

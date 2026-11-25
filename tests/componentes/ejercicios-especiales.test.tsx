@@ -2,17 +2,12 @@
 // sin conexión vista desde el componente (EXP-04.9; la persistencia en IndexedDB la cubre P-E2E-05)
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EjercicioColorear } from "../../apps/web/src/modules/alumno/ejercicios/EjercicioColorear";
 import { EjercicioNumeroAPalabras, EjercicioSumaFiguras } from "../../apps/web/src/modules/alumno/ejercicios/EjercicioRespuestaLibre";
 import ResolverActividad from "../../apps/web/src/modules/alumno/componentes/ResolverActividad";
 
 const base = { id: "e1", nivel: 2, enunciado: "Ejercicio", hashRespuesta: null };
-
-beforeEach(() => {
-    Object.assign(window, { speechSynthesis: { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] } });
-    globalThis.SpeechSynthesisUtterance ??= class { lang = ""; rate = 1; voice = null; constructor(public text: string) {} } as never;
-});
 
 describe("EjercicioNumeroAPalabras", () => {
     it("muestra el número, envía el texto con Enter y lista lo ya intentado", async () => {

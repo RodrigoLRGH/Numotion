@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { EscalaIntensidad } from "./EscalaIntensidad";
 
 interface Item {
@@ -90,7 +89,6 @@ export default function PanasC() {
 
             <div className="mb-8 flex items-center justify-center gap-3 text-center">
                 <h1 id="pregunta" className="text-3xl font-extrabold sm:text-4xl">{item.texto}</h1>
-                <BotonAudio texto={`${item.texto} ${estado.escala.map((e) => e.etiqueta).join(", ")}.`} />
             </div>
 
             <EscalaIntensidad escala={estado.escala} elegido={elegidos[item.id]} deshabilitado={ocupado} onElegir={elegir} />

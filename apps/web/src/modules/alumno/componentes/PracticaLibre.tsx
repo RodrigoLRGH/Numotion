@@ -4,9 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { coincideHash } from "../../../shared/cliente/hash";
-import { hablar } from "../../../shared/cliente/voz";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { registroEjercicios } from "../ejercicios/registro";
 import type { EjercicioPublico } from "../ejercicios/tipos";
 import { Celebracion, type Insignia } from "./Gamificacion";
@@ -79,7 +77,6 @@ export default function PracticaLibre() {
         <div className="flex flex-col gap-5">
             <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-extrabold"><span aria-hidden="true">🎮 </span>Jugar libre</h1>
-                <BotonAudio texto="Elige un juego. Cada juego tiene 5 retos. Si terminas uno hoy, tu racha crece." />
             </div>
             <p className="text-tinta-suave">Cada juego tiene 5 retos. ¡Termina uno hoy para que crezca tu racha! <span aria-hidden="true">🔥</span></p>
             {error && <Aviso tipo="error">{error}</Aviso>}
@@ -122,7 +119,6 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
         try {
             const r = await api<Completada>("POST", `/alumno/practica/${practica.practicaId}/completar`);
             setFin(r);
-            hablar(r.racha.incremento ? `¡Terminaste! Tu racha ahora es de ${r.racha.actual} días.` : "¡Terminaste el juego!");
         } catch (e) {
             setError(e instanceof ErrorApi ? e.message : "No pudimos guardar el final del juego.");
         } finally {
@@ -154,7 +150,6 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
                 tiempoMs: Math.round(performance.now() - inicio.current),
             });
             setRetro(r.correcta ? "bien" : "casi");
-            hablar(r.correcta ? "¡Muy bien!" : r.ejercicioCerrado ? "Veamos cómo se resuelve" : "¡Casi! Intenta otra vez");
             if (!r.correcta) setDescartadas((d) => [...d, respuesta]);
             setCerrado(r.ejercicioCerrado);
             if (r.solucion) setSolucion({ modo: "final", pasos: r.solucion.pasos, respuestaCorrecta: r.solucion.respuestaCorrecta });
@@ -198,7 +193,6 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
             </div>
             <div className="mb-6 flex items-center justify-center gap-3 text-center">
                 <h1 id="enunciado-practica" className="text-3xl font-extrabold">{ejercicio.enunciado}</h1>
-                <BotonAudio texto={ejercicio.enunciado} />
             </div>
             {Componente ? (
                 <Componente key={ejercicio.id} ejercicio={ejercicio} descartadas={descartadas} deshabilitado={ocupado || cerrado} onResponder={responder} />

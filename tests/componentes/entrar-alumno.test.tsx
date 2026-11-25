@@ -25,12 +25,8 @@ function respuesta(status: number, cuerpo: unknown) {
 }
 
 describe("EntrarAlumno", () => {
-    let hablar: ReturnType<typeof vi.fn>;
     beforeEach(() => {
         irA.mockReset();
-        hablar = vi.fn();
-        Object.assign(window, { speechSynthesis: { speak: hablar, cancel: vi.fn(), getVoices: () => [] } });
-        globalThis.SpeechSynthesisUtterance ??= class { lang = ""; rate = 1; voice = null; constructor(public text: string) {} } as never;
     });
 
     async function hastaElPin(fetch: ReturnType<typeof vi.fn>) {
@@ -56,8 +52,6 @@ describe("EntrarAlumno", () => {
         const [, init] = fetch.mock.calls[1];
         expect(JSON.parse(init.body)).toEqual({ grupoId: "g1", alumnoId: "a1", pin: ["sol", "luna", "pez", "sol"] });
         await vi.waitFor(() => expect(irA).toHaveBeenCalledWith("/alumno"));
-        // La clave nunca se lee en voz alta
-        expect(hablar).not.toHaveBeenCalled();
     });
 
     it("con clave incorrecta muestra un mensaje amable y limpia los íconos", async () => {
@@ -72,14 +66,12 @@ describe("EntrarAlumno", () => {
         expect(irA).not.toHaveBeenCalled();
     });
 
-    it("un código mal escrito no consulta al servidor y el botón de audio lee la instrucción", async () => {
+    it("un código mal escrito no consulta al servidor y no hay botón de audio", async () => {
         const fetch = vi.fn();
         vi.stubGlobal("fetch", fetch);
-        const u = userEvent.setup();
         render(<EntrarAlumno />);
         expect(screen.getByRole("button", { name: /seguir/i })).toBeDisabled();
-        await u.click(screen.getByRole("button", { name: "Escuchar" }));
-        expect(hablar).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole("button", { name: /escuchar/i })).not.toBeInTheDocument();
         expect(fetch).not.toHaveBeenCalled();
     });
 

@@ -1,10 +1,12 @@
 // D3 · Actividades asignadas (RF-58, EXP-03.4): resumen por estado y detalle por alumno.
 // Se refresca cada 30 s mientras la pestaña está visible.
+import { ArrowRight, Check, Circle, Play, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AVATARES } from "@numotion/core/dominio/acceso";
 import { nombreTipo } from "@numotion/core/dominio/catalogo";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { ICONO } from "./estados";
 
 interface AlumnoEnActividad {
     alumnoId: string;
@@ -34,10 +36,10 @@ interface Pagina {
 
 export const REFRESCO_MS = 30_000;
 
-const ESTADO: Record<AlumnoEnActividad["estado"], [string, string, string]> = {
-    pendiente: ["○", "Pendiente", "bg-slate-100 text-tinta"],
-    en_curso: ["▶", "En curso", "bg-acento-suave text-tinta"],
-    completada: ["✓", "Completada", "bg-exito-suave text-exito"],
+const ESTADO: Record<AlumnoEnActividad["estado"], [LucideIcon, string, string]> = {
+    pendiente: [Circle, "Pendiente", "bg-slate-100 text-tinta"],
+    en_curso: [Play, "En curso", "bg-acento-suave text-tinta"],
+    completada: [Check, "Completada", "bg-exito-suave text-exito"],
 };
 
 const emoji = (id: string) => AVATARES.find((a) => a.id === id)?.emoji ?? "🙂";
@@ -126,13 +128,13 @@ export default function ActividadesAsignadas() {
                                 </thead>
                                 <tbody>
                                     {a.alumnos.map((al) => {
-                                        const [icono, texto, clase] = ESTADO[al.estado];
+                                        const [Icono, texto, clase] = ESTADO[al.estado];
                                         return (
                                             <tr key={al.alumnoId} className="border-b border-slate-100">
                                                 <td className="py-2"><span aria-hidden="true" className="mr-2">{emoji(al.avatar)}</span>{al.nombre}</td>
-                                                <td className="py-2"><span className={`insignia-estado ${clase}`}><span aria-hidden="true" className="mr-1">{icono}</span>{texto}</span></td>
+                                                <td className="py-2"><span className={`insignia-estado gap-1 ${clase}`}><Icono aria-hidden="true" className={ICONO} />{texto}</span></td>
                                                 <td className="py-2">{al.resueltos}/{a.numEjercicios}</td>
-                                                <td className="py-2">{al.nivelInicial === al.nivelActual ? al.nivelInicial : <>{al.nivelInicial} → {al.nivelActual}</>}</td>
+                                                <td className="py-2">{al.nivelInicial === al.nivelActual ? al.nivelInicial : <>{al.nivelInicial} <ArrowRight aria-hidden="true" className={ICONO} /><span className="sr-only">a</span> {al.nivelActual}</>}</td>
                                                 <td className="py-2">{al.resultadoFinal ? Number(al.resultadoFinal).toFixed(1) : "—"}</td>
                                             </tr>
                                         );

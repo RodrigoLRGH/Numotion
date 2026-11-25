@@ -272,11 +272,25 @@ export interface Nota {
     fecha: string;
     texto: string;
     etiqueta: Etiqueta | null;
+    /** true si la escribió el docente de la sesión: solo el autor la edita o la borra */
+    propia: boolean;
+}
+
+const SELECT_NOTA = { id: true, fecha: true, texto: true, etiqueta: true, docente_id: true } as const;
+type FilaNota = { id: string; fecha: Date; texto: string; etiqueta: string | null; docente_id: string };
+const aNota = (n: FilaNota, usuarioId: string | null): Nota => ({
+    id: n.id, fecha: n.fecha.toISOString(), texto: n.texto, etiqueta: n.etiqueta as Etiqueta | null, propia: n.docente_id === usuarioId,
+});
+/** Usuario de la sesión según el contexto de BD (el mismo que usa RLS). */
+async function usuarioActual(tx: Tx): Promise<string | null> {
+    const [u] = await tx.$queryRaw<{ id: string | null }[]>`SELECT app_user()::text AS id`;
+    return u?.id ?? null;
 }
 
 export async function notas(tx: Tx, alumnoId: string, limite = 50): Promise<Nota[]> {
-    const filas = await tx.nota_docente.findMany({ where: { alumno_id: alumnoId }, orderBy: { fecha: "desc" }, take: limite, select: { id: true, fecha: true, texto: true, etiqueta: true } });
-    return filas.map((n) => ({ id: n.id, fecha: n.fecha.toISOString(), texto: n.texto, etiqueta: n.etiqueta as Etiqueta | null }));
+    const filas = await tx.nota_docente.findMany({ where: { alumno_id: alumnoId }, orderBy: { fecha: "desc" }, take: limite, select: SELECT_NOTA });
+    const yo = await usuarioActual(tx);
+    return filas.map((n) => aNota(n, yo));
 }
 
 /** Tres campos: fecha automática, texto 1–500 y etiqueta opcional. null si el alumno no es del docente. */
@@ -284,9 +298,27 @@ export async function crearNota(tx: Tx, docenteId: string, alumnoId: string, d: 
     if (!(await tx.alumno.findUnique({ where: { id: alumnoId }, select: { id: true } }))) return null;
     const n = await tx.nota_docente.create({
         data: { docente_id: docenteId, alumno_id: alumnoId, texto: d.texto, etiqueta: d.etiqueta ?? null },
-        select: { id: true, fecha: true, texto: true, etiqueta: true },
+        select: SELECT_NOTA,
     });
-    return { id: n.id, fecha: n.fecha.toISOString(), texto: n.texto, etiqueta: n.etiqueta as Etiqueta | null };
+    return aNota(n, docenteId);
+}
+
+/**
+ * Cambia texto y etiqueta; la fecha original se conserva. Solo el autor: null si la nota no existe,
+ * no es de ese alumno, la escribió otro docente o el alumno no es visible (RLS).
+ */
+export async function editarNota(tx: Tx, docenteId: string, alumnoId: string, notaId: string, d: { texto: string; etiqueta?: Etiqueta | null }): Promise<Nota | null> {
+    const donde = { id: notaId, alumno_id: alumnoId, docente_id: docenteId };
+    const r = await tx.nota_docente.updateMany({ where: donde, data: { texto: d.texto, etiqueta: d.etiqueta ?? null } });
+    if (r.count === 0) return null;
+    const n = await tx.nota_docente.findFirst({ where: donde, select: SELECT_NOTA });
+    return n ? aNota(n, docenteId) : null;
+}
+
+/** Borra la nota. Mismas reglas que editarNota; false si no había nada que borrar. */
+export async function borrarNota(tx: Tx, docenteId: string, alumnoId: string, notaId: string): Promise<boolean> {
+    const r = await tx.nota_docente.deleteMany({ where: { id: notaId, alumno_id: alumnoId, docente_id: docenteId } });
+    return r.count > 0;
 }
 
 // ───────────── Resultados académicos y consolidado (RF-35, EXP-07.4) ─────────────
@@ -432,11 +464,10 @@ export interface FilaReporte {
     subtema: string;
     intentos: number;
     indiceError: number;
-    indiceFrustracion: number | null;
     alumnosAfectados: number;
 }
 
-export async function reporteTemas(tx: Tx, grupoId: string, f: { desde?: string; hasta?: string; orden: "error" | "frustracion" }): Promise<FilaReporte[] | null> {
+export async function reporteTemas(tx: Tx, grupoId: string, f: { desde?: string; hasta?: string }): Promise<FilaReporte[] | null> {
     if (!(await tx.grupo.findUnique({ where: { id: grupoId }, select: { id: true } }))) return null;
     const rango = (col: Prisma.Sql) => Prisma.sql`
         ${f.desde ? Prisma.sql`AND (${col} AT TIME ZONE 'America/Tijuana')::date >= ${f.desde}::text::date` : Prisma.empty}
@@ -449,31 +480,15 @@ export async function reporteTemas(tx: Tx, grupoId: string, f: { desde?: string;
           JOIN ejercicio e ON e.id = i.ejercicio_id JOIN tema t ON t.id = e.tema_id LEFT JOIN subtema st ON st.id = e.subtema_id
          WHERE a.grupo_id = ${grupoId}::uuid ${rango(Prisma.sql`i.creado_en`)}
          GROUP BY e.tema_id, t.nombre, st.nombre, e.tipo_interaccion, e.nivel`;
-    // La cámara se asocia a la actividad (no al ejercicio): la frustración se mide por tema
-    const frustracion = await tx.$queryRaw<{ tema_id: string; con_dato: number; frustracion: number }[]>`
-        SELECT ac.tema_id, count(*) FILTER (WHERE e.estado_derivado <> 'sin_dato')::int AS con_dato,
-               count(*) FILTER (WHERE e.estado_derivado = 'frustracion')::int AS frustracion
-          FROM evento_emocional e JOIN alumno a ON a.id = e.alumno_id
-          JOIN asignacion_alumno s ON s.id = e.asignacion_id JOIN actividad ac ON ac.id = s.actividad_id
-         WHERE a.grupo_id = ${grupoId}::uuid ${rango(Prisma.sql`e.capturado_en`)}
-         GROUP BY ac.tema_id`;
-    const filas = errores.map((x) => {
-        const fr = frustracion.find((y) => y.tema_id === x.tema_id);
-        return {
-            temaId: x.tema_id,
-            tema: x.tema,
-            subtema: habilidad(x.subtema, x.tipo, x.nivel),
-            intentos: x.intentos,
-            indiceError: redondear(x.errores / x.intentos) ?? 0,
-            indiceFrustracion: fr && fr.con_dato ? redondear(fr.frustracion / fr.con_dato) : null,
-            alumnosAfectados: x.afectados,
-        };
-    });
-    return filas.sort((a, b) =>
-        f.orden === "frustracion"
-            ? (b.indiceFrustracion ?? -1) - (a.indiceFrustracion ?? -1) || b.indiceError - a.indiceError
-            : b.indiceError - a.indiceError || (b.indiceFrustracion ?? -1) - (a.indiceFrustracion ?? -1),
-    );
+    const filas = errores.map((x) => ({
+        temaId: x.tema_id,
+        tema: x.tema,
+        subtema: habilidad(x.subtema, x.tipo, x.nivel),
+        intentos: x.intentos,
+        indiceError: redondear(x.errores / x.intentos) ?? 0,
+        alumnosAfectados: x.afectados,
+    }));
+    return filas.sort((a, b) => b.indiceError - a.indiceError);
 }
 
 const celda = (v: unknown) => {
@@ -484,7 +499,7 @@ const celda = (v: unknown) => {
 };
 
 export function reporteCsv(filas: readonly FilaReporte[]): string {
-    const encabezado = ["Tema", "Subtema/habilidad", "Intentos", "Índice de error", "Índice de frustración", "Alumnos con errores"];
-    const lineas = filas.map((f) => [f.tema, f.subtema, f.intentos, f.indiceError, f.indiceFrustracion ?? "", f.alumnosAfectados].map(celda).join(","));
+    const encabezado = ["Tema", "Subtema/habilidad", "Intentos", "Índice de error", "Alumnos con errores"];
+    const lineas = filas.map((f) => [f.tema, f.subtema, f.intentos, f.indiceError, f.alumnosAfectados].map(celda).join(","));
     return `﻿${[encabezado.map(celda).join(","), ...lineas].join("\r\n")}\r\n`;
 }
