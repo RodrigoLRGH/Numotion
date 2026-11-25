@@ -1,5 +1,5 @@
 // P-COMP · Panel docente (RF-14, RF-62, RF-16), ficha con nota rápida (RF-50) y reportes (RF-18).
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,9 +50,8 @@ beforeEach(() => {
 });
 
 describe("PanelDocente (D1)", () => {
-    it("resumen previo del grupo, alertas con guía y tabla con 'sin datos hoy'", async () => {
+    it("resumen previo del grupo y tabla con 'sin datos hoy', sin alertas", async () => {
         const llamadas = servidor();
-        const u = userEvent.setup();
         render(<MemoryRouter><PanelDocente /></MemoryRouter>);
         expect(await screen.findByRole("heading", { name: /Cómo llega tu grupo hoy \(2 de 3 con diagnóstico/ })).toBeInTheDocument();
         expect(screen.getByText(/Afecto positivo promedio/)).toHaveTextContent("3.0");
@@ -60,15 +59,37 @@ describe("PanelDocente (D1)", () => {
         const mia = within(tabla).getByRole("row", { name: /Mia T\./ });
         expect(mia).toHaveTextContent(/sin datos hoy \(último: 1 nov/);
         expect(within(tabla).getByRole("row", { name: /Luis R\./ })).toHaveTextContent("Frustración");
-
-        await u.click(await screen.findByRole("button", { name: "Ver guía" }));
-        expect(await screen.findByText("Acércate con calma")).toBeInTheDocument();
-        expect(screen.getByText(/3 errores seguidos/)).toBeInTheDocument();
-        await u.type(screen.getByLabelText("Nota rápida (opcional)"), "Lo acompañé");
-        await u.click(screen.getByRole("button", { name: /Marcar como atendida/ }));
-        expect(llamadas.find((l) => l.url.endsWith("/atender"))?.cuerpo).toEqual({ nota: "Lo acompañé" });
-        expect(await screen.findByText(/Sin alertas pendientes/)).toBeInTheDocument();
         expect(screen.getByText(/no sustituyen el criterio docente/)).toBeInTheDocument();
+
+        // El panel ya no muestra ni consulta alertas
+        expect(screen.queryByText(/alertas? activas?/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Ver guía" })).not.toBeInTheDocument();
+        expect(llamadas.some((l) => l.url.includes("/docente/alertas"))).toBe(false);
+    });
+
+    it("AP y AN explican su significado en un tooltip (mouse, teclado y toque)", async () => {
+        servidor();
+        const u = userEvent.setup();
+        render(<MemoryRouter><PanelDocente /></MemoryRouter>);
+        const ap = await screen.findByRole("button", { name: "AP: qué significa" });
+        expect(ap).toHaveAccessibleDescription(/Afecto positivo/);
+
+        await u.hover(ap);
+        expect(screen.getByRole("tooltip")).toHaveTextContent(/emociones agradables/);
+        await u.unhover(ap);
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+        const an = screen.getByRole("button", { name: "AN: qué significa" });
+        act(() => an.focus());
+        expect(screen.getByRole("tooltip")).toHaveTextContent(/desde 3\.0/);
+        await u.keyboard("{Escape}");
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+        // Toque: se abre y no se cierra con el mismo toque; se cierra al tocar fuera
+        await u.click(an);
+        expect(screen.getByRole("tooltip")).toBeInTheDocument();
+        await u.click(document.body);
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     });
 });
 
@@ -92,17 +113,68 @@ describe("FichaAlumno (D4)", () => {
         await u.click(screen.getByRole("button", { name: "Guardar" }));
         expect(llamadas.find((l) => l.metodo === "POST")?.cuerpo).toEqual({ texto: "Participó", etiqueta: null });
     });
+
+    it("pestaña Notas: edita y borra (con confirmación) solo las notas propias", async () => {
+        const NOTAS = [
+            { id: "n1", fecha: "2026-11-04T16:00:00Z", texto: "Participó en clase", etiqueta: "academico", propia: true },
+            { id: "n2", fecha: "2026-11-03T16:00:00Z", texto: "Nota de otra maestra", etiqueta: null, propia: false },
+        ];
+        const llamadas = servidor({
+            "GET /api/v1/docente/alumnos/a1": {
+                datos: { id: "a1", nombre: "Ana", apellidos: "López", grupo: "3A", grado: 3, camara: true },
+                estadoEmocionalReciente: { estadoInicial: "positivo", afectoPositivo: 4, afectoNegativo: 1.4, fecha: "2026-11-04", observaciones: [], serie: [] },
+                ultimasNotas: [], resumenDesempeno: { completadas: 0, enCurso: 0, pendientes: 0, promedioResultado: null, puntos: 0, nivelGamificacion: 1, racha: { actual: 0, mejor: 0 }, alertasPendientes: 0 },
+            },
+            "GET /api/v1/docente/alumnos/a1/notas": { items: NOTAS },
+            "PUT /api/v1/docente/alumnos/a1/notas/n1": { ...NOTAS[0], texto: "Participó mucho", etiqueta: "conducta" },
+            "DELETE /api/v1/docente/alumnos/a1/notas/n1": {},
+            "GET /api/v1/docente/alertas": { items: [] },
+        });
+        const u = userEvent.setup();
+        render(<MemoryRouter><FichaAlumno alumnoId="a1" /></MemoryRouter>);
+        await u.click(await screen.findByRole("tab", { name: "Notas" }));
+        expect(await screen.findByText("Participó en clase")).toBeInTheDocument();
+
+        // La nota ajena no tiene acciones
+        expect(screen.getAllByRole("button", { name: /^Editar la nota/ })).toHaveLength(1);
+        expect(screen.getAllByRole("button", { name: /^Borrar la nota/ })).toHaveLength(1);
+
+        // Editar: cancelar no envía nada; guardar envía texto y etiqueta nuevos
+        await u.click(screen.getByRole("button", { name: /Editar la nota «Participó en clase/ }));
+        const campo = screen.getByLabelText("Texto de la nota");
+        expect(campo).toHaveValue("Participó en clase");
+        await u.click(screen.getByRole("button", { name: "Cancelar" }));
+        expect(llamadas.some((l) => l.metodo === "PUT")).toBe(false);
+
+        await u.click(screen.getByRole("button", { name: /Editar la nota «Participó en clase/ }));
+        await u.clear(screen.getByLabelText("Texto de la nota"));
+        await u.type(screen.getByLabelText("Texto de la nota"), "Participó mucho");
+        await u.selectOptions(within(screen.getByRole("form", { name: "Editar nota" })).getByLabelText("Etiqueta"), "conducta");
+        await u.click(screen.getByRole("button", { name: /Guardar cambios/ }));
+        expect(llamadas.find((l) => l.metodo === "PUT")).toMatchObject({ url: "/api/v1/docente/alumnos/a1/notas/n1", cuerpo: { texto: "Participó mucho", etiqueta: "conducta" } });
+
+        // Borrar: pide confirmación; cancelar no borra, "Sí, borrar" sí
+        await u.click(await screen.findByRole("button", { name: /Borrar la nota «Participó en clase/ }));
+        expect(screen.getByText(/¿Borrar esta nota\?/)).toBeInTheDocument();
+        await u.click(screen.getByRole("button", { name: "Cancelar" }));
+        expect(llamadas.some((l) => l.metodo === "DELETE")).toBe(false);
+        await u.click(screen.getByRole("button", { name: /Borrar la nota «Participó en clase/ }));
+        await u.click(screen.getByRole("button", { name: "Sí, borrar" }));
+        expect(llamadas.find((l) => l.metodo === "DELETE")?.url).toBe("/api/v1/docente/alumnos/a1/notas/n1");
+        // Tras cada cambio se recarga la lista
+        expect(llamadas.filter((l) => l.metodo === "GET" && l.url === "/api/v1/docente/alumnos/a1/notas").length).toBeGreaterThanOrEqual(3);
+    });
 });
 
 describe("Reportes (D6)", () => {
     it("lista temas por índice y enlaza el CSV con los mismos filtros", async () => {
         servidor({
-            "GET /api/v1/docente/grupos/g1/reportes/temas": { items: [{ temaId: "t", tema: "Resta", subtema: "Completar la operación · nivel 3", intentos: 40, indiceError: 0.42, indiceFrustracion: 0.31, alumnosAfectados: 9 }] },
+            "GET /api/v1/docente/grupos/g1/reportes/temas": { items: [{ temaId: "t", tema: "Resta", subtema: "Completar la operación · nivel 3", intentos: 40, indiceError: 0.42, alumnosAfectados: 9 }] },
         });
         render(<MemoryRouter><Reportes /></MemoryRouter>);
         const fila = await screen.findByRole("row", { name: /Resta/ });
         expect(fila).toHaveTextContent("42 %");
-        expect(fila).toHaveTextContent("31 %");
-        expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/api/v1/docente/grupos/g1/reportes/temas.csv?orden=error");
+        expect(screen.queryByText(/frustración/i)).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/api/v1/docente/grupos/g1/reportes/temas.csv");
     });
 });

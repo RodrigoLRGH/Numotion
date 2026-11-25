@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { BarraNivel, ListaInsignias, Personaje, type Gamificacion, type Insignia } from "./Gamificacion";
 
 interface Perfil {
@@ -67,10 +66,6 @@ export default function PerfilAlumno() {
             <section aria-labelledby="insignias-titulo" id="insignias" className="tarjeta">
                 <div className="mb-3 flex items-center gap-3">
                     <h2 id="insignias-titulo" className="text-2xl font-extrabold">Mis insignias ({p.insignias.length})</h2>
-                    <BotonAudio
-                        texto={p.insignias.length ? `Tienes ${p.insignias.length} insignias: ${p.insignias.map((i) => i.nombre).join(", ")}.` : "Todavía no tienes insignias. ¡Juega para ganarlas!"}
-                        etiqueta="Escuchar mis insignias"
-                    />
                 </div>
                 <ListaInsignias obtenidas={p.insignias} pendientes={p.insigniasPorGanar} />
             </section>

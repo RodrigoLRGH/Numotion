@@ -48,14 +48,13 @@ function Encabezado() {
                                 {e.texto}
                             </NavLink>
                         ))}
-                        <span className="mx-2 hidden text-sm opacity-90 sm:inline">{usuario.nombre}</span>
                         <button
                             type="button"
                             onClick={async () => {
                                 await salir();
                                 navegar("/", { replace: true });
                             }}
-                            className="min-h-11 cursor-pointer rounded-lg border border-white/60 px-3 py-1.5 text-sm font-bold hover:bg-white/15"
+                            className="ml-2 min-h-11 cursor-pointer rounded-lg border border-white/60 px-3 py-1.5 text-sm font-bold hover:bg-white/15"
                         >
                             Salir
                         </button>
@@ -75,7 +74,7 @@ export function Marco({ children, modulo = "publico", ancho = "normal" }: { chil
             </main>
             <footer className="mt-8 py-4 text-center text-sm text-tinta-suave">
                 <p>
-                    © 2026 {NOMBRE_PRODUCTO} · Proyecto TEDS · <Link to="/privacidad" className="underline">Aviso de privacidad</Link>
+                    © 2026 {NOMBRE_PRODUCTO} · <Link to="/privacidad" className="underline">Aviso de privacidad</Link>
                 </p>
             </footer>
         </div>

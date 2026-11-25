@@ -1,8 +1,10 @@
 // D3 · Historial (RF-59, EXP-03.5): asignaciones completadas, la más reciente primero.
 // Los filtros viven en la URL para poder compartir o recargar la vista (T-03-03-08).
+import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { ICONO } from "./estados";
 
 interface Entrada {
     asignacionId: string;
@@ -142,7 +144,7 @@ export default function Historial() {
                                     <td className="py-2 pr-3">{e.actividad}</td>
                                     <td className="py-2 pr-3">{e.tema}</td>
                                     <td className="py-2 pr-3 font-bold">{e.resultadoFinal ? Number(e.resultadoFinal).toFixed(1) : "—"}</td>
-                                    <td className="py-2 pr-3">{e.nivelInicial} → {e.nivelFinal}</td>
+                                    <td className="py-2 pr-3">{e.nivelInicial} <ArrowRight aria-hidden="true" className={ICONO} /><span className="sr-only">a</span> {e.nivelFinal}</td>
                                     <td className="py-2">{minutos(e.tiempoTotalMs)}</td>
                                 </tr>
                             ))}

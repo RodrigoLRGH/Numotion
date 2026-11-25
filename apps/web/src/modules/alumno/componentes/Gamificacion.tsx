@@ -1,6 +1,5 @@
 // Piezas visuales de gamificación (EXP-06, wireframes A3, A6, A7): personaje, nivel, racha L–V,
 // insignias, mensaje motivacional y celebraciones. Solo refuerzo positivo, sin comparaciones.
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 
 export interface Accesorio {
     nivel: number;
@@ -75,7 +74,6 @@ export function BarraNivel({ g }: { g: Gamificacion }) {
 
 /** EXP-06.3: racha en días con la semana L–V y la mejor racha; nunca en tono negativo. */
 export function RachaVisual({ actual, mejor, semana }: { actual: number; mejor: number; semana: DiaSemana[] }) {
-    const texto = actual > 0 ? `Llevas ${actual} ${actual === 1 ? "día" : "días"} seguidos practicando.` : "¡Empieza una nueva racha hoy! Juega un juego de práctica libre.";
     return (
         <section aria-labelledby="titulo-racha" className="tarjeta">
             <div className="flex flex-wrap items-center gap-3">
@@ -86,7 +84,6 @@ export function RachaVisual({ actual, mejor, semana }: { actual: number; mejor: 
                     </h2>
                     <p className="text-tinta-suave">Mejor racha: {mejor} {mejor === 1 ? "día" : "días"}</p>
                 </div>
-                <BotonAudio texto={texto} etiqueta="Escuchar la racha" />
             </div>
             <ol className="mt-4 flex justify-between gap-2" aria-label="Días de esta semana">
                 {semana.map((d) => (
@@ -114,7 +111,6 @@ export function MensajeMotivacional({ texto }: { texto: string }) {
         <section aria-label="Mensaje del día" className="flex items-center gap-3 rounded-2xl border-2 border-marca bg-marca-suave p-4">
             <span aria-hidden="true" className="text-4xl">💬</span>
             <p className="flex-grow text-2xl font-bold text-marca-fuerte">{texto}</p>
-            <BotonAudio texto={texto} etiqueta="Escuchar el mensaje" />
         </section>
     );
 }

@@ -1,5 +1,5 @@
-// D6 · Reporte grupal (RF-18, EXP-07.6): temas y habilidades con mayor índice de error o de
-// frustración en un periodo, exportable a CSV (la exportación queda auditada).
+// D6 · Reporte grupal (RF-18, EXP-07.6): temas y habilidades con mayor índice de error en un
+// periodo, exportable a CSV (la exportación queda auditada).
 import { useEffect, useState } from "react";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
@@ -11,7 +11,6 @@ interface Fila {
     subtema: string;
     intentos: number;
     indiceError: number;
-    indiceFrustracion: number | null;
     alumnosAfectados: number;
 }
 interface Grupo {
@@ -19,11 +18,11 @@ interface Grupo {
     nombre: string;
 }
 
-const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)} %`);
+const pct = (v: number) => `${Math.round(v * 100)} %`;
 
 export default function Reportes() {
     const [grupos, setGrupos] = useState<Grupo[]>([]);
-    const [f, setF] = useState({ grupoId: "", desde: "", hasta: "", orden: "error" });
+    const [f, setF] = useState({ grupoId: "", desde: "", hasta: "" });
     const [filas, setFilas] = useState<Fila[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -36,12 +35,13 @@ export default function Reportes() {
             .catch(() => setError("No se pudieron cargar tus grupos."));
     }, []);
 
-    const consulta = new URLSearchParams(Object.entries({ desde: f.desde, hasta: f.hasta, orden: f.orden }).filter(([, v]) => v)).toString();
+    const params = new URLSearchParams(Object.entries({ desde: f.desde, hasta: f.hasta }).filter(([, v]) => v)).toString();
+    const consulta = params ? `?${params}` : "";
 
     useEffect(() => {
         if (!f.grupoId) return;
         setFilas(null);
-        api<{ items: Fila[] }>("GET", `/docente/grupos/${f.grupoId}/reportes/temas?${consulta}`)
+        api<{ items: Fila[] }>("GET", `/docente/grupos/${f.grupoId}/reportes/temas${consulta}`)
             .then((r) => {
                 setFilas(r.items);
                 setError(null);
@@ -52,7 +52,7 @@ export default function Reportes() {
     return (
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-extrabold">Reporte de temas con más dificultad</h1>
-            <form className="tarjeta grid gap-3 sm:grid-cols-5" onSubmit={(e) => e.preventDefault()}>
+            <form className="tarjeta grid gap-3 sm:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
                 <label><span className="etiqueta">Grupo</span>
                     <select className="campo" value={f.grupoId} onChange={(e) => setF({ ...f, grupoId: e.target.value })}>
                         {grupos.map((g) => <option key={g.id} value={g.id}>{g.nombre}</option>)}
@@ -64,15 +64,9 @@ export default function Reportes() {
                 <label><span className="etiqueta">Hasta</span>
                     <input type="date" className="campo" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} />
                 </label>
-                <label><span className="etiqueta">Ordenar por</span>
-                    <select className="campo" value={f.orden} onChange={(e) => setF({ ...f, orden: e.target.value })}>
-                        <option value="error">Índice de error</option>
-                        <option value="frustracion">Índice de frustración</option>
-                    </select>
-                </label>
                 <div className="flex items-end">
                     {f.grupoId && (
-                        <a className="boton-secundario w-full" href={`/api/v1/docente/grupos/${f.grupoId}/reportes/temas.csv?${consulta}`} download>
+                        <a className="boton-secundario w-full" href={`/api/v1/docente/grupos/${f.grupoId}/reportes/temas.csv${consulta}`} download>
                             Exportar CSV
                         </a>
                     )}
@@ -90,7 +84,6 @@ export default function Reportes() {
                                 <th scope="col" className="pr-3">Subtema / habilidad</th>
                                 <th scope="col" className="pr-3">Intentos</th>
                                 <th scope="col" className="min-w-40 pr-3">Índice de error</th>
-                                <th scope="col" className="min-w-40 pr-3">Frustración (tema)</th>
                                 <th scope="col">Alumnos con errores</th>
                             </tr>
                         </thead>
@@ -101,7 +94,6 @@ export default function Reportes() {
                                     <td className="pr-3">{x.subtema}</td>
                                     <td className="pr-3">{x.intentos}</td>
                                     <td className="pr-3"><div className="flex items-center gap-2"><Barra valor={x.indiceError} max={1} etiqueta={`Error ${pct(x.indiceError)}`} clase="bg-marca" /><span className="w-12 text-right font-bold">{pct(x.indiceError)}</span></div></td>
-                                    <td className="pr-3"><div className="flex items-center gap-2"><Barra valor={x.indiceFrustracion ?? 0} max={1} etiqueta={`Frustración ${pct(x.indiceFrustracion)}`} clase="bg-alerta" /><span className="w-12 text-right font-bold">{pct(x.indiceFrustracion)}</span></div></td>
                                     <td>{x.alumnosAfectados}</td>
                                 </tr>
                             ))}

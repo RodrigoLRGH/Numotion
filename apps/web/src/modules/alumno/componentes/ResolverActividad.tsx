@@ -9,9 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { enviarIntento, sincronizarPendientes } from "../../../shared/cliente/cola-intentos";
 import { coincideHash } from "../../../shared/cliente/hash";
-import { hablar } from "../../../shared/cliente/voz";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 import { registroEjercicios } from "../ejercicios/registro";
 import type { EjercicioPublico } from "../ejercicios/tipos";
 import { IndicadorCamara, PreguntaAyuda, useCapturaEmocional, type OfertaAyuda } from "./CapturaEmocional";
@@ -181,7 +179,6 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
             if (!r.recompensa && (r.nuevasInsignias?.length || r.subioNivel)) setCelebrar({ insignias: r.nuevasInsignias ?? [], nivel: r.subioNivel ?? null });
             if (r.ofrecerAyuda && !r.ejercicioCerrado) setOferta(r.ofrecerAyuda);
             setRetro(r.correcta ? { tipo: "bien", puntos: r.puntos } : { tipo: "casi", restantes: r.ejercicioCerrado ? 0 : r.intentosRestantes });
-            hablar(r.correcta ? "¡Muy bien!" : r.ejercicioCerrado ? "Veamos cómo se resuelve" : "¡Casi! Intenta otra vez");
             if (!r.correcta) setDescartadas((d) => [...d, respuesta]);
             if (r.guia) setGuia(r.guia);
             setCerrado(r.ejercicioCerrado);
@@ -268,7 +265,6 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
                 <h1 id="enunciado" className={`font-extrabold ${ejercicio.enunciado.length > 60 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`}>
                     {ejercicio.enunciado}
                 </h1>
-                <BotonAudio texto={ejercicio.enunciado} />
             </div>
 
             {Componente ? (

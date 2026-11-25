@@ -7,7 +7,7 @@ import { enviarInvitacion, renovarInvitacion } from "../core/consentimiento";
 import { consulta, contextoDe, docenteDe, ErrorHttp, ipDe, noEncontrado, paramId, ruta, validar } from "../core/http";
 import { alertas, atenderAlerta, guia } from "./alertas";
 import {
-    auditarVista, capturarResultado, crearNota, cruce, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
+    auditarVista, borrarNota, capturarResultado, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
     serieEmocional, TIPOS_CAPTURABLES,
 } from "./seguimiento";
 import { actividadesAsignadas, crearActividad, historial, previsualizarNiveles, type DatosActividad } from "./actividades";
@@ -284,6 +284,25 @@ rutasDocente.post("/alumnos/:id/notas", ruta(async (req, res) => {
     res.status(201).json(n);
 }));
 
+// Solo el autor edita o borra; cualquier otro caso responde 404 (no revela si la nota existe)
+rutasDocente.put("/alumnos/:id/notas/:notaId", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Nota no encontrada");
+    const notaId = paramId(req, "notaId", "Nota no encontrada");
+    const d = validar(NuevaNota, req.body);
+    const n = await conContexto(contextoDe(docente), (tx) => editarNota(tx, docente.id, id, notaId, d));
+    if (!n) throw noEncontrado("Nota no encontrada");
+    res.json(n);
+}));
+
+rutasDocente.delete("/alumnos/:id/notas/:notaId", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Nota no encontrada");
+    const notaId = paramId(req, "notaId", "Nota no encontrada");
+    if (!(await conContexto(contextoDe(docente), (tx) => borrarNota(tx, docente.id, id, notaId)))) throw noEncontrado("Nota no encontrada");
+    res.status(204).end();
+}));
+
 rutasDocente.get("/alumnos/:id/resultados", ruta(async (req, res) => {
     const id = paramId(req, "id", "Alumno no encontrado");
     const r = await conContexto(contextoDe(docenteDe(res)), (tx) => resultados(tx, id));
@@ -325,7 +344,7 @@ rutasDocente.get("/alumnos/:id/emociones", ruta(async (req, res) => {
 
 // ───────────── Reportes (§4.6, RF-18) ─────────────
 
-const FiltrosReporte = z.object({ desde: Fecha.optional(), hasta: Fecha.optional(), orden: z.enum(["error", "frustracion"]).default("error") });
+const FiltrosReporte = z.object({ desde: Fecha.optional(), hasta: Fecha.optional() });
 
 rutasDocente.get("/grupos/:id/reportes/temas", ruta(async (req, res) => {
     const id = paramId(req, "id", "Grupo no encontrado");

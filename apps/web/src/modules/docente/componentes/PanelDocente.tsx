@@ -1,4 +1,4 @@
-// D1 · Panel docente: resumen previo del grupo (RF-14, RF-62) y alertas tempranas (RF-16, RF-27).
+// D1 · Panel docente: resumen previo del grupo (RF-14, RF-62).
 // Para el grupo elegido: cuántos alumnos ya hicieron el diagnóstico hoy, distribución del estado
 // inicial, AP/AN y dominio promedio; por alumno, su último dato ("sin datos hoy" con la fecha, A-09).
 import { useEffect, useState } from "react";
@@ -6,8 +6,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../app/auth";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { AvisoAlertaNueva, ListaAlertas, useAlertas } from "./Alertas";
-import { AVISO_ESTIMACION, Barra, ESTADO, EtiquetaEstado, fechaCorta } from "./estados";
+import { Ayuda } from "../../../shared/ui/Ayuda";
+import { AVISO_ESTIMACION, Barra, ESTADO, EtiquetaEstado, fechaCorta, IconoEstado } from "./estados";
 
 interface Grupo {
     id: string;
@@ -25,7 +25,6 @@ interface AlumnoResumen {
     observaciones: string[];
     fechaDato: string | null;
     sinDatosHoy: boolean;
-    alertasPendientes: number;
     camara: boolean;
 }
 interface Resumen {
@@ -53,13 +52,27 @@ const leerGrupo = () => {
 
 const fmt = (v: number | null) => (v === null ? "—" : v.toFixed(1));
 
+// Explicaciones de AP y AN (PANAS-C: escala 1–5, promedio de cada subescala; umbrales en estadoInicialDesdePanas)
+const AYUDA_AP = (
+    <>
+        <strong>Afecto positivo.</strong> Promedio, del 1 al 5, de qué tanto el alumno dijo sentir emociones agradables (como alegría o
+        interés) en el cuestionario del inicio del día. Más alto significa mejor ánimo para trabajar.
+    </>
+);
+const AYUDA_AN = (
+    <>
+        <strong>Afecto negativo.</strong> Promedio, del 1 al 5, de qué tanto el alumno dijo sentir emociones desagradables (como tristeza,
+        miedo o enojo) en el cuestionario del inicio del día. Más alto significa más malestar; desde 3.0 su estado inicial se marca como
+        frustración.
+    </>
+);
+
 export default function PanelDocente() {
     const { usuario } = useAuth();
     const [grupos, setGrupos] = useState<Grupo[] | null>(null);
     const [grupoId, setGrupoId] = useState<string>("");
     const [resumen, setResumen] = useState<Resumen | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const alertas = useAlertas();
 
     useEffect(() => {
         api<{ items: Grupo[] }>("GET", "/docente/grupos")
@@ -84,8 +97,6 @@ export default function PanelDocente() {
             .catch((e) => setError(e instanceof ErrorApi ? e.message : "No se pudo cargar el resumen."));
     }, [grupoId]);
 
-    const alertasGrupo = resumen ? alertas.items.filter((a) => resumen.alumnos.some((x) => x.alumnoId === a.alumno.id)) : alertas.items;
-
     return (
         <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-3">
@@ -100,9 +111,6 @@ export default function PanelDocente() {
                         </select>
                     </label>
                 )}
-                <span className="insignia-estado bg-alerta-suave text-alerta" aria-live="polite">
-                    <span aria-hidden="true">🔔 </span>{alertasGrupo.length} {alertasGrupo.length === 1 ? "alerta" : "alertas"}
-                </span>
             </div>
 
             {error && <Aviso tipo="error">{error}</Aviso>}
@@ -115,14 +123,8 @@ export default function PanelDocente() {
 
             {resumen && <ResumenPrevio r={resumen} />}
 
-            <section id="alertas" aria-labelledby="titulo-alertas" className="tarjeta">
-                <h2 id="titulo-alertas" className="mb-3 text-xl font-extrabold"><span aria-hidden="true">⚠ </span>Alertas activas</h2>
-                <ListaAlertas alertas={alertasGrupo} onQuitar={alertas.quitar} />
-            </section>
-
             {resumen && <TablaAlumnos r={resumen} />}
             <p className="text-sm text-tinta-suave">{AVISO_ESTIMACION}</p>
-            <AvisoAlertaNueva alerta={alertas.nueva} onCerrar={alertas.descartarNueva} />
         </div>
     );
 }
@@ -138,7 +140,7 @@ function ResumenPrevio({ r }: { r: Resumen }) {
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {filas.map(({ k, n }) => (
                     <li key={k} className="grid grid-cols-[9rem_1fr_2rem] items-center gap-2">
-                        <span>{ESTADO[k].icono} {k === "sin_dato" ? "Sin datos hoy" : ESTADO[k].texto}</span>
+                        <span className="flex items-center gap-1"><IconoEstado estado={k} /> {k === "sin_dato" ? "Sin datos hoy" : ESTADO[k].texto}</span>
                         <Barra valor={n} max={Math.max(1, g.total)} etiqueta={`${n} de ${g.total}`} clase={k === "frustracion" ? "bg-alerta" : k === "positivo" ? "bg-exito" : k === "sin_dato" ? "bg-slate-400" : "bg-marca"} />
                         <span className="text-right font-bold">{n}</span>
                     </li>
@@ -171,8 +173,12 @@ function TablaAlumnos({ r }: { r: Resumen }) {
                         <tr className="border-b border-slate-200">
                             <th scope="col" className="py-2 pr-3">Alumno</th>
                             <th scope="col" className="pr-3">Estado inicial</th>
-                            <th scope="col" className="pr-3"><abbr title="Afecto positivo (1–5)">AP</abbr></th>
-                            <th scope="col" className="pr-3"><abbr title="Afecto negativo (1–5)">AN</abbr></th>
+                            <th scope="col" className="pr-3">
+                                <Ayuda etiqueta="AP: qué significa" texto={AYUDA_AP}>AP</Ayuda>
+                            </th>
+                            <th scope="col" className="pr-3">
+                                <Ayuda etiqueta="AN: qué significa" texto={AYUDA_AN}>AN</Ayuda>
+                            </th>
                             {r.temas.map((t) => (
                                 <th key={t.clave} scope="col" className="pr-3">{t.nombre}</th>
                             ))}
@@ -185,12 +191,11 @@ function TablaAlumnos({ r }: { r: Resumen }) {
                             <tr key={a.alumnoId} className="border-b border-slate-100 align-top">
                                 <th scope="row" className="py-2 pr-3 font-semibold">
                                     {a.nombre}
-                                    {a.alertasPendientes > 0 && <span className="ml-2 insignia-estado bg-alerta-suave text-alerta">⚠ {a.alertasPendientes}</span>}
                                     {a.observaciones.length > 0 && <p className="text-sm font-normal text-tinta-suave">{a.observaciones.join(" · ")}</p>}
                                 </th>
                                 {a.sinDatosHoy ? (
                                     <td colSpan={3 + r.temas.length} className="pr-3 text-tinta-suave">
-                                        ░ sin datos hoy{a.fechaDato ? ` (último: ${fechaCorta(a.fechaDato)})` : ""}
+                                        <IconoEstado estado="sin_dato" /> sin datos hoy{a.fechaDato ? ` (último: ${fechaCorta(a.fechaDato)})` : ""}
                                     </td>
                                 ) : (
                                     <>

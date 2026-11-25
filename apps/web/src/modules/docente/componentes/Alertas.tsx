@@ -1,10 +1,11 @@
 // D5 · Alertas tempranas en vivo y guía de actuación (RF-16, RF-27, EXP-05.5, EXP-05.6).
 // SSE con reconexión automática; si el navegador o la red no lo permiten, sondeo cada 30 s.
+import { Check, CircleCheck, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { fechaHora } from "./estados";
+import { fechaHora, ICONO } from "./estados";
 
 export interface Alerta {
     alertaId: string;
@@ -111,7 +112,7 @@ export function DetalleAlerta({ alerta, onAtendida }: { alerta: Alerta; onAtendi
             {error && <Aviso tipo="error">{error}</Aviso>}
             <div className="flex flex-wrap gap-2">
                 <button type="button" className="boton" onClick={atender} disabled={enviando}>
-                    Marcar como atendida <span aria-hidden="true">✓</span>
+                    Marcar como atendida <Check aria-hidden="true" className={ICONO} />
                 </button>
                 <Link to={`/docente/alumnos/${alerta.alumno.id}`} className="boton-secundario">Ver ficha</Link>
             </div>
@@ -121,13 +122,13 @@ export function DetalleAlerta({ alerta, onAtendida }: { alerta: Alerta; onAtendi
 
 export function ListaAlertas({ alertas, onQuitar }: { alertas: Alerta[]; onQuitar(id: string): void }) {
     const [abierta, setAbierta] = useState<string | null>(null);
-    if (alertas.length === 0) return <p className="text-tinta-suave">Sin alertas pendientes. <span aria-hidden="true">✅</span></p>;
+    if (alertas.length === 0) return <p className="flex items-center gap-1 text-tinta-suave">Sin alertas pendientes. <CircleCheck aria-hidden="true" className={`${ICONO} text-exito`} /></p>;
     return (
         <ul className="flex flex-col gap-2">
             {alertas.map((a) => (
                 <li key={a.alertaId} className="rounded-xl border-l-4 border-alerta bg-alerta-suave p-3">
                     <div className="flex flex-wrap items-center gap-2">
-                        <span aria-hidden="true">⚠</span>
+                        <TriangleAlert aria-hidden="true" className="size-5 shrink-0 text-alerta" />
                         <p className="flex-grow">
                             <strong>{a.alumno.nombre}</strong> muestra señales de frustración
                             {a.actividad ? ` — ${a.actividad}${a.tema ? ` (${a.tema})` : ""}` : ""} · índice {a.indice.toFixed(2)} · {fechaHora(a.creadaEn)}
@@ -156,7 +157,7 @@ export function AvisoAlertaNueva({ alerta, onCerrar }: { alerta: Alerta | null; 
     if (!alerta) return null;
     return (
         <div role="alert" className="fixed right-4 bottom-4 z-50 max-w-sm rounded-2xl border-2 border-alerta bg-white p-4 shadow-lg">
-            <p className="font-extrabold text-alerta"><span aria-hidden="true">⚠ </span>Alerta temprana</p>
+            <p className="flex items-center gap-1 font-extrabold text-alerta"><TriangleAlert aria-hidden="true" className="size-5 shrink-0" />Alerta temprana</p>
             <p className="mt-1">{alerta.alumno.nombre} muestra señales de frustración{alerta.actividad ? ` en ${alerta.actividad}` : ""}.</p>
             <div className="mt-2 flex gap-2">
                 <a href="#alertas" className="boton" onClick={onCerrar}>Ver guía</a>

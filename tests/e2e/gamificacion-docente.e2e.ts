@@ -60,7 +60,7 @@ test("alumno con cámara autorizada: indicador visible y solo se guarda la emoci
     await sinViolacionesSerias(page);
 });
 
-test("docente: resumen previo, alerta con guía de actuación, ficha del alumno y reporte", async ({ page }) => {
+test("docente: resumen previo, ficha del alumno con alerta y guía de actuación, y reporte", async ({ page }) => {
     test.setTimeout(60_000);
     const { alumnoId, grupoId, docente } = await preparar(page, [{ nombre: "Restas 2", tipo: "seleccion_multiple", num: 3, tema: "resta" }]);
     // Una alerta temprana como la que generaría el motor (EXP-05.5)
@@ -74,16 +74,20 @@ test("docente: resumen previo, alerta con guía de actuación, ficha del alumno 
     await page.goto("/docente");
     await expect(page.getByRole("heading", { name: /Cómo llega tu grupo hoy \(1 de 1 con diagnóstico/ })).toBeVisible();
     await expect(page.getByRole("row", { name: /Sofía/ })).toContainText("Positivo");
-    await page.getByRole("button", { name: "Ver guía" }).click();
-    await expect(page.getByText(/Acércate con calma/)).toBeVisible();
+    // El panel ya no muestra alertas
+    await expect(page.getByText(/Alertas activas/)).toHaveCount(0);
     await sinViolacionesSerias(page);
     await captura(page, "docente-panel");
-    await page.getByLabel("Nota rápida (opcional)").fill("Le ayudé con el primer paso");
-    await page.getByRole("button", { name: /Marcar como atendida/ }).click();
-    await expect(page.getByText(/Sin alertas pendientes/)).toBeVisible();
 
+    // La alerta se atiende desde la ficha del alumno
     await page.getByRole("row", { name: /Sofía/ }).getByRole("link", { name: "Ver" }).click();
     await expect(page.getByRole("heading", { name: /Sofía/ })).toBeVisible();
+    await page.getByRole("button", { name: "Ver guía" }).click();
+    await expect(page.getByText(/Acércate con calma/)).toBeVisible();
+    await page.getByLabel("Nota rápida (opcional)").fill("Le ayudé con el primer paso");
+    await page.getByRole("button", { name: /Marcar como atendida/ }).click();
+    await expect(page.getByRole("button", { name: /Marcar como atendida/ })).toHaveCount(0);
+    await page.reload();
     await expect(page.getByText("Le ayudé con el primer paso")).toBeVisible();
     await sinViolacionesSerias(page);
     for (const pestana of ["Perfil estadístico", "Cruce emoción-desempeño", "Resultados", "Notas"]) {

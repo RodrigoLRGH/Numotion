@@ -1,7 +1,6 @@
 // Guía (RF-11) y explicación final (RF-45). Paso a paso: un paso a la vez.
 // Final: todos los pasos y la respuesta correcta, al cerrar un ejercicio sin acierto.
 import { useState } from "react";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 
 export interface Guia {
     modo: "paso_a_paso" | "final";
@@ -23,7 +22,6 @@ export function GuiaPasoAPaso({ guia, onCerrar }: { guia: Guia; onCerrar(): void
                 <h2 id="titulo-guia" className="text-2xl font-extrabold">
                     {final ? "Así se resuelve" : "Vamos juntos, paso a paso"}
                 </h2>
-                <BotonAudio texto={mostrados.map((p) => p.texto).join(" ")} etiqueta="Escuchar la guía" />
             </div>
             <ol className="flex flex-col gap-2" aria-live="polite">
                 {mostrados.map((p) => (

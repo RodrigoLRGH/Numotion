@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { EjercicioPublico } from "@numotion/core/dominio/ejercicios";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { BotonAudio } from "../../../shared/ui/BotonAudio";
 
 type Pregunta = EjercicioPublico & { id: string };
 type Siguiente = { pregunta: Pregunta; progreso: { temasCompletados: number; temas: number } } | { terminado: true };
@@ -79,7 +78,6 @@ export default function DiagnosticoMatematico() {
 
             <div className="mb-6 flex items-center justify-center gap-3 text-center">
                 <h1 id="enunciado" className="text-3xl font-extrabold sm:text-4xl">{pregunta.enunciado}</h1>
-                <BotonAudio texto={pregunta.enunciado} />
             </div>
 
             {pregunta.expresion && <p className="mb-6 text-center font-mono text-5xl font-bold">{pregunta.expresion}</p>}

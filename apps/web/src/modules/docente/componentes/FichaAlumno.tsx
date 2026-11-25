@@ -1,18 +1,20 @@
 // D4 · Ficha del alumno (RF-29, RF-19, RF-52, RF-35, RF-50): resumen, perfil estadístico, cruce
 // emoción-desempeño, resultados académicos (captura + consolidado) y notas rápidas.
 // Cada apertura queda auditada en el servidor (EXP-07.2).
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, Check, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
 import { ListaAlertas, useAlertas } from "./Alertas";
-import { AVISO_ESTIMACION, Barra, ESTADO, EtiquetaEstado, fechaCorta, fechaHora } from "./estados";
+import { AVISO_ESTIMACION, Barra, ESTADO, EtiquetaEstado, fechaCorta, fechaHora, ICONO, IconoEstado } from "./estados";
 
 interface Nota {
     id: string;
     fecha: string;
     texto: string;
     etiqueta: string | null;
+    propia: boolean;
 }
 interface Ficha {
     datos: { id: string; nombre: string; apellidos: string; grupo: string; grado: number; camara: boolean };
@@ -111,7 +113,7 @@ export default function FichaAlumno({ alumnoId }: { alumnoId: string }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <Link to="/docente" className="font-bold text-marca underline">← Volver al panel</Link>
+            <Link to="/docente" className="inline-flex items-center gap-1 self-start font-bold text-marca underline"><ArrowLeft aria-hidden="true" className={ICONO} />Volver al panel</Link>
             <header className="tarjeta flex flex-wrap items-center gap-3">
                 <h1 className="flex-grow text-2xl font-extrabold">
                     {ficha.datos.nombre} {ficha.datos.apellidos} <span className="font-semibold text-tinta-suave">· {ficha.datos.grupo}</span>
@@ -183,7 +185,14 @@ function ResumenFicha({ ficha, alumnoId, onNota }: { ficha: Ficha; alumnoId: str
                                 <span key={i} className={`flex-1 ${s.estado === "frustracion" ? "bg-alerta" : s.estado === "positivo" ? "bg-exito" : s.estado === "neutral" ? "bg-marca-suave" : s.estado === "desinteres" ? "bg-acento" : "bg-slate-200"}`} />
                             ))}
                         </div>
-                        <p className="mt-1 text-sm">{Object.entries(conteo).map(([k, n]) => `${ESTADO[k]?.icono ?? ""} ${ESTADO[k]?.texto ?? k} ${n}`).join(" · ")}</p>
+                        <p className="mt-1 text-sm">
+                            {Object.entries(conteo).map(([k, n], i) => (
+                                <Fragment key={k}>
+                                    {i > 0 && " · "}
+                                    <IconoEstado estado={k} /> {ESTADO[k]?.texto ?? k} {n}
+                                </Fragment>
+                            ))}
+                        </p>
                     </>
                 ) : (
                     <p className="mt-2 text-tinta-suave">Sin muestras de cámara.</p>
@@ -192,7 +201,7 @@ function ResumenFicha({ ficha, alumnoId, onNota }: { ficha: Ficha; alumnoId: str
             <div className="md:col-span-2">
                 <h2 className="text-lg font-extrabold">Últimas notas</h2>
                 <NotaRapida alumnoId={alumnoId} onGuardada={onNota} />
-                <ListaNotas notas={ficha.ultimasNotas} />
+                <ListaNotas notas={ficha.ultimasNotas} alumnoId={alumnoId} onCambio={onNota} />
             </div>
         </div>
     );
@@ -238,17 +247,100 @@ function NotaRapida({ alumnoId, onGuardada }: { alumnoId: string; onGuardada(): 
     );
 }
 
-function ListaNotas({ notas }: { notas: Nota[] }) {
+function ListaNotas({ notas, alumnoId, onCambio }: { notas: Nota[]; alumnoId: string; onCambio(): void }) {
     if (notas.length === 0) return <p className="mt-2 text-tinta-suave">Sin notas.</p>;
     return (
         <ul className="mt-3 flex flex-col gap-2">
-            {notas.map((n) => (
-                <li key={n.id} className="rounded-xl bg-fondo px-3 py-2">
-                    <span className="text-sm text-tinta-suave">{fechaHora(n.fecha)}{n.etiqueta ? ` · ${ETIQUETAS.find((x) => x.id === n.etiqueta)?.texto ?? n.etiqueta}` : ""}</span>
-                    <p>{n.texto}</p>
-                </li>
-            ))}
+            {notas.map((n) => <NotaItem key={n.id} nota={n} alumnoId={alumnoId} onCambio={onCambio} />)}
         </ul>
+    );
+}
+
+/** Una nota: ver, editar en el lugar o borrar con confirmación. Solo el autor ve las acciones. */
+function NotaItem({ nota, alumnoId, onCambio }: { nota: Nota; alumnoId: string; onCambio(): void }) {
+    const [modo, setModo] = useState<"ver" | "editar" | "borrar">("ver");
+    const [texto, setTexto] = useState(nota.texto);
+    const [etiqueta, setEtiqueta] = useState(nota.etiqueta ?? "");
+    const [error, setError] = useState<string | null>(null);
+    const [enviando, setEnviando] = useState(false);
+    const ruta = `/docente/alumnos/${alumnoId}/notas/${nota.id}`;
+    const nombreEtiqueta = nota.etiqueta ? ETIQUETAS.find((x) => x.id === nota.etiqueta)?.texto ?? nota.etiqueta : null;
+
+    function cambiarModo(m: typeof modo) {
+        setTexto(nota.texto);
+        setEtiqueta(nota.etiqueta ?? "");
+        setError(null);
+        setModo(m);
+    }
+    async function enviar(accion: () => Promise<unknown>, mensaje: string) {
+        setEnviando(true);
+        setError(null);
+        try {
+            await accion();
+            setModo("ver");
+            onCambio();
+        } catch (e) {
+            setError(e instanceof ErrorApi ? e.message : mensaje);
+        } finally {
+            setEnviando(false);
+        }
+    }
+    const guardar = (ev: FormEvent) => {
+        ev.preventDefault();
+        if (!texto.trim()) return;
+        void enviar(() => api("PUT", ruta, { texto: texto.trim(), etiqueta: etiqueta || null }), "No se guardaron los cambios.");
+    };
+    const borrar = () => void enviar(() => api("DELETE", ruta), "No se borró la nota.");
+
+    if (modo === "editar") {
+        return (
+            <li className="rounded-xl border-2 border-marca bg-white px-3 py-2">
+                <form onSubmit={guardar} className="flex flex-wrap items-end gap-2" aria-label="Editar nota">
+                    <label className="min-w-60 flex-grow">
+                        <span className="etiqueta">Texto de la nota</span>
+                        <input className="campo" value={texto} maxLength={500} onChange={(e) => setTexto(e.target.value)} required autoFocus />
+                    </label>
+                    <label>
+                        <span className="etiqueta">Etiqueta</span>
+                        <select className="campo" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)}>
+                            {ETIQUETAS.map((x) => <option key={x.id} value={x.id}>{x.texto}</option>)}
+                        </select>
+                    </label>
+                    <button className="boton" disabled={enviando || !texto.trim()}><Check aria-hidden="true" className={ICONO} /> Guardar cambios</button>
+                    <button type="button" className="boton-secundario" onClick={() => cambiarModo("ver")} disabled={enviando}>Cancelar</button>
+                </form>
+                {error && <div className="mt-2"><Aviso tipo="error">{error}</Aviso></div>}
+            </li>
+        );
+    }
+
+    return (
+        <li className="rounded-xl bg-fondo px-3 py-2">
+            <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-grow">
+                    <span className="text-sm text-tinta-suave">{fechaHora(nota.fecha)}{nombreEtiqueta ? ` · ${nombreEtiqueta}` : ""}</span>
+                    <p className="break-words">{nota.texto}</p>
+                </div>
+                {nota.propia && modo === "ver" && (
+                    <div className="flex gap-1">
+                        <button type="button" className="boton-secundario px-3" onClick={() => cambiarModo("editar")} aria-label={`Editar la nota «${nota.texto.slice(0, 40)}»`}>
+                            <Pencil aria-hidden="true" className={ICONO} /> Editar
+                        </button>
+                        <button type="button" className="boton-secundario px-3" onClick={() => cambiarModo("borrar")} aria-label={`Borrar la nota «${nota.texto.slice(0, 40)}»`}>
+                            <Trash2 aria-hidden="true" className={ICONO} /> Borrar
+                        </button>
+                    </div>
+                )}
+            </div>
+            {modo === "borrar" && (
+                <div role="group" aria-label="Confirmar borrado" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-alerta-suave p-2">
+                    <p className="flex-grow font-bold text-alerta">¿Borrar esta nota? No se puede deshacer.</p>
+                    <button type="button" className="boton" onClick={borrar} disabled={enviando}>Sí, borrar</button>
+                    <button type="button" className="boton-secundario" onClick={() => cambiarModo("ver")} disabled={enviando}>Cancelar</button>
+                </div>
+            )}
+            {error && <div className="mt-2"><Aviso tipo="error">{error}</Aviso></div>}
+        </li>
     );
 }
 
@@ -262,7 +354,7 @@ function Notas({ alumnoId }: { alumnoId: string }) {
         <div>
             <h2 className="text-lg font-extrabold">Notas</h2>
             <NotaRapida alumnoId={alumnoId} onGuardada={cargar} />
-            {notas ? <ListaNotas notas={notas} /> : <p role="status">Cargando…</p>}
+            {notas ? <ListaNotas notas={notas} alumnoId={alumnoId} onCambio={cargar} /> : <p role="status">Cargando…</p>}
         </div>
     );
 }
@@ -329,7 +421,7 @@ function CruceTemas({ alumnoId }: { alumnoId: string }) {
                 {datos.map((c) => (
                     <li key={c.temaId} className={`rounded-xl p-3 ${c.coincidencia ? "border-2 border-alerta bg-alerta-suave" : "bg-fondo"}`}>
                         <p className="font-extrabold">
-                            {c.coincidencia && <span aria-hidden="true">⚠ </span>}
+                            {c.coincidencia && <TriangleAlert aria-hidden="true" className={`${ICONO} mr-1 text-alerta`} />}
                             {c.tema}
                             {c.coincidencia && <span className="ml-2 font-semibold text-alerta">Coincidencia: dificultad académica con señales de frustración</span>}
                         </p>

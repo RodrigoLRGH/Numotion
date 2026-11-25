@@ -24,8 +24,6 @@ const ejercicio = (extra = {}) => ({
 
 beforeEach(() => {
     irA.mockReset();
-    Object.assign(window, { speechSynthesis: { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] } });
-    globalThis.SpeechSynthesisUtterance ??= class { lang = ""; rate = 1; voice = null; constructor(public text: string) {} } as never;
 });
 
 describe("EjercicioOpciones", () => {

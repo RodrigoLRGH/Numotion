@@ -1,19 +1,28 @@
 // Etiquetas de estados emocionales para el docente: siempre ícono + texto (nunca solo color, RI-01)
 // y lenguaje de señales observadas, no diagnósticos (EXP-07, Lenguaje).
+import { CircleDashed, EyeOff, Frown, Meh, Smile, type LucideIcon } from "lucide-react";
 
-export const ESTADO: Record<string, { icono: string; texto: string; clase: string }> = {
-    positivo: { icono: "🙂", texto: "Positivo", clase: "bg-exito-suave text-exito" },
-    neutral: { icono: "😐", texto: "Neutral", clase: "bg-slate-100 text-tinta" },
-    frustracion: { icono: "😟", texto: "Frustración", clase: "bg-alerta-suave text-alerta" },
-    desinteres: { icono: "😶", texto: "Desinterés", clase: "bg-acento-suave text-tinta" },
-    sin_dato: { icono: "░", texto: "Sin dato", clase: "bg-slate-100 text-tinta-suave" },
+export const ESTADO: Record<string, { icono: LucideIcon; texto: string; clase: string }> = {
+    positivo: { icono: Smile, texto: "Positivo", clase: "bg-exito-suave text-exito" },
+    neutral: { icono: Meh, texto: "Neutral", clase: "bg-slate-100 text-tinta" },
+    frustracion: { icono: Frown, texto: "Frustración", clase: "bg-alerta-suave text-alerta" },
+    desinteres: { icono: EyeOff, texto: "Desinterés", clase: "bg-acento-suave text-tinta" },
+    sin_dato: { icono: CircleDashed, texto: "Sin dato", clase: "bg-slate-100 text-tinta-suave" },
 };
+
+/** Ícono decorativo en línea con el texto (el significado siempre lo da el texto). */
+export const ICONO = "inline-block size-4 shrink-0 align-[-0.125em]";
+
+export function IconoEstado({ estado }: { estado: string | null }) {
+    const Icono = (ESTADO[estado ?? "sin_dato"] ?? ESTADO.sin_dato).icono;
+    return <Icono aria-hidden="true" className={ICONO} />;
+}
 
 export function EtiquetaEstado({ estado }: { estado: string | null }) {
     const e = ESTADO[estado ?? "sin_dato"] ?? ESTADO.sin_dato;
     return (
         <span className={`insignia-estado gap-1 ${e.clase}`}>
-            <span aria-hidden="true">{e.icono}</span> {e.texto}
+            <IconoEstado estado={estado} /> {e.texto}
         </span>
     );
 }

@@ -1,10 +1,12 @@
 // D2 · Nueva actividad (RF-56, RF-57, EXP-03.1–03.3): asistente de 3 pasos.
 // El destino es excluyente por diseño: el radio elige qué se envía (grupo O alumnos).
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AVATARES } from "@numotion/core/dominio/acceso";
 import { nombreTipo } from "@numotion/core/dominio/catalogo";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { ICONO } from "./estados";
 
 interface Tema {
     id: string;
@@ -251,10 +253,10 @@ export default function FormularioAsignacion() {
             {error && <div className="mt-4"><Aviso tipo="error">{error}</Aviso></div>}
 
             <div className="mt-6 flex flex-wrap gap-3">
-                {paso > 0 && <button type="button" className="boton-secundario" onClick={() => setPaso(paso - 1)} disabled={ocupado}><span aria-hidden="true">←</span> Atrás</button>}
-                {paso === 0 && <button type="button" className="boton" onClick={() => setPaso(1)} disabled={!paso1Valido}>Siguiente <span aria-hidden="true">→</span></button>}
-                {paso === 1 && <button type="button" className="boton" onClick={irAConfirmar} disabled={!paso2Valido || ocupado}>Revisar niveles <span aria-hidden="true">→</span></button>}
-                {paso === 2 && <button type="button" className="boton" onClick={asignar} disabled={ocupado}>Asignar <span aria-hidden="true">✓</span></button>}
+                {paso > 0 && <button type="button" className="boton-secundario" onClick={() => setPaso(paso - 1)} disabled={ocupado}><ArrowLeft aria-hidden="true" className={ICONO} /> Atrás</button>}
+                {paso === 0 && <button type="button" className="boton" onClick={() => setPaso(1)} disabled={!paso1Valido}>Siguiente <ArrowRight aria-hidden="true" className={ICONO} /></button>}
+                {paso === 1 && <button type="button" className="boton" onClick={irAConfirmar} disabled={!paso2Valido || ocupado}>Revisar niveles <ArrowRight aria-hidden="true" className={ICONO} /></button>}
+                {paso === 2 && <button type="button" className="boton" onClick={asignar} disabled={ocupado}>Asignar <Check aria-hidden="true" className={ICONO} /></button>}
             </div>
         </section>
     );

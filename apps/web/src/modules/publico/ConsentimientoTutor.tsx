@@ -94,7 +94,7 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                 });
                 setEstado("vigente");
                 setCamara(aceptaCamara);
-                setExito(`Listo. ${vista.alumno} ya puede usar la plataforma${aceptaCamara ? " con detección de emociones." : " sin cámara."}`);
+                setExito(`Listo. ${vista.alumno} ya puede usar la plataforma${aceptaCamara ? " con reconocimiento facial." : " sin cámara."}`);
             } else if (accion === "revocar") {
                 await api("POST", `/consentimiento/${token}/revocar`, { otp });
                 setEstado("revocado");
@@ -138,8 +138,7 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
             {exito && <Aviso tipo="exito">{exito}</Aviso>}
 
             <section className="tarjeta" aria-labelledby="aviso">
-                <h2 id="aviso" className="text-xl font-extrabold">Aviso de privacidad (resumen{vista.aviso.version ? `, versión ${vista.aviso.version}` : ""})</h2>
-                <p className="mt-1 text-sm text-tinta-suave">Borrador pendiente de revisión legal.</p>
+                <h2 id="aviso" className="text-xl font-extrabold">Aviso de privacidad</h2>
                 <dl className="mt-3 grid gap-3">
                     <div>
                         <dt className="font-bold">¿Para qué?</dt>
