@@ -32,14 +32,14 @@ test("alumno: panel con racha y mensaje, juego de práctica libre completo y per
         await page.getByRole("button", { name: i === 4 ? /Terminar/ : /Siguiente/ }).click();
     }
     await expect(page.getByRole("heading", { name: "¡Terminaste el juego!" })).toBeVisible();
-    await expect(page.getByText("+5 puntos")).toBeVisible();
+    await expect(page.getByText("+15 puntos")).toBeVisible(); // RF-03: 5 aciertos al 1.er intento × 3
     await captura(page, "alumno-practica-fin");
     const [{ habil }] = await owner`SELECT fn_es_dia_habil(fn_hoy_local()) AS habil`;
     const [r] = await owner`SELECT racha_actual FROM fn_racha_vigente(${alumnoId}::uuid)`;
     expect(r?.racha_actual ?? 0).toBe(habil ? 1 : 0);
 
     await page.getByRole("link", { name: "Volver al inicio" }).click();
-    await page.getByRole("link", { name: /Mi perfil/ }).first().click();
+    await page.getByRole("link", { name: /Perfil/ }).click();
     await expect(page.getByRole("heading", { name: "Sofía" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Mis insignias/ })).toBeVisible();
     await expect(page.locator("body")).not.toContainText(/frustraci|afecto/i);
@@ -65,25 +65,31 @@ test("docente: resumen previo, ficha del alumno con alerta y guía de actuación
     const { alumnoId, grupoId, docente } = await preparar(page, [{ nombre: "Restas 2", tipo: "seleccion_multiple", num: 3, tema: "resta" }]);
     // Una alerta temprana como la que generaría el motor (EXP-05.5)
     const [s] = await owner`SELECT s.id FROM asignacion_alumno s JOIN actividad a ON a.id = s.actividad_id WHERE s.alumno_id = ${alumnoId} AND a.nombre = 'Restas 2'`;
-    const [g] = await owner`SELECT id FROM guia_actuacion WHERE estado = 'frustracion' LIMIT 1`;
+    const [g] = await owner`SELECT id FROM guia_actuacion WHERE estado = 'desinteres' LIMIT 1`;
     await owner`INSERT INTO alerta (alumno_id, docente_id, asignacion_id, indice, senales, guia_id)
                 SELECT ${alumnoId}, gr.docente_id, ${s.id}, 0.68, '{"descripcion":["3 errores seguidos"]}', ${g.id} FROM grupo gr WHERE gr.id = ${grupoId}`;
     await page.context().clearCookies();
     expect((await page.request.post("/api/v1/auth/docente/login", { data: docente })).status()).toBe(200);
 
     await page.goto("/docente");
-    await expect(page.getByRole("heading", { name: /Cómo llega tu grupo hoy \(1 de 1 con diagnóstico/ })).toBeVisible();
-    await expect(page.getByRole("row", { name: /Sofía/ })).toContainText("Positivo");
+    await expect(page.getByRole("heading", { name: "Gráfica global" })).toBeVisible();
+    await expect(page.getByText(/1 de 1 con diagnóstico/)).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ hasText: "Sofía" })).toContainText("Positivo");
     // El panel ya no muestra alertas
     await expect(page.getByText(/Alertas activas/)).toHaveCount(0);
     await sinViolacionesSerias(page);
     await captura(page, "docente-panel");
 
     // La alerta se atiende desde la ficha del alumno
-    await page.getByRole("row", { name: /Sofía/ }).getByRole("link", { name: "Ver" }).click();
+    // Retroalimentaciones: registro del diagnóstico de hoy, su detalle y de ahí a la ficha
+    await page.getByRole("link", { name: "Retroalimentaciones" }).click();
+    await page.getByRole("link", { name: /Sofía/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Descripción:" })).toBeVisible();
+    await sinViolacionesSerias(page);
+    await page.getByRole("link", { name: "Ver ficha del alumno" }).click();
     await expect(page.getByRole("heading", { name: /Sofía/ })).toBeVisible();
     await page.getByRole("button", { name: "Ver guía" }).click();
-    await expect(page.getByText(/Acércate con calma/)).toBeVisible();
+    await expect(page.getByText(/qué le está pareciendo la actividad/)).toBeVisible();
     await page.getByLabel("Nota rápida (opcional)").fill("Le ayudé con el primer paso");
     await page.getByRole("button", { name: /Marcar como atendida/ }).click();
     await expect(page.getByRole("button", { name: /Marcar como atendida/ })).toHaveCount(0);
@@ -99,8 +105,8 @@ test("docente: resumen previo, ficha del alumno con alerta y guía de actuación
     expect(aud.n).toBeGreaterThan(0);
 
     await page.getByRole("link", { name: "Reportes" }).click();
-    await expect(page.getByRole("heading", { name: /Reporte de temas/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", new RegExp(`/api/v1/docente/grupos/${grupoId}/reportes/temas.csv`));
+    await expect(page.getByRole("heading", { name: "Reporte" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Exportar CSV/ })).toHaveCount(0);
     await sinViolacionesSerias(page);
     await captura(page, "docente-reportes");
 });

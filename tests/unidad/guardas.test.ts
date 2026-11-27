@@ -63,3 +63,24 @@ describe("destino tras login", () => {
         expect(destinoTrasLogin("alumno", undefined)).toBe("/alumno");
     });
 });
+
+describe("área del administrador (RC-07)", () => {
+    const admin = { rol: "admin" as const };
+    it("solo el administrador entra a /admin y a su API", () => {
+        expect(decidirAcceso("/admin", admin, null)).toEqual({ tipo: "permitir" });
+        expect(decidirAcceso("/api/v1/admin/arco", admin, null)).toEqual({ tipo: "permitir" });
+        expect(decidirAcceso("/api/v1/admin/arco", docente, null)).toEqual({ tipo: "prohibido" });
+        expect(decidirAcceso("/api/v1/admin/arco", alumno, listo)).toEqual({ tipo: "prohibido" });
+        expect(decidirAcceso("/admin", docente, null)).toEqual({ tipo: "redirigir", destino: "/docente" });
+        expect(decidirAcceso("/api/v1/admin/arco", null, null)).toEqual({ tipo: "noAutorizado" });
+    });
+    it("el administrador no entra a los módulos docente ni alumno", () => {
+        expect(decidirAcceso("/api/v1/docente/grupos", admin, null)).toEqual({ tipo: "prohibido" });
+        expect(decidirAcceso("/alumno", admin, null)).toEqual({ tipo: "redirigir", destino: "/admin" });
+    });
+    it("/admin/entrar es pública y con sesión manda al inicio del rol", () => {
+        expect(decidirAcceso("/admin/entrar", null, null)).toEqual({ tipo: "permitir" });
+        expect(decidirAcceso("/admin/entrar", admin, null)).toEqual({ tipo: "redirigir", destino: "/admin" });
+        expect(destinoTrasLogin("admin", "/docente")).toBe("/admin");
+    });
+});

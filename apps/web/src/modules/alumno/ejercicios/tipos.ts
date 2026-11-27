@@ -8,6 +8,8 @@ export interface EjercicioPublico {
     expresion?: string;
     figuras?: { emoji: string; cantidad: number }[];
     numeroMostrado?: number;
+    /** Serie a escribir con letras, un campo por número (RF-39) */
+    numerosMostrados?: number[];
     opciones?: string[];
     /** Colorear (RF-44): figuras a pintar e instrucción */
     lienzo?: { figuras: { id: string; tipo: string }[]; instruccion: { tipo: string; color: string } };

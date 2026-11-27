@@ -93,8 +93,12 @@ describe("alerta temprana y guía (EXP-05.5, EXP-05.6)", () => {
             expect(lista[0]).toMatchObject({ alumno: { id: e.alumnos[0] }, actividad: "Actividad escenario", tema: "Suma" });
             expect(lista[0].indice).toBeGreaterThanOrEqual(0.6);
             expect(lista[0].senales.descripcion?.join(" ")).toMatch(/errores? seguidos/);
-            const g = await e.comoDocente((tx) => guia(tx, lista[0].guia!.id));
+            // RF-27: solo hay guía de actuación para el desinterés; la frustración no trae guía
+            expect(lista[0].guia).toBeNull();
+            const [desinteres] = await sql`SELECT id FROM guia_actuacion WHERE estado = 'desinteres'`;
+            const g = await e.comoDocente((tx) => guia(tx, desinteres.id));
             expect(g?.pasos.length).toBeGreaterThanOrEqual(3);
+            expect(await sql`SELECT id FROM guia_actuacion WHERE estado <> 'desinteres'`).toHaveLength(0);
 
             // El alumno acepta ayuda → R2 al cerrar el siguiente ejercicio
             expect(await e.comoAlumno((tx) => responderAlerta(tx, e.alumnos[0], alerta!.alertaId, true))).toBe(true);

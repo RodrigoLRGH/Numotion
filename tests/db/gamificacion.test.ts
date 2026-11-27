@@ -33,7 +33,25 @@ describe("práctica libre (EXP-06.6)", () => {
         expect(JSON.stringify(p)).not.toContain("respuesta\":");
     });
 
-    it("no se completa con ejercicios abiertos; al completar da 5 puntos, suma racha una vez al día y es idempotente", async () => {
+    it("RF-03: todos los juegos siguen disponibles; los temas con dominio insuficiente van primero y como recomendados", async () => {
+        const e = await escenarioCompleto();
+        const [division] = await sql`SELECT id FROM tema WHERE clave = 'division'`;
+        const [resta] = await sql`SELECT id FROM tema WHERE clave = 'resta'`;
+        const antes = await e.comoAlumno((tx) => juegosDisponibles(tx, e.alumnos[0]));
+        expect(antes.every((j) => !j.recomendado)).toBe(true);
+        await sql`INSERT INTO diagnostico_mat_resultado (sesion_id, alumno_id, tema_id, aciertos, total, nivel_dominio, tiempo_total_ms) VALUES
+            (${e.sesiones[0]}, ${e.alumnos[0]}, ${division.id}, 0, 5, 1, 1000),
+            (${e.sesiones[0]}, ${e.alumnos[0]}, ${resta.id}, 2, 5, 2, 1000),
+            (${e.sesiones[0]}, ${e.alumnos[0]}, ${e.temaId}, 5, 5, 5, 1000)`;
+        const juegos = await e.comoAlumno((tx) => juegosDisponibles(tx, e.alumnos[0]));
+        expect(juegos).toHaveLength(antes.length);
+        const temasEnOrden = [...new Set(juegos.map((j) => j.temaClave))];
+        expect(temasEnOrden.slice(0, 2)).toEqual(["division", "resta"]);
+        expect(juegos.filter((j) => j.recomendado).map((j) => j.temaClave).every((c) => c === "division" || c === "resta")).toBe(true);
+        expect(juegos.find((j) => j.temaId === e.temaId)?.recomendado).toBe(false);
+    });
+
+    it("no se completa con ejercicios abiertos; reporta los puntos de los aciertos, suma racha una vez al día y es idempotente", async () => {
         const e = await escenarioCompleto();
         const [{ habil }] = await sql`SELECT fn_es_dia_habil(fn_hoy_local()) AS habil`;
         const p = await e.comoAlumno((tx) => iniciarPractica(tx, e.alumnos[0], "seleccion_multiple", e.temaId));
@@ -43,7 +61,7 @@ describe("práctica libre (EXP-06.6)", () => {
         const jugada = await jugar(e);
         const r = await e.comoAlumno((tx) => completarPractica(tx, e.alumnos[0], jugada.practicaId));
         if ("error" in r) throw new Error(r.error);
-        expect(r).toMatchObject({ puntos: 5, aciertos: 5, total: 5 });
+        expect(r).toMatchObject({ puntos: 15, aciertos: 5, total: 5 }); // 5 aciertos al 1.er intento × 3 (RF-03)
         expect(r.racha).toEqual(habil ? { actual: 1, mejor: 1, incremento: true } : { actual: 0, mejor: 0, incremento: false });
         expect(r.nuevasInsignias).toEqual([]);
         // Segunda práctica el mismo día: puntos sí, racha no
@@ -53,9 +71,34 @@ describe("práctica libre (EXP-06.6)", () => {
         expect(r2.racha.incremento).toBe(false);
         // Idempotente
         const r3 = await e.comoAlumno((tx) => completarPractica(tx, e.alumnos[0], otra.practicaId));
-        expect(r3).toMatchObject({ puntos: 5, nuevasInsignias: [] });
+        expect(r3).toMatchObject({ puntos: 15, nuevasInsignias: [] });
         const [perfil] = await sql`SELECT puntos_totales FROM perfil_gamificacion WHERE alumno_id = ${e.alumnos[0]}`;
-        expect(perfil.puntos_totales).toBe(10);
+        expect(perfil.puntos_totales).toBe(30); // completar no suma puntos extra
+    });
+
+    it("RF-03: puntos por cada respuesta correcta según el intento (3, 2, 1); fallar no da puntos ni se cuenta dos veces", async () => {
+        const e = await escenarioCompleto();
+        const alumno = e.alumnos[0];
+        const p = await e.comoAlumno((tx) => iniciarPractica(tx, alumno, "seleccion_multiple", e.temaId));
+        if ("error" in p) throw new Error(p.error);
+        const intento = async (i: number, bien: boolean, clienteId = randomUUID()) => {
+            const [{ respuesta }] = await sql`SELECT respuesta FROM ejercicio WHERE id = ${p.ejercicios[i].id}`;
+            const r = await e.comoAlumno((tx) => intentoPractica(tx, alumno, p.practicaId, { clienteId, ejercicioId: p.ejercicios[i].id, respuesta: bien ? respuesta.valor : "-999", tiempoMs: 1000 }));
+            if ("error" in r) throw new Error(r.error);
+            return r;
+        };
+        const id = randomUUID();
+        expect(await intento(0, true, id)).toMatchObject({ correcta: true, puntos: 3 });
+        expect(await intento(0, true, id).catch(() => null)).toMatchObject({ puntos: 3 }); // mismo clienteId: misma respuesta
+        expect(await intento(1, false)).toMatchObject({ correcta: false, puntos: 0 });
+        expect(await intento(1, true)).toMatchObject({ puntos: 2 });
+        await intento(2, false);
+        await intento(2, false);
+        expect(await intento(2, true)).toMatchObject({ puntos: 1 });
+        const [{ puntos }] = await sql`SELECT puntos FROM practica_libre WHERE id = ${p.practicaId}`;
+        expect(puntos).toBe(6);
+        const [perfil] = await sql`SELECT puntos_totales FROM perfil_gamificacion WHERE alumno_id = ${alumno}`;
+        expect(perfil.puntos_totales).toBe(6);
     });
 
     it("un ejercicio se cierra al 3.er fallo con la solución; intentos idempotentes y ajenos rechazados", async () => {

@@ -2,7 +2,7 @@
 // resultados, cruce) y P-SEC-01 (aislamiento entre docentes + auditoría) de EXP-07.
 import { describe, expect, it } from "vitest";
 import {
-    auditarVista, borrarNota, capturarResultado, consolidar, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
+    auditarVista, borrarNota, capturarResultado, consolidar, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteTemas, resultados, resumenGrupo,
 } from "../../apps/api/src/modules/docente/seguimiento";
 import { escenarioCompleto, responderActividad } from "./escenario";
 import { sql } from "./fixture";
@@ -103,18 +103,38 @@ describe("perfil estadístico, consolidado y cruce (RF-19, RF-35, RF-52)", () =>
         expect(p.tiempoPromedioMs).toBe(7500);
     });
 
-    it("consolida tareas, trabajos, interrogaciones y Numotion; el cruce marca coincidencias", async () => {
+    it("consolida tareas, trabajos, interrogaciones y Numotion", async () => {
         const e = await escenarioCompleto();
         for (const [tipo, cal] of [["tarea", 5], ["trabajo_clase", 4], ["interrogacion", 6]] as const) {
             await e.comoDocente((tx) => capturarResultado(tx, e.docenteId, e.alumnos[0], { temaId: e.temaId, tipo, titulo: tipo, calificacion: cal, fecha: e.hoy }));
         }
         const r = await e.comoDocente((tx) => resultados(tx, e.alumnos[0]));
         expect(r?.consolidado).toEqual([{ temaId: e.temaId, tema: "Suma", porTipo: { tarea: 5, trabajo_clase: 4, interrogacion: 6 }, promedio: 5, registros: 3 }]);
-        await sql`INSERT INTO evento_emocional (alumno_id, sesion_id, asignacion_id, emocion, confianza, estado_derivado) VALUES
-            (${e.alumnos[0]}, ${e.sesiones[0]}, ${e.asignacionDe(e.alumnos[0])}, 'SAD', 90, 'frustracion'),
-            (${e.alumnos[0]}, ${e.sesiones[0]}, ${e.asignacionDe(e.alumnos[0])}, 'CALM', 90, 'neutral')`;
-        const [c] = (await e.comoDocente((tx) => cruce(tx, e.alumnos[0]))) ?? [];
-        expect(c).toMatchObject({ tema: "Suma", promedioAcademico: 5, porcentajeFrustracion: 50, coincidencia: true });
+    });
+
+    it("RF-52: cruza por tema el diagnóstico de matemáticas con el PANAS-C de la misma sesión", async () => {
+        const e = await escenarioCompleto();
+        const alumno = e.alumnos[0];
+        // Sin ambos resultados no hay cruce: solo diagnóstico
+        await sql`INSERT INTO diagnostico_mat_resultado (sesion_id, alumno_id, tema_id, aciertos, total, nivel_dominio, tiempo_total_ms)
+                  VALUES (${e.sesiones[0]}, ${alumno}, ${e.temaId}, 1, 5, 1, 30000)`;
+        expect(await e.comoDocente((tx) => cruce(tx, alumno))).toEqual([]);
+
+        await sql`INSERT INTO panas_resultado (sesion_id, alumno_id, afecto_positivo, afecto_negativo, completado_en) VALUES (${e.sesiones[0]}, ${alumno}, 2.2, 3.4, now())`;
+        // Una sesión anterior con buen dominio y AN bajo
+        const [vieja] = await sql`INSERT INTO sesion_alumno (alumno_id, fecha) VALUES (${alumno}, fn_hoy_local() - 7) RETURNING id, to_char(fecha, 'YYYY-MM-DD') AS fecha`;
+        await sql`INSERT INTO diagnostico_mat_resultado (sesion_id, alumno_id, tema_id, aciertos, total, nivel_dominio, tiempo_total_ms)
+                  VALUES (${vieja.id}, ${alumno}, ${e.temaId}, 5, 5, 5, 20000)`;
+        await sql`INSERT INTO panas_resultado (sesion_id, alumno_id, afecto_positivo, afecto_negativo, completado_en) VALUES (${vieja.id}, ${alumno}, 4.2, 1.4, now())`;
+
+        const [c] = (await e.comoDocente((tx) => cruce(tx, alumno))) ?? [];
+        expect(c).toMatchObject({
+            tema: "Suma",
+            ultima: { fecha: e.hoy, nivelDominio: 1, porcentajeAciertos: 20, afectoPositivo: 2.2, afectoNegativo: 3.4 },
+            sesiones: 2, dominioPromedio: 3, afectoPositivoProm: 3.2, afectoNegativoProm: 2.4,
+            coincidencia: true,
+        });
+        expect(c.historial.map((h) => h.fecha)).toEqual([e.hoy, vieja.fecha]);
     });
 
     it("consolidar: cada tipo pesa igual en el promedio general", () => {
@@ -125,7 +145,7 @@ describe("perfil estadístico, consolidado y cruce (RF-19, RF-35, RF-52)", () =>
 });
 
 describe("reporte grupal (RF-18)", () => {
-    it("índice de error por tema/habilidad, ordenable, y CSV seguro", async () => {
+    it("índice de error por tema/habilidad, ordenado de mayor a menor, y filtro por alumno", async () => {
         const e = await escenarioCompleto({ alumnos: 2, num: 5 });
         await responderActividad(e, false, e.alumnos[0]);
         await responderActividad(e, true, e.alumnos[0]);
@@ -135,9 +155,14 @@ describe("reporte grupal (RF-18)", () => {
         const total = r!.reduce((s, f) => s + f.intentos, 0);
         expect(total).toBe(3);
         expect(r![0].alumnosAfectados).toBe(1);
-        const csv = reporteCsv([{ temaId: "x", tema: "=HYPERLINK(1)", subtema: "a,b", intentos: 1, indiceError: 0.5, alumnosAfectados: 1 }]);
-        expect(csv).toContain("'=HYPERLINK(1)");
-        expect(csv).toContain('"a,b"');
+        expect(r!.reduce((s, f) => s + f.errores, 0)).toBe(1);
+        expect(r!.reduce((s, f) => s + f.aciertos, 0)).toBe(2);
+        expect(r!.every((f) => !("aspectosPositivos" in f) && !("aspectosNegativos" in f))).toBe(true);
+        expect(r!.map((f) => f.indiceError)).toEqual([...r!.map((f) => f.indiceError)].sort((a, b) => b - a));
+        // Filtro por alumno: solo sus intentos
+        const deUno = await e.comoDocente((tx) => reporteTemas(tx, e.grupoId, { alumnoId: e.alumnos[1] }));
+        expect(deUno!.reduce((s, f) => s + f.intentos, 0)).toBe(1);
+        expect(deUno!.reduce((s, f) => s + f.errores, 0)).toBe(0);
         const otro = await escenarioCompleto();
         expect(await otro.comoDocente((tx) => reporteTemas(tx, e.grupoId, {}))).toBeNull();
     });

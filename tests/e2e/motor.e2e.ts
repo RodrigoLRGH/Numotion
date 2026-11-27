@@ -1,9 +1,9 @@
-// P-E2E-01 (parte de actividad) · El alumno resuelve una actividad: acierto, 3 fallos con guía,
-// acierto tras la guía y recompensa; arrastrar resuelta solo con toques, y colorear la figura (RF-44).
+// P-E2E-01 (parte de actividad) · El alumno resuelve una actividad: acierto, 3 fallos que cierran el
+// ejercicio con la guía y la respuesta (RF-11, RF-45), acierto y recompensa; arrastrar resuelta solo con toques, y colorear la figura (RF-44).
 import { expect, test } from "@playwright/test";
 import { captura, opcionIncorrecta, owner, preparar, respuestaCorrecta, sinViolacionesSerias } from "./alumno-listo";
 
-test("alumno: resuelve una actividad con acierto, guía tras 3 fallos y recompensa", async ({ page }) => {
+test("alumno: resuelve una actividad con acierto, guía y respuesta tras 3 fallos, y recompensa", async ({ page }) => {
     test.setTimeout(90_000);
     const { alumnoId } = await preparar(page, [{ nombre: "Sumas del día", tipo: "seleccion_multiple", num: 3 }]);
 
@@ -23,35 +23,33 @@ test("alumno: resuelve una actividad con acierto, guía tras 3 fallos y recompen
     await expect(page.getByText("1/3")).toBeVisible();
     await page.getByRole("button", { name: /siguiente/i }).click();
 
-    // Ejercicio 2: 3 fallos → guía paso a paso. Las opciones intentadas quedan tachadas (A-29), así que
-    // en el 4.º intento solo queda la correcta y vale 3 puntos (tras guía)
+    // Ejercicio 2: máximo 3 intentos (RF-11). Las opciones intentadas quedan tachadas (A-29); el 3.er
+    // fallo cierra el ejercicio con la guía paso a paso y la respuesta correcta (RF-45)
     ej = await respuestaCorrecta(alumnoId, "Sumas del día", ej.id);
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 2; i++) {
         await (await opcionIncorrecta(page, ej.valor)).click();
         // El «¡Casi!» optimista llega antes que el servidor: se espera la confirmación (opción tachada)
         await expect(page.getByRole("button", { name: /ya intentado/ })).toHaveCount(i);
     }
-    await expect(page.getByRole("heading", { name: /paso a paso/i })).toBeVisible();
+    await (await opcionIncorrecta(page, ej.valor)).click();
+    await expect(page.getByRole("heading", { name: /así se resuelve/i })).toBeVisible();
+    await expect(page.getByText(/La respuesta es/)).toContainText(ej.valor);
     await sinViolacionesSerias(page);
     await captura(page, "15-guia");
-    await page.getByRole("button", { name: /ya entendí/i }).click();
-    await expect(page.getByRole("button", { name: /ya intentado/ })).toHaveCount(3);
-    await page.getByRole("group", { name: "Opciones" }).getByRole("button", { name: ej.valor, exact: true }).click();
-    await expect(page.getByText(/muy bien.*\+3 puntos/i)).toBeVisible();
-    await page.getByRole("button", { name: /siguiente/i }).click();
+    await page.getByRole("button", { name: /seguir/i }).click();
 
-    // Ejercicio 3: acierto → recompensa (10 + 3 + 10 puntos, 3 de 3 correctos)
+    // Ejercicio 3: acierto → recompensa (10 + 0 + 10 puntos, 2 de 3 correctos)
     ej = await respuestaCorrecta(alumnoId, "Sumas del día", ej.id);
     await expect(page.getByText("2/3")).toBeVisible();
     await page.getByRole("group", { name: "Opciones" }).getByRole("button", { name: ej.valor, exact: true }).click();
     await expect(page.getByRole("heading", { name: "¡Terminaste!" })).toBeVisible();
-    await expect(page.getByText("+23 puntos")).toBeVisible();
-    await expect(page.getByRole("img", { name: "3 de 3 estrellas" })).toBeVisible();
+    await expect(page.getByText("+20 puntos")).toBeVisible();
+    await expect(page.getByRole("img", { name: "1 de 3 estrellas" })).toBeVisible();
     await sinViolacionesSerias(page);
     await captura(page, "16-recompensa");
 
     const [s] = await owner`SELECT s.estado, s.resultado_final, s.puntaje FROM asignacion_alumno s WHERE s.alumno_id = ${alumnoId}`;
-    expect(s).toEqual({ estado: "completada", resultado_final: "10.00", puntaje: 23 });
+    expect(s).toEqual({ estado: "completada", resultado_final: "6.67", puntaje: 20 });
     await page.getByRole("link", { name: /volver al inicio/i }).click();
     await expect(page.getByText(/no tienes actividades pendientes/i)).toBeVisible();
 });

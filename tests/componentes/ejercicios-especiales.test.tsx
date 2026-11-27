@@ -23,6 +23,24 @@ describe("EjercicioNumeroAPalabras", () => {
     });
 });
 
+describe("EjercicioNumeroAPalabras · serie (RF-39)", () => {
+    it("muestra un campo junto a cada número y envía la serie en orden; tras un fallo conserva lo escrito", async () => {
+        const onResponder = vi.fn();
+        const u = userEvent.setup();
+        const ejercicio = { ...base, tipoInteraccion: "numero_a_palabras", numerosMostrados: [47, 105, 8] };
+        const { rerender } = render(<EjercicioNumeroAPalabras ejercicio={ejercicio} descartadas={[]} deshabilitado={false} onResponder={onResponder} />);
+        const campos = [47, 105, 8].map((n) => screen.getByLabelText(`Escribe el número ${n} con letras`));
+        expect(screen.getByText("105")).toBeInTheDocument();
+        await u.type(campos[0], "cuarenta y siete");
+        await u.type(campos[1], "ciento cinco");
+        expect(screen.getByRole("button", { name: /comprobar/i })).toBeDisabled(); // falta uno
+        await u.type(campos[2], " ocho {Enter}");
+        expect(onResponder).toHaveBeenCalledWith(JSON.stringify(["cuarenta y siete", "ciento cinco", "ocho"]));
+        rerender(<EjercicioNumeroAPalabras ejercicio={ejercicio} descartadas={[JSON.stringify(["x"])]} deshabilitado={false} onResponder={onResponder} />);
+        expect(screen.getByLabelText("Escribe el número 105 con letras")).toHaveValue("ciento cinco");
+    });
+});
+
 describe("EjercicioSumaFiguras", () => {
     it("describe cada grupo para lectores de pantalla y solo admite cifras", async () => {
         const onResponder = vi.fn();

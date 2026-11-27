@@ -1,6 +1,7 @@
 // Mensaje motivacional al entrar al panel (RF-22, EXP-06.5). El catálogo vive en BD
-// (mensaje_motivacional.condicion); aquí se elige uno según el estado inicial del día y la racha,
-// estable durante el día y sin repetir el del día anterior.
+// (mensaje_motivacional.condicion); aquí se elige uno según la identidad del alumno (nombre), su
+// historial académico (actividades completadas, último resultado, temas fuertes y por reforzar del
+// diagnóstico), el estado inicial del día y la racha; estable durante el día y sin repetir el de ayer.
 import { semillaDeTexto } from "./aleatorio";
 
 export interface CondicionMensaje {
@@ -10,6 +11,27 @@ export interface CondicionMensaje {
     rachaMin?: number;
     /** Racha máxima (p. ej. 0 para "empieza una nueva racha") */
     rachaMax?: number;
+    /** Historial académico (RF-22): actividades asignadas completadas */
+    actividadesMin?: number;
+    actividadesMax?: number;
+    /** Resultado (0–10) de la última actividad completada */
+    resultadoMin?: number;
+    resultadoMax?: number;
+    /** Requiere un tema con dominio alto (≥ 4) en el diagnóstico más reciente: {tema_fuerte} */
+    conTemaFuerte?: boolean;
+    /** Requiere un tema con dominio bajo (≤ 2) en el diagnóstico más reciente: {tema_reto} */
+    conTemaReto?: boolean;
+}
+
+/** Historial académico del alumno para personalizar el mensaje (RF-22). */
+export interface HistorialAcademico {
+    actividadesCompletadas: number;
+    /** Última actividad completada: resultado 0–10 y tema */
+    ultimoResultado: number | null;
+    ultimoTema: string | null;
+    /** Tema con mayor dominio (≥ 4) y con menor dominio (≤ 2) del diagnóstico más reciente */
+    temaFuerte: string | null;
+    temaReto: string | null;
 }
 
 export interface MensajeCatalogo {
@@ -24,6 +46,8 @@ export interface ContextoMensaje {
     estadoInicial: string | null;
     /** YYYY-MM-DD local */
     fecha: string;
+    /** Sin historial, los mensajes con condiciones académicas no aplican */
+    historial?: HistorialAcademico | null;
 }
 
 export interface MensajePrevio {
@@ -35,15 +59,44 @@ export function aplica(c: CondicionMensaje, ctx: ContextoMensaje): boolean {
     if (c.estadoInicial?.length && (!ctx.estadoInicial || !c.estadoInicial.includes(ctx.estadoInicial))) return false;
     if (c.rachaMin !== undefined && ctx.racha < c.rachaMin) return false;
     if (c.rachaMax !== undefined && ctx.racha > c.rachaMax) return false;
+    if (esAcademica(c)) {
+        const h = ctx.historial;
+        if (!h) return false;
+        if (c.actividadesMin !== undefined && h.actividadesCompletadas < c.actividadesMin) return false;
+        if (c.actividadesMax !== undefined && h.actividadesCompletadas > c.actividadesMax) return false;
+        if (c.resultadoMin !== undefined || c.resultadoMax !== undefined) {
+            if (h.ultimoResultado === null || !h.ultimoTema) return false;
+            if (c.resultadoMin !== undefined && h.ultimoResultado < c.resultadoMin) return false;
+            if (c.resultadoMax !== undefined && h.ultimoResultado > c.resultadoMax) return false;
+        }
+        if (c.conTemaFuerte && !h.temaFuerte) return false;
+        if (c.conTemaReto && !h.temaReto) return false;
+    }
     return true;
 }
 
-/** Peso de especificidad: un mensaje para la situación exacta gana a uno genérico. */
-const especificidad = (c: CondicionMensaje) => (c.estadoInicial?.length ? 2 : 0) + (c.rachaMin !== undefined || c.rachaMax !== undefined ? 1 : 0);
+const esAcademica = (c: CondicionMensaje) =>
+    c.actividadesMin !== undefined || c.actividadesMax !== undefined || c.resultadoMin !== undefined || c.resultadoMax !== undefined ||
+    Boolean(c.conTemaFuerte) || Boolean(c.conTemaReto);
 
-export function sustituir(texto: string, ctx: Pick<ContextoMensaje, "nombre" | "racha">): string {
+/** Peso de especificidad: un mensaje para la situación exacta gana a uno genérico. El historial
+ *  académico pesa como el estado del día, así que ambos tipos de mensaje se alternan. */
+const especificidad = (c: CondicionMensaje) =>
+    (c.estadoInicial?.length ? 2 : 0) + (c.rachaMin !== undefined || c.rachaMax !== undefined ? 1 : 0) + (esAcademica(c) ? 2 : 0);
+
+const formatoResultado = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+export function sustituir(texto: string, ctx: Pick<ContextoMensaje, "nombre" | "racha" | "historial">): string {
     const primerNombre = ctx.nombre.trim().split(/\s+/)[0] ?? "";
-    return texto.replaceAll("{nombre}", primerNombre).replaceAll("{racha}", String(ctx.racha));
+    const h = ctx.historial;
+    return texto
+        .replaceAll("{nombre}", primerNombre)
+        .replaceAll("{racha}", String(ctx.racha))
+        .replaceAll("{actividades}", String(h?.actividadesCompletadas ?? 0))
+        .replaceAll("{resultado}", h?.ultimoResultado === null || h?.ultimoResultado === undefined ? "" : formatoResultado(h.ultimoResultado))
+        .replaceAll("{tema}", h?.ultimoTema?.toLowerCase() ?? "")
+        .replaceAll("{tema_fuerte}", h?.temaFuerte?.toLowerCase() ?? "")
+        .replaceAll("{tema_reto}", h?.temaReto?.toLowerCase() ?? "");
 }
 
 /**

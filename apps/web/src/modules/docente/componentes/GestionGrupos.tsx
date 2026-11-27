@@ -230,7 +230,7 @@ export default function GestionGrupos() {
                                                 <td className="py-2">{a.aceptaCamara ? "Sí" : "No"}</td>
                                                 <td className="py-2 text-right">
                                                     {a.estadoConsentimiento !== "vigente" && (
-                                                        <button type="button" className="cursor-pointer text-sm font-bold text-marca underline" onClick={() => nuevoEnlace(a)}>
+                                                        <button type="button" className="cursor-pointer text-sm enlace" onClick={() => nuevoEnlace(a)}>
                                                             Nuevo enlace<span className="sr-only"> para el tutor de {a.nombre}</span>
                                                         </button>
                                                     )}

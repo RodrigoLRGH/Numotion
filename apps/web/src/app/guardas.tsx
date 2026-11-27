@@ -1,7 +1,9 @@
 // Guardas de pantalla (06-navegacion §3). Son experiencia de usuario: la API valida de nuevo
 // (401 NO_AUTENTICADO, 403 DIAGNOSTICOS_PENDIENTES) y el cliente HTTP traduce esos códigos.
-import type { ReactNode } from "react";
+import { Camera } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { hayCamara } from "../shared/cliente/camara";
 import { useAuth, type Rol } from "./auth";
 
 const inicioDe = (rol: Rol) => `/${rol}`;
@@ -23,6 +25,32 @@ export function RedirectIfAuth({ children }: { children: ReactNode }) {
     const { estado, usuario } = useAuth();
     if (estado === "cargando") return <Cargando />;
     return usuario ? <Navigate to={inicioDe(usuario.rol)} replace /> : <>{children}</>;
+}
+
+/** RC-03: sin cámara en el dispositivo el alumno no entra (ni a la pantalla de acceso). */
+export function RequireCamara() {
+    const [camara, setCamara] = useState<"comprobando" | "si" | "no">("comprobando");
+    const comprobar = useCallback(() => {
+        void hayCamara().then((si) => setCamara(si ? "si" : "no"));
+    }, []);
+    useEffect(() => {
+        comprobar();
+        // Si conectan una cámara USB, se desbloquea sin recargar
+        const md = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
+        md?.addEventListener?.("devicechange", comprobar);
+        return () => md?.removeEventListener?.("devicechange", comprobar);
+    }, [comprobar]);
+
+    if (camara === "comprobando") return <Cargando />;
+    if (camara === "si") return <Outlet />;
+    return (
+        <section aria-labelledby="sin-camara" className="tarjeta mx-auto max-w-xl text-center">
+            <Camera aria-hidden="true" className="mx-auto size-16 text-marca" />
+            <h1 id="sin-camara" className="mt-3 text-3xl font-bold">Este dispositivo no tiene cámara</h1>
+            <p className="mt-3">Para usar la plataforma necesitas una computadora o tableta con cámara. Avisa a tu maestro(a).</p>
+            <button type="button" className="boton mt-6 min-h-14 px-8 text-xl" onClick={comprobar}>Revisar otra vez</button>
+        </section>
+    );
 }
 
 export function RequireConsent() {

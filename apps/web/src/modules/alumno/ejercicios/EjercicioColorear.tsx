@@ -70,7 +70,7 @@ export function EjercicioColorear({ ejercicio, deshabilitado, onResponder }: Eje
                         aria-pressed={pincel === c.id}
                         disabled={deshabilitado}
                         onClick={() => setPincel(c.id)}
-                        className={`flex min-h-14 cursor-pointer items-center gap-2 rounded-2xl border-4 bg-white px-3 font-bold ${pincel === c.id ? "border-tinta" : "border-slate-200"}`}
+                        className={`flex min-h-14 cursor-pointer items-center gap-2 rounded-2xl border-4 bg-white px-3 font-bold ${pincel === c.id ? "border-tinta" : "border-neutro"}`}
                     >
                         <svg width="32" height="32" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
                             <rect width="10" height="10" rx="2" fill={`url(#patron-${c.id})`} />
@@ -94,7 +94,7 @@ export function EjercicioColorear({ ejercicio, deshabilitado, onResponder }: Eje
                             disabled={deshabilitado}
                             onClick={() => pintar(f.id)}
                             aria-label={`Figura ${i + 1}: ${nombreForma(f.tipo)}, ${pintada ? `pintada de ${color(pintada)?.nombre}` : "sin color"}`}
-                            className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-2 border-slate-200 bg-white p-2 hover:border-marca disabled:cursor-not-allowed"
+                            className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-2 border-neutro bg-white p-2 hover:border-marca disabled:cursor-not-allowed"
                         >
                             <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden="true" focusable="false">
                                 <path d={TRAZOS[f.tipo] ?? TRAZOS.cuadrado} fill={pintada ? `url(#patron-${pintada})` : "white"} stroke="#1e293b" strokeWidth="4" strokeLinejoin="round" />
@@ -107,7 +107,7 @@ export function EjercicioColorear({ ejercicio, deshabilitado, onResponder }: Eje
             <div className="mt-6 text-center">
                 <button
                     type="button"
-                    className="boton min-h-14 px-8 text-2xl"
+                    className="boton min-w-48 uppercase"
                     disabled={deshabilitado || Object.keys(coloreo).length === 0}
                     onClick={() => onResponder(JSON.stringify(coloreo))}
                 >

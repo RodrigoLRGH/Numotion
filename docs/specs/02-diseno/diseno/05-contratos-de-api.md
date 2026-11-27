@@ -202,13 +202,38 @@ data: {"alertaId":"uuid","alumno":{"id":"uuid","nombre":"Luis R."},"actividad":"
 | `GET /docente/alumnos/:id/cruce` | `{ porTema: [{ tema, promedioAcademico, porcentajeFrustracion, afectoNegativoProm, coincidencia: true }] }` (RF-52) |
 | `GET /docente/alumnos/:id/emociones?desde=&hasta=` | Serie temporal de `estadoDerivado` (sin imágenes) |
 
-### 4.6 Reportes (RF-18)
-`GET /docente/grupos/:id/reportes/temas?desde=&hasta=&orden=error|frustracion`
+### 4.5b Retroalimentaciones de diagnóstico (RF-61, RF-62)
+`GET /docente/grupos/:id/retroalimentaciones` → `{ items: [{ id, fecha, alumno: { id, nombre }, estadoInicial }] }` (más reciente primero).
+`GET /docente/retroalimentaciones/:id` (auditado `ver_alumno`) →
 ```json
-{ "items": [{ "tema": "Resta", "subtema": "Con préstamo", "indiceError": 0.42, "indiceFrustracion": 0.31,
-              "intentos": 380, "alumnosAfectados": 9 }] }
+{ "id": "…", "fecha": "2026-11-04", "alumno": { "id": "…", "nombre": "Ana López", "grupo": "3A" },
+  "estadoInicial": "positivo", "afectoPositivo": 4.0, "afectoNegativo": 1.4, "observaciones": [],
+  "descripcion": ["Resolvió el diagnóstico matemático en 6 min 30 s: …"],
+  "temas": [{ "temaId": "…", "tema": "Suma", "ejercicios": 5, "aciertos": 4, "errores": 1, "nivelDominio": 4, "tiempoMs": 120000 }] }
 ```
-`GET …/reportes/temas.csv` → CSV (auditado `exportar`).
+
+### 4.6 Reportes (RF-18)
+`GET /docente/grupos/:id/reportes/temas?desde=&hasta=&alumnoId=` (ordenado por `indiceError`)
+```json
+{ "items": [{ "temaId": "…", "tema": "Fracciones", "subtema": "División de fracciones",
+              "ejercicios": 12, "aciertos": 10, "errores": 2, "intentos": 14, "indiceError": 0.14, "alumnosAfectados": 2,
+              "aspectosPositivos": 0.8, "aspectosNegativos": 0.2 }] }
+```
+- `ejercicios`: ejercicios distintos resueltos (por alumno); `aciertos`: de ellos, los respondidos bien; `errores`: intentos incorrectos.
+- `aspectosPositivos`/`aspectosNegativos`: proporción de eventos de cámara (`positivo`+`neutral` / `frustracion`+`desinteres`) en las asignaciones de la fila; `null` sin datos.
+- Sin exportación a CSV.
+
+### 4.8 Administrador (RC-07, RC-08)
+Cuentas creadas con `npm run admin:crear` (sin autorregistro). `POST /auth/admin/login` { email, password } → cookie de sesión, `destino: "/admin"`.
+
+`GET /admin/arco?estado=pendientes|todas`
+```json
+{ "items": [{ "id": "…", "tipo": "revocacion", "detalle": "", "creadaEn": "…", "limite": "2026-12-25",
+              "atendidaEn": null, "respuesta": null, "atendidaPor": null,
+              "alumno": { "id": "…", "nombre": "Mateo Ruiz", "anonimizado": false }, "grupo": "5C", "docente": "…",
+              "tutor": { "nombre": "Elena Ruiz", "correo": "…" } }] }
+```
+`POST /admin/arco/:id/atender` { respuesta (10–2000), anonimizar? } → `{ atendida, anonimizado, correoEnviado }`. 409 si ya estaba atendida; 422 si `anonimizar` en acceso o rectificación. La respuesta se envía por correo al tutor; cada atención se audita (`arco`, actor `admin`).
 
 ### 4.7 Catálogos
 `GET /catalogo/temas` · `GET /catalogo/tipos-interaccion` (ambos roles).

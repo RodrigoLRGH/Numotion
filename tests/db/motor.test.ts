@@ -121,21 +121,22 @@ describe("intentos, guía y puntos (EXP-04.4, 04.6)", () => {
             .toEqual({ error: "cliente_repetido" });
     });
 
-    it("3.er fallo abre la guía paso a paso; 4.º fallo cierra con la explicación final y la respuesta", async () => {
+    it("RF-11/RF-45: máximo 3 intentos; el 3.er fallo cierra con la guía paso a paso y la respuesta", async () => {
         const e = await escenario();
         const { correcta } = await ejercicioActual(e);
         const r1 = await responder(e, false);
-        expect(r1).toMatchObject({ correcta: false, ejercicioCerrado: false, intentosRestantes: 3, guia: null, puntos: 0 });
-        await responder(e, false);
+        expect(r1).toMatchObject({ correcta: false, ejercicioCerrado: false, intentosRestantes: 2, guia: null, puntos: 0 });
+        expect(r1.asignacion.estado).toBe("pendiente"); // RF-72: aún no completa su primer ejercicio
+        const r2 = await responder(e, false);
+        expect(r2).toMatchObject({ ejercicioCerrado: false, intentosRestantes: 1, guia: null });
         const r3 = await responder(e, false);
-        expect(r3.guia?.modo).toBe("paso_a_paso");
+        expect(r3).toMatchObject({ ejercicioCerrado: true, intentosRestantes: 0, guia: { modo: "final", respuestaCorrecta: correcta } });
         expect(r3.guia?.pasos.length).toBeGreaterThanOrEqual(2);
-        const r4 = await responder(e, false);
-        expect(r4).toMatchObject({ ejercicioCerrado: true, intentosRestantes: 0, guia: { modo: "final", respuestaCorrecta: correcta } });
+        expect(r3.asignacion.estado).toBe("en_curso");
         const tipos = await sql`SELECT numero_intento, tipo_error, guia_mostrada FROM intento_ejercicio WHERE asignacion_id = ${e.asignacionId} ORDER BY numero_intento`;
-        expect(tipos.map((t) => t.numero_intento)).toEqual([1, 2, 3, 4]);
+        expect(tipos.map((t) => t.numero_intento)).toEqual([1, 2, 3]);
         expect(tipos.every((t) => t.tipo_error !== null)).toBe(true);
-        expect(tipos.map((t) => t.guia_mostrada)).toEqual(["ninguna", "ninguna", "paso_a_paso", "final"]);
+        expect(tipos.map((t) => t.guia_mostrada)).toEqual(["ninguna", "ninguna", "final"]);
     });
 
     it("puntos por intento: 7 al segundo; tras pedir ayuda, 3", async () => {
@@ -177,7 +178,7 @@ describe("adaptación de nivel (EXP-04.5, P-DB-05)", () => {
     it("3 ejercicios fallados bajan 1 nivel por desempeño", async () => {
         const e = await escenario({ num: 6 });
         let r: ResultadoIntento | null = null;
-        for (let ej = 0; ej < 3; ej++) for (let i = 0; i < 4; i++) r = await responder(e, false);
+        for (let ej = 0; ej < 3; ej++) for (let i = 0; i < 3; i++) r = await responder(e, false); // RF-11: 3 intentos
         // Sin cámara ni inactividad el IF tope es 0.5 (< 0.6): baja R3 al cerrar el 3.er ejercicio
         expect(r!.nivel).toEqual({ anterior: 2, actual: 1, motivo: "desempeno" });
         const ajustes = await sql`SELECT motivo, detalle FROM ajuste_dificultad WHERE asignacion_id = ${e.asignacionId}`;
@@ -190,8 +191,8 @@ describe("completar la actividad (EXP-04.10)", () => {
         const e = await escenario();
         await responder(e, true);
         await responder(e, true);
-        for (let i = 0; i < 3; i++) await responder(e, false);
-        const ultimo = await responder(e, false);
+        for (let i = 0; i < 2; i++) await responder(e, false);
+        const ultimo = await responder(e, false); // 3.er fallo: cierra el último ejercicio (RF-11)
         expect(ultimo.asignacion.estado).toBe("completada");
         expect(ultimo.recompensa).toEqual({ puntos: 20, estrellas: 1, resultadoFinal: 6.67 });
         const s = await e.como((tx) => siguienteEjercicio(tx, e.alumnoId, e.asignacionId));
@@ -223,13 +224,15 @@ describe("tipos especiales (RF-39, RF-41, RF-44)", () => {
         expect(await intentar(e, a.ejercicio.id, String(total))).toMatchObject({ correcta: true, puntos: 10 });
     });
 
-    it("con letras: sin hash (solo valida el servidor) y tolera un error de ortografía", async () => {
+    it("con letras (RF-39): serie de números sin hash (solo valida el servidor) que tolera errores de ortografía", async () => {
         const e = await escenario({ tema: "numeros", tipo: "numero_a_palabras" });
         const a = await ejercicioActual(e);
         expect(a.ejercicio.hashRespuesta).toBeNull();
-        expect(typeof a.ejercicio.numeroMostrado).toBe("number");
-        expect(await intentar(e, a.ejercicio.id, "xxxxxxxxxxxx")).toMatchObject({ correcta: false });
-        expect(await intentar(e, a.ejercicio.id, a.correcta.slice(1).toUpperCase())).toMatchObject({ correcta: true });
+        expect(a.ejercicio.numerosMostrados).toHaveLength(3);
+        expect(JSON.stringify(a.ejercicio)).not.toContain(a.correcta);
+        const esperadas = JSON.parse(a.correcta) as string[];
+        expect(await intentar(e, a.ejercicio.id, JSON.stringify(["xxxxxxxxxxxx", ...esperadas.slice(1)]))).toMatchObject({ correcta: false });
+        expect(await intentar(e, a.ejercicio.id, JSON.stringify(esperadas.map((x) => x.slice(1).toUpperCase())))).toMatchObject({ correcta: true });
         const [i] = await sql`SELECT tipo_error FROM intento_ejercicio WHERE ejercicio_id = ${a.ejercicio.id} AND NOT correcta`;
         expect(i.tipo_error).not.toBeNull();
     });

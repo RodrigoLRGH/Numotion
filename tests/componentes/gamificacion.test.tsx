@@ -92,22 +92,32 @@ describe("PracticaLibre (EXP-06.6)", () => {
     it("elige un juego, resuelve 5 ejercicios y al terminar muestra puntos, racha e insignias", async () => {
         const ej = (i: number) => ({ id: `e${i}`, tipoInteraccion: "seleccion_multiple", nivel: 2, enunciado: `${i} + 1`, opciones: [String(i + 1), "0"], hashRespuesta: null });
         const llamadas = servidor({
-            "GET /api/v1/alumno/practica": { items: [{ tipo: "seleccion_multiple", temaId: "t", temaClave: "suma", tema: "Suma", nombre: "Selección múltiple", icono: "🔘" }] },
+            "GET /api/v1/alumno/practica": { items: [
+                { tipo: "seleccion_multiple", temaId: "r", temaClave: "resta", tema: "Resta", nombre: "Arrastrar y soltar", icono: "✋", recomendado: true },
+                { tipo: "seleccion_multiple", temaId: "t", temaClave: "suma", tema: "Suma", nombre: "Selección múltiple", icono: "🔘", recomendado: false },
+            ] },
             "POST /api/v1/alumno/practica": { practicaId: "p1", nivel: 2, tema: "Suma", juego: "Selección múltiple", ejercicios: [1, 2, 3, 4, 5].map(ej) },
-            "POST /api/v1/alumno/practica/p1/intentos": { correcta: true, ejercicioCerrado: true, intentosRestantes: 0, solucion: null, progreso: { resueltos: 1, total: 5 } },
-            "POST /api/v1/alumno/practica/p1/completar": { puntos: 5, aciertos: 5, total: 5, racha: { actual: 3, mejor: 3, incremento: true }, nuevasInsignias: [{ clave: "constante", nombre: "Constante", descripcion: "", icono: "🐢" }], subioNivel: null },
+            "POST /api/v1/alumno/practica/p1/intentos": { correcta: true, ejercicioCerrado: true, intentosRestantes: 0, solucion: null, progreso: { resueltos: 1, total: 5 }, puntos: 3, subioNivel: 2 },
+            "POST /api/v1/alumno/practica/p1/completar": { puntos: 15, aciertos: 5, total: 5, racha: { actual: 3, mejor: 3, incremento: true }, nuevasInsignias: [{ clave: "constante", nombre: "Constante", descripcion: "", icono: "🐢" }] },
         });
         const u = userEvent.setup();
         render(<MemoryRouter><PracticaLibre /></MemoryRouter>);
+        // RF-03: el tema con dominio bajo va primero y lleva la etiqueta "Recomendado"; los demás siguen disponibles
+        const secciones = await screen.findAllByRole("region");
+        expect(secciones.map((x) => within(x).getByRole("heading").textContent)).toEqual(["Resta", "Suma"]);
+        expect(within(secciones[0]).getByText("Recomendado")).toBeInTheDocument();
+        expect(within(secciones[1]).queryByText("Recomendado")).toBeNull();
         await u.click(await screen.findByRole("button", { name: /Selección múltiple/ }));
         for (let i = 1; i <= 5; i++) {
             await u.click(await screen.findByRole("button", { name: String(i + 1) }));
+            if (i === 1) expect(await screen.findByText(/\+3 puntos/)).toBeInTheDocument(); // RF-03: puntos por acierto
             await u.click(await screen.findByRole("button", { name: i === 5 ? /Terminar/ : /Siguiente/ }));
         }
         expect(await screen.findByRole("heading", { name: "¡Terminaste el juego!" })).toBeInTheDocument();
-        expect(screen.getByText("+5 puntos")).toBeInTheDocument();
+        expect(screen.getByText("+15 puntos")).toBeInTheDocument();
         expect(screen.getByText("¡Tu racha creció a 3 días!")).toBeInTheDocument();
         expect(screen.getByText(/Nueva insignia: Constante/)).toBeInTheDocument();
+        expect(screen.getByText(/Subiste al nivel 2/)).toBeInTheDocument(); // el nivel que subió durante el juego
         expect(llamadas.filter((l) => l.url.endsWith("/intentos"))).toHaveLength(5);
         expect(llamadas.at(-1)?.url).toBe("/api/v1/alumno/practica/p1/completar");
     });

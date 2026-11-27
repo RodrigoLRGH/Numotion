@@ -5,6 +5,7 @@ import express, { type Express } from "express";
 import { decidirAcceso, type EstadoDiagnosticos } from "@numotion/core/guardas";
 import { conContexto } from "./infra/db";
 import { esProduccion } from "./infra/entorno";
+import { rutasAdmin } from "./modules/admin/rutas";
 import { rutasAlumno } from "./modules/alumno/rutas";
 import { tokenDeCookies, usuarioDeToken } from "./modules/core/auth";
 import { cabecerasSeguridad } from "./modules/core/cabeceras";
@@ -56,6 +57,7 @@ export function crearApp(): Express {
     app.use("/api/v1", rutasCore);
     app.use("/api/v1/docente", rutasDocente);
     app.use("/api/v1/alumno", rutasAlumno);
+    app.use("/api/v1/admin", rutasAdmin);
     app.use("/api", (_req, res) => enviarError(res, "NO_ENCONTRADO", "Ruta no encontrada", 404));
     app.use(manejadorErrores);
     return app;

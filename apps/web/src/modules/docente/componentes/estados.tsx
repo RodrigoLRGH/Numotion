@@ -27,7 +27,7 @@ export function EtiquetaEstado({ estado }: { estado: string | null }) {
     );
 }
 
-export const AVISO_ESTIMACION = "Los estados emocionales son estimaciones automáticas de apoyo y no sustituyen el criterio docente.";
+export const AVISO_ESTIMACION = "Los estados socioemocionales son estimaciones automáticas de apoyo y no sustituyen el criterio docente.";
 
 export const fechaCorta = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
 export const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -43,3 +43,18 @@ export function Barra({ valor, max, etiqueta, clase = "bg-marca" }: { valor: num
         </div>
     );
 }
+
+// Explicaciones de AP y AN (PANAS-C: escala 1–5, promedio de cada subescala; umbrales en estadoInicialDesdePanas)
+export const AYUDA_AP = (
+    <>
+        <strong>Afecto positivo.</strong> Promedio, del 1 al 5, de qué tanto el alumno dijo sentir emociones agradables (como alegría o
+        interés) en el cuestionario del inicio del día. Más alto significa mejor ánimo para trabajar.
+    </>
+);
+export const AYUDA_AN = (
+    <>
+        <strong>Afecto negativo.</strong> Promedio, del 1 al 5, de qué tanto el alumno dijo sentir emociones desagradables (como tristeza,
+        miedo o enojo) en el cuestionario del inicio del día. Más alto significa más malestar; desde 3.0 su estado inicial se marca como
+        frustración.
+    </>
+);

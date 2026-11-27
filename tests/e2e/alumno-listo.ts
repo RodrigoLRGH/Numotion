@@ -61,7 +61,8 @@ export async function respuestaCorrecta(alumnoId: string, actividad: string, ant
 export async function opcionIncorrecta(page: Page, correcta: string) {
     const opciones = page.getByRole("group", { name: "Opciones" }).getByRole("button", { disabled: false });
     for (const o of await opciones.all()) {
-        const t = (await o.textContent())?.trim();
+        // El botón antepone la letra de la opción («a)», aria-hidden): se compara solo el valor
+        const t = (await o.textContent())?.trim().replace(/^[a-z]\)\s*/i, "");
         if (t && t !== correcta) return o;
     }
     throw new Error("sin opción incorrecta disponible");

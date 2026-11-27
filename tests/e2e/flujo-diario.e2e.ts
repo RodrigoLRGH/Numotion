@@ -102,7 +102,7 @@ test("docente: entra, ve su grupo con código y da de alta un alumno", async ({ 
     await captura(page, "07-login");
     await page.getByLabel("Correo").fill(email);
     await page.getByLabel("Contraseña").fill("contraseña-e2e");
-    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
     await expect(page).toHaveURL(/\/docente$/);
 
     await page.getByRole("link", { name: "Grupos", exact: true }).click();
@@ -120,7 +120,8 @@ test("docente: entra, ve su grupo con código y da de alta un alumno", async ({ 
     await sinViolacionesSerias(page);
     await captura(page, "08-grupos");
 
-    // Salir invalida la sesión
+    // Salir invalida la sesión (el botón está en el menú del ícono de usuario)
+    await page.getByRole("button", { name: /^Cuenta de / }).click();
     await page.getByRole("button", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.goto("/docente/grupos");

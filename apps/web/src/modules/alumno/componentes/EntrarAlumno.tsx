@@ -65,9 +65,9 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
 
     if (paso.tipo === "codigo") {
         return (
-            <form onSubmit={buscarGrupo} className="tarjeta mx-auto flex max-w-lg flex-col items-center gap-5 text-center" noValidate>
+            <form onSubmit={buscarGrupo} className="mx-auto flex max-w-2xl flex-col items-center gap-6 text-center rounded-[3rem] bg-marca-panel px-6 py-10 sm:rounded-[79px] sm:px-16" noValidate>
                 <div className="flex items-center gap-3">
-                    <h1 className="text-3xl font-extrabold">Escribe el código de tu grupo</h1>
+                    <h1 className="text-3xl font-bold text-titulo sm:text-4xl">Escribe el código de tu grupo</h1>
                 </div>
                 <label htmlFor="codigo" className="sr-only">Código del grupo</label>
                 <input
@@ -91,9 +91,9 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
 
     if (paso.tipo === "avatar") {
         return (
-            <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="quien">
+            <section className="mx-auto max-w-4xl rounded-[3rem] bg-marca-panel px-6 py-10 sm:rounded-[79px] sm:px-16" aria-labelledby="quien">
                 <div className="mb-5 flex items-center justify-center gap-3">
-                    <h1 id="quien" className="text-3xl font-extrabold">¿Quién eres?</h1>
+                    <h1 id="quien" className="text-center text-3xl font-bold text-titulo sm:text-4xl">¿Quién eres?</h1>
                 </div>
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="list">
                     {paso.grupo.alumnos.map((a) => (
@@ -105,7 +105,7 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
                                     setMensaje(null);
                                     setPaso({ tipo: "pin", grupo: paso.grupo, alumno: a });
                                 }}
-                                className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-slate-200 bg-white p-3 hover:border-marca hover:bg-marca-suave"
+                                className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-transparent bg-white p-3 hover:border-marca-fuerte hover:bg-marca-tenue"
                             >
                                 <span aria-hidden="true" className="text-5xl">{emojiAvatar(a.avatar)}</span>
                                 <span className="text-xl font-bold">{a.nombreCorto}</span>
@@ -123,11 +123,11 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
     }
 
     return (
-        <section className="tarjeta mx-auto max-w-xl text-center" aria-labelledby="clave">
+        <section className="mx-auto max-w-2xl text-center rounded-[3rem] bg-marca-panel px-6 py-10 sm:rounded-[79px] sm:px-16" aria-labelledby="clave">
             <p className="text-5xl" aria-hidden="true">{emojiAvatar(paso.alumno.avatar)}</p>
             <p className="text-xl font-bold">{paso.alumno.nombreCorto}</p>
             <div className="my-4 flex items-center justify-center gap-3">
-                <h1 id="clave" className="text-3xl font-extrabold">Toca tu clave secreta</h1>
+                <h1 id="clave" className="text-3xl font-bold text-titulo sm:text-4xl">Toca tu clave secreta</h1>
             </div>
             <p className="sr-only" aria-live="polite">{`${pin.length} de ${LONGITUD_PIN} dibujos`}</p>
             <div className="mb-4 flex justify-center gap-3" aria-hidden="true">
@@ -144,7 +144,7 @@ export default function EntrarAlumno({ siguiente }: { siguiente?: string }) {
                         aria-label={i.nombre}
                         disabled={ocupado}
                         onClick={() => tocarIcono(i.id)}
-                        className="flex aspect-square min-h-16 cursor-pointer items-center justify-center rounded-2xl border-2 border-slate-200 bg-white text-4xl hover:border-marca hover:bg-marca-suave disabled:opacity-50"
+                        className="flex aspect-square min-h-16 cursor-pointer items-center justify-center rounded-2xl border-2 border-transparent bg-white text-4xl hover:border-marca-fuerte hover:bg-marca-tenue disabled:opacity-50"
                     >
                         <span aria-hidden="true">{i.emoji}</span>
                     </button>

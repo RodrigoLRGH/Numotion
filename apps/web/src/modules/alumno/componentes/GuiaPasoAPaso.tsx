@@ -16,17 +16,18 @@ export function GuiaPasoAPaso({ guia, onCerrar }: { guia: Guia; onCerrar(): void
     return (
         <section
             aria-labelledby="titulo-guia"
-            className={`mt-6 rounded-2xl border-2 p-5 ${final ? "border-marca bg-marca-suave" : "border-acento bg-acento-suave"}`}
+            // Figma "005_5_Mensaje_Motivacional": tarjeta blanca con contorno y título centrado
+            className={`mx-auto mt-6 w-full max-w-3xl rounded-[2rem] border border-tinta p-6 shadow-lg ${final ? "bg-marca-tenue" : "bg-white"}`}
         >
             <div className="mb-3 flex items-center gap-3">
-                <h2 id="titulo-guia" className="text-2xl font-extrabold">
+                <h2 id="titulo-guia" className="text-2xl font-bold">
                     {final ? "Así se resuelve" : "Vamos juntos, paso a paso"}
                 </h2>
             </div>
             <ol className="flex flex-col gap-2" aria-live="polite">
                 {mostrados.map((p) => (
-                    <li key={p.orden} className="rounded-xl bg-white px-4 py-3 text-xl">
-                        <span className="mr-2 font-extrabold text-marca">{p.orden}.</span>
+                    <li key={p.orden} className="rounded-xl bg-superficie px-4 py-3 text-xl">
+                        <span className="mr-2 font-bold text-marca-fuerte">{p.orden}.</span>
                         {p.texto}
                     </li>
                 ))}

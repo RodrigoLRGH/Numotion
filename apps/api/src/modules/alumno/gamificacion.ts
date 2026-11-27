@@ -4,13 +4,13 @@
 // datos emocionales ni de otros alumnos (EXP-06.4).
 import { semillaDeTexto, crearRng } from "@numotion/core/dominio/aleatorio";
 import { nombreTipo, tiposDeTema, TIPOS_INTERACCION, type TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
-import { clasificarError, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { clasificarError, esCorrecta, generarParaActividad, respuestaLegible } from "@numotion/core/dominio/contenido";
 import { aciertosTrasAyuda, evaluarInsignias, type InsigniaCatalogo } from "@numotion/core/dominio/insignias";
-import { elegirMensaje, type MensajeCatalogo } from "@numotion/core/dominio/mensajes";
+import { elegirMensaje, type HistorialAcademico, type MensajeCatalogo } from "@numotion/core/dominio/mensajes";
 import { personajeDe, progresoNivel, semanaHabil, type Personaje, type ProgresoNivel } from "@numotion/core/dominio/personaje";
-import { nivelGamificacion, PUNTOS_PRACTICA } from "@numotion/core/dominio/puntos";
-import { errorBd, num, type Tx } from "../../infra/db";
-import { aEjercicio, aPublico, cargarEjercicio, insertarEjercicio, json, type EjercicioPublico } from "./ejercicio";
+import { nivelGamificacion, puntosAciertoPractica } from "@numotion/core/dominio/puntos";
+import { errorBd, num, Prisma, type Tx } from "../../infra/db";
+import { aEjercicio, aPublico, cargarEjercicio, insertarEjercicio, json, MAX_INTENTOS, type EjercicioPublico } from "./ejercicio";
 
 export const EJERCICIOS_POR_PRACTICA = 5;
 /** En la práctica libre el ejercicio se cierra al acertar o al 3.er intento (se muestra la solución) */
@@ -66,7 +66,7 @@ export async function otorgarInsignias(tx: Tx, alumnoId: string): Promise<Insign
         SELECT * FROM (
           SELECT bool_or(ayuda_solicitada) AS ayuda, bool_or(correcta) AS correcto, max(creado_en) AS fin
             FROM intento_ejercicio WHERE alumno_id = ${alumnoId}::uuid AND asignacion_id IS NOT NULL
-           GROUP BY asignacion_id, ejercicio_id HAVING bool_or(correcta) OR max(numero_intento) >= 4
+           GROUP BY asignacion_id, ejercicio_id HAVING bool_or(correcta) OR max(numero_intento) >= ${MAX_INTENTOS}
            ORDER BY fin DESC LIMIT 200) u ORDER BY fin`;
     const resultados = await tx.$queryRaw<{ clave: string; resultado: unknown }[]>`
         SELECT t.clave, s.resultado_final AS resultado
@@ -169,6 +169,33 @@ export interface Panel {
 
 const DIAS: DiaSemana["dia"][] = ["L", "M", "Mi", "J", "V"];
 
+/** Historial académico para el mensaje motivacional (RF-22): actividades y diagnóstico más reciente. */
+export async function historialAcademico(tx: Tx, alumnoId: string): Promise<HistorialAcademico> {
+    const [act] = await tx.$queryRaw<{ completadas: number; resultado: Prisma.Decimal | null; tema: string | null }[]>`
+        SELECT (SELECT count(*)::int FROM asignacion_alumno WHERE alumno_id = ${alumnoId}::uuid AND estado = 'completada') AS completadas,
+               u.resultado, u.tema
+          FROM (SELECT 1) x
+          LEFT JOIN LATERAL (
+            SELECT s.resultado_final AS resultado, t.nombre AS tema
+              FROM asignacion_alumno s JOIN actividad ac ON ac.id = s.actividad_id JOIN tema t ON t.id = ac.tema_id
+             WHERE s.alumno_id = ${alumnoId}::uuid AND s.estado = 'completada' AND s.resultado_final IS NOT NULL
+             ORDER BY s.completada_en DESC LIMIT 1) u ON true`;
+    const dominio = await tx.$queryRaw<{ tema: string; nivel: number }[]>`
+        SELECT DISTINCT ON (d.tema_id) t.nombre AS tema, d.nivel_dominio::int AS nivel, t.orden
+          FROM diagnostico_mat_resultado d JOIN tema t ON t.id = d.tema_id
+         WHERE d.alumno_id = ${alumnoId}::uuid
+         ORDER BY d.tema_id, d.creado_en DESC`;
+    const fuerte = dominio.filter((d) => d.nivel >= 4).sort((x, y) => y.nivel - x.nivel)[0];
+    const reto = dominio.filter((d) => d.nivel <= 2).sort((x, y) => x.nivel - y.nivel)[0];
+    return {
+        actividadesCompletadas: act.completadas,
+        ultimoResultado: num(act.resultado),
+        ultimoTema: act.tema,
+        temaFuerte: fuerte?.tema ?? null,
+        temaReto: reto?.tema ?? null,
+    };
+}
+
 export async function panel(tx: Tx, alumnoId: string): Promise<Panel> {
     const hoy = await hoyLocal(tx);
     const a = await tx.alumno.findUniqueOrThrow({ where: { id: alumnoId }, select: { nombre: true, avatar: true } });
@@ -181,7 +208,8 @@ export async function panel(tx: Tx, alumnoId: string): Promise<Panel> {
            AND (completada_en AT TIME ZONE 'America/Tijuana')::date BETWEEN ${semana[0]}::text::date AND ${semana[4]}::text::date`;
     const dias = new Set(hechos.map((h) => h.dia));
 
-    // Mensaje del día: según el estado inicial de hoy (uso interno, nunca se muestra) y la racha
+    // Mensaje del día (RF-22): identidad, historial académico, estado inicial de hoy (uso interno,
+    // nunca se muestra) y racha
     const [retro] = await tx.$queryRaw<{ estado: string }[]>`
         SELECT r.estado_inicial::text AS estado FROM retroalimentacion r JOIN sesion_alumno s ON s.id = r.sesion_id
          WHERE r.alumno_id = ${alumnoId}::uuid AND s.fecha = fn_hoy_local() LIMIT 1`;
@@ -189,7 +217,7 @@ export async function panel(tx: Tx, alumnoId: string): Promise<Panel> {
     const previo = await tx.perfil_gamificacion.findUnique({ where: { alumno_id: alumnoId }, select: { ultimo_mensaje_id: true, ultimo_mensaje_fecha: true } });
     const mensaje = elegirMensaje(
         catalogo,
-        { nombre: a.nombre, racha: r.actual, estadoInicial: retro?.estado ?? null, fecha: hoy },
+        { nombre: a.nombre, racha: r.actual, estadoInicial: retro?.estado ?? null, fecha: hoy, historial: await historialAcademico(tx, alumnoId) },
         previo?.ultimo_mensaje_id && previo.ultimo_mensaje_fecha ? { id: previo.ultimo_mensaje_id, fecha: previo.ultimo_mensaje_fecha.toISOString().slice(0, 10) } : null,
     );
     if (mensaje && previo && previo.ultimo_mensaje_id !== mensaje.id) {
@@ -220,14 +248,30 @@ export interface Juego {
     tema: string;
     nombre: string;
     icono: string;
+    /** RF-03: el último diagnóstico del tema muestra dominio insuficiente (≤ 2): se muestra primero */
+    recomendado: boolean;
 }
 
-/** Juegos disponibles: cada tipo de cada tema del grado del alumno. */
+/** Nivel de dominio (1–5) a partir del cual ya no se recomienda practicar el tema. */
+export const DOMINIO_INSUFICIENTE_MAX = 2;
+
+/**
+ * Juegos disponibles: cada tipo de cada tema del grado del alumno. Todos se pueden jugar; los temas
+ * con dominio insuficiente en el diagnóstico más reciente van primero (el más bajo antes) y se marcan
+ * como recomendados (RF-03).
+ */
 export async function juegosDisponibles(tx: Tx, alumnoId: string): Promise<Juego[]> {
-    const temas = await tx.$queryRaw<{ id: string; clave: string; nombre: string }[]>`
-        SELECT t.id, t.clave, t.nombre FROM tema t JOIN grupo g ON g.grado BETWEEN t.grado_min AND t.grado_max
+    const temas = await tx.$queryRaw<{ id: string; clave: string; nombre: string; dominio: number | null }[]>`
+        SELECT t.id, t.clave, t.nombre,
+               (SELECT d.nivel_dominio::int FROM diagnostico_mat_resultado d
+                 WHERE d.alumno_id = a.id AND d.tema_id = t.id ORDER BY d.creado_en DESC LIMIT 1) AS dominio
+          FROM tema t JOIN grupo g ON g.grado BETWEEN t.grado_min AND t.grado_max
           JOIN alumno a ON a.grupo_id = g.id WHERE a.id = ${alumnoId}::uuid ORDER BY t.orden, t.nombre`;
-    return temas.flatMap((t) =>
+    const recomendado = (d: number | null) => d !== null && d <= DOMINIO_INSUFICIENTE_MAX;
+    // sort es estable: fuera de los recomendados se conserva el orden del catálogo
+    const ordenados = [...temas].sort((x, y) =>
+        recomendado(x.dominio) && recomendado(y.dominio) ? x.dominio! - y.dominio! : Number(recomendado(y.dominio)) - Number(recomendado(x.dominio)));
+    return ordenados.flatMap((t) =>
         tiposDeTema(t.clave).map((tipo) => ({
             tipo,
             temaId: t.id,
@@ -235,6 +279,7 @@ export async function juegosDisponibles(tx: Tx, alumnoId: string): Promise<Juego
             tema: t.nombre,
             nombre: nombreTipo(tipo),
             icono: TIPOS_INTERACCION.find((x) => x.id === tipo)?.icono ?? "🎮",
+            recomendado: recomendado(t.dominio),
         })),
     );
 }
@@ -285,6 +330,10 @@ export interface ResultadoIntentoPractica {
     /** Al cerrarse sin acierto se muestra cómo se resolvía (RF-45) */
     solucion: { pasos: { orden: number; texto: string }[]; respuestaCorrecta: string } | null;
     progreso: { resueltos: number; total: number };
+    /** RF-03: puntos ganados con esta respuesta (0 si fue incorrecta) */
+    puntos: number;
+    /** Nuevo nivel de gamificación si estos puntos lo subieron */
+    subioNivel: number | null;
 }
 
 export type FalloPractica = { error: "no_encontrada" | "completada" | "ejercicio_no_vigente" | "cliente_repetido" | "incompleta" };
@@ -317,51 +366,65 @@ export async function intentoPractica(tx: Tx, alumnoId: string, practicaId: stri
     const ejercicio = aEjercicio(fila);
     const correcta = esCorrecta(ejercicio, d.respuesta);
     const cerrado = correcta || numeroIntento >= MAX_INTENTOS_PRACTICA;
-    const resultado: ResultadoIntentoPractica = {
-        correcta,
-        ejercicioCerrado: cerrado,
-        intentosRestantes: cerrado ? 0 : MAX_INTENTOS_PRACTICA - numeroIntento,
-        solucion: cerrado && !correcta ? { pasos: fila.pasos_solucion, respuestaCorrecta: ejercicio.respuesta } : null,
-        progreso: { resueltos: cerrados.size + (cerrado ? 1 : 0), total: p.ejercicios.length },
-    };
+    const solucion = cerrado && !correcta ? { pasos: fila.pasos_solucion, respuestaCorrecta: respuestaLegible(ejercicio) } : null;
+    let id: string;
     await tx.$executeRaw`SAVEPOINT intento_practica`;
     try {
-        await tx.intento_ejercicio.create({
+        ({ id } = await tx.intento_ejercicio.create({
             data: {
                 practica_id: p.id,
                 alumno_id: alumnoId,
                 ejercicio_id: d.ejercicioId,
                 nivel: fila.nivel,
-                respuesta: json({ valor: d.respuesta.slice(0, 200) }),
+                respuesta: json({ valor: d.respuesta.slice(0, 600) }),
                 correcta,
                 tipo_error: correcta ? null : clasificarError(ejercicio, d.respuesta),
                 numero_intento: numeroIntento,
                 tiempo_ms: Math.round(Math.min(d.tiempoMs, 30 * 60_000)),
-                guia_mostrada: resultado.solucion ? "final" : "ninguna",
+                guia_mostrada: solucion ? "final" : "ninguna",
                 cliente_id: d.clienteId,
-                resultado: json(resultado),
             },
             select: { id: true },
-        });
+        }));
         await tx.$executeRaw`RELEASE SAVEPOINT intento_practica`;
     } catch (e) {
         await tx.$executeRaw`ROLLBACK TO SAVEPOINT intento_practica`;
         if (errorBd(e)?.codigo === "23505") return { error: "cliente_repetido" };
         throw e;
     }
+
+    // RF-03: los puntos se acreditan con cada respuesta correcta
+    const puntos = puntosAciertoPractica(correcta, numeroIntento);
+    let subioNivel: number | null = null;
+    if (puntos > 0) {
+        await tx.practica_libre.update({ where: { id: p.id }, data: { puntos: { increment: puntos } }, select: { id: true } });
+        subioNivel = (await sumarPuntos(tx, alumnoId, puntos)).subioA;
+    }
+    const resultado: ResultadoIntentoPractica = {
+        correcta,
+        ejercicioCerrado: cerrado,
+        intentosRestantes: cerrado ? 0 : MAX_INTENTOS_PRACTICA - numeroIntento,
+        solucion,
+        progreso: { resueltos: cerrados.size + (cerrado ? 1 : 0), total: p.ejercicios.length },
+        puntos,
+        subioNivel,
+    };
+    // Idempotencia: el mismo clienteId devuelve esta respuesta
+    await tx.intento_ejercicio.update({ where: { id }, data: { resultado: json(resultado) }, select: { id: true } });
     return resultado;
 }
 
 export interface PracticaCompletada {
+    /** Puntos ganados en el juego: la suma de los de cada respuesta correcta (RF-03) */
     puntos: number;
     aciertos: number;
     total: number;
     racha: { actual: number; mejor: number; incremento: boolean };
     nuevasInsignias: InsigniaObtenida[];
-    subioNivel: number | null;
 }
 
-/** Cierra la práctica (todos los ejercicios cerrados): +5 puntos y dispara la racha (trigger). Idempotente. */
+/** Cierra la práctica (todos los ejercicios cerrados), dispara la racha (trigger) y evalúa insignias.
+ *  Los puntos ya se acreditaron con cada acierto. Idempotente. */
 export async function completarPractica(tx: Tx, alumnoId: string, practicaId: string): Promise<PracticaCompletada | FalloPractica> {
     const p = await cargarPractica(tx, alumnoId, practicaId);
     if (!p) return { error: "no_encontrada" };
@@ -369,21 +432,19 @@ export async function completarPractica(tx: Tx, alumnoId: string, practicaId: st
         SELECT count(DISTINCT ejercicio_id)::int AS aciertos FROM intento_ejercicio WHERE practica_id = ${p.id}::uuid AND correcta`;
     if (p.completada_en) {
         const r = await racha(tx, alumnoId);
-        return { puntos: p.puntos, aciertos, total: p.ejercicios.length, racha: { ...r, incremento: false }, nuevasInsignias: [], subioNivel: null };
+        return { puntos: p.puntos, aciertos, total: p.ejercicios.length, racha: { ...r, incremento: false }, nuevasInsignias: [] };
     }
     const cerrados = await cerradosDe(tx, p.id);
     if (p.ejercicios.some((id) => !cerrados.has(id))) return { error: "incompleta" };
 
     const antes = await racha(tx, alumnoId);
-    await tx.practica_libre.update({ where: { id: p.id }, data: { completada_en: new Date(), puntos: PUNTOS_PRACTICA }, select: { id: true } });
+    await tx.practica_libre.update({ where: { id: p.id }, data: { completada_en: new Date() }, select: { id: true } });
     const despues = await racha(tx, alumnoId);
-    const { subioA } = await sumarPuntos(tx, alumnoId, PUNTOS_PRACTICA);
     return {
-        puntos: PUNTOS_PRACTICA,
+        puntos: p.puntos,
         aciertos,
         total: p.ejercicios.length,
         racha: { ...despues, incremento: despues.actual > antes.actual },
         nuevasInsignias: await otorgarInsignias(tx, alumnoId),
-        subioNivel: subioA,
     };
 }

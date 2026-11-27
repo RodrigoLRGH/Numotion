@@ -72,31 +72,33 @@ export default function PanasC() {
     }
 
     return (
-        <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="pregunta">
-            <div className="mb-6 flex items-center gap-3">
+        <section className="mx-auto flex max-w-5xl flex-col" aria-labelledby="pregunta">
+            {/* Figma "002_*_Diagnostico": título, pregunta, escala en fila y botones abajo a la derecha */}
+            <p aria-hidden="true" className="text-center text-4xl font-bold sm:text-5xl">¡Comencemos!</p>
+            <div className="mx-auto mt-6 mb-10 flex w-full max-w-md items-center gap-3">
                 <div
-                    className="h-4 flex-grow overflow-hidden rounded-full bg-slate-200"
+                    className="h-3 flex-grow overflow-hidden rounded-full border border-tinta bg-white"
                     role="progressbar"
                     aria-valuemin={1}
                     aria-valuemax={total}
                     aria-valuenow={indice + 1}
                     aria-label="Avance"
                 >
-                    <div className="h-full rounded-full bg-marca transition-all" style={{ width: `${((indice + 1) / total) * 100}%` }} />
+                    <div className="h-full rounded-full bg-linear-to-r from-marca to-marca-claro transition-all" style={{ width: `${((indice + 1) / total) * 100}%` }} />
                 </div>
-                <span className="text-lg font-bold whitespace-nowrap">{indice + 1} de {total}</span>
+                <span className="text-base whitespace-nowrap text-tinta-suave">{indice + 1} de {total}</span>
             </div>
 
-            <div className="mb-8 flex items-center justify-center gap-3 text-center">
-                <h1 id="pregunta" className="text-3xl font-extrabold sm:text-4xl">{item.texto}</h1>
+            <div className="mb-12 flex items-center justify-center gap-3 text-center">
+                <h1 id="pregunta" className="text-3xl sm:text-4xl">{item.texto}</h1>
             </div>
 
             <EscalaIntensidad escala={estado.escala} elegido={elegidos[item.id]} deshabilitado={ocupado} onElegir={elegir} />
 
             {error && <div className="mt-5"><Aviso tipo="error">{error}</Aviso></div>}
 
-            <div className="mt-6">
-                <button type="button" className="boton-secundario" disabled={indice === 0 || ocupado} onClick={() => setIndice(indice - 1)}>
+            <div className="mt-12 flex justify-end">
+                <button type="button" className="boton-secundario min-w-48 uppercase" disabled={indice === 0 || ocupado} onClick={() => setIndice(indice - 1)}>
                     <span aria-hidden="true">←</span> Atrás
                 </button>
             </div>

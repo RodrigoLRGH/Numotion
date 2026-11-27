@@ -14,7 +14,7 @@ Motivar la práctica constante con refuerzo positivo (puntos, niveles, personaje
 | EXP-06.3 | El panel muestre la racha actual (días) con representación visual de la semana (L–V) y la mejor racha; nunca muestre "perdiste tu racha" en tono negativo (usar "¡Empieza una nueva racha hoy!"). | P-COMP-03 |
 | EXP-06.4 | El perfil muestre nombre, grado, grupo, personaje, nivel e insignias; **sin** datos emocionales ni de otros alumnos. | P-COMP-03, P-SEC-01 |
 | EXP-06.5 | Al entrar al panel se muestre una frase motivacional elegida por `condicion` (estado inicial, racha) con `{nombre}` y `{racha}` sustituidos; sin repetir la misma frase dos días seguidos. | P-COMP-03 |
-| EXP-06.6 | La práctica libre ofrezca juegos de los tipos disponibles por tema, de 5 ejercicios, con nivel = último `nivel_actual` del alumno en ese tema (o 2), y al completarse dispare la racha. | P-E2E-01 |
+| EXP-06.6 | La práctica libre ofrezca juegos de los tipos disponibles por tema, de 5 ejercicios, con nivel = último `nivel_actual` del alumno en ese tema (o 2); cada respuesta correcta otorgue puntos (3, 2 o 1 según el intento, RF-03) y al completarse dispare la racha. Los temas con dominio ≤ 2 se muestran primero como "Recomendado" (A-35). | P-E2E-01 |
 
 ## Componentes
 - API: `core/gamificacion/{puntos.ts, niveles.ts, insignias.ts}`, `modules/alumno/practica.routes.ts`.

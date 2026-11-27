@@ -81,6 +81,7 @@ const ERRORES_BD: Record<string, [CodigoError, number, string]> = {
     ALUMNO_NO_PERMITIDO: ["NO_ENCONTRADO", 404, "Alumno no encontrado"],
     GRUPO_SIN_ALUMNOS: ["VALIDACION", 422, "El grupo no tiene alumnos activos"],
     EMAIL_DUPLICADO: ["CONFLICTO", 409, "Ese correo ya está registrado"],
+    PROHIBIDO: ["PROHIBIDO", 403, "No tienes permiso para este recurso"],
 };
 
 export const manejadorErrores: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -114,6 +115,12 @@ export function contextoDe(u: UsuarioSesion): NonNullable<Contexto> {
 export function docenteDe(res: Response): UsuarioSesion {
     const u = usuarioDe(res);
     if (!u || u.rol !== "docente") throw new Error("La guarda debió bloquear esta ruta");
+    return u;
+}
+
+export function adminDe(res: Response): UsuarioSesion {
+    const u = usuarioDe(res);
+    if (!u || u.rol !== "admin") throw new Error("La guarda debió bloquear esta ruta");
     return u;
 }
 

@@ -47,7 +47,7 @@ function Codigo({ token, correo, valor, onCambio }: { token: string; correo: str
         }
     }
     return (
-        <fieldset className="flex flex-col gap-2 rounded-xl border-2 border-slate-200 p-4">
+        <fieldset className="flex flex-col gap-2 rounded-2xl bg-white p-5">
             <legend className="px-1 font-bold">Verifica que eres tú</legend>
             <button type="button" className="boton-secundario self-start" onClick={pedir} disabled={ocupado}>
                 Enviar código a {correo}
@@ -121,9 +121,10 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
 
     return (
         <div className="flex flex-col gap-5">
-            <header className="tarjeta">
-                <h1 className="text-2xl font-extrabold">Permiso para {vista.alumno}</h1>
-                <p className="mt-1 text-tinta-suave">
+            <header className="text-center">
+                <p className="text-lg font-semibold text-tinta-suave">Consentimiento de confidencialidad</p>
+                <h1 className="mt-1 text-3xl font-bold sm:text-[40px]">Permiso para {vista.alumno}</h1>
+                <p className="mt-2 text-tinta-suave">
                     Grupo {vista.grupo} · {vista.docente}
                 </p>
                 <p className="mt-3" role="status">
@@ -137,9 +138,9 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
 
             {exito && <Aviso tipo="exito">{exito}</Aviso>}
 
-            <section className="tarjeta" aria-labelledby="aviso">
-                <h2 id="aviso" className="text-xl font-extrabold">Aviso de privacidad</h2>
-                <dl className="mt-3 grid gap-3">
+            <section className="tarjeta sm:rounded-[52px] sm:px-16 sm:py-10" aria-labelledby="aviso">
+                <h2 id="aviso" className="text-2xl font-bold">Aviso de privacidad</h2>
+                <dl className="mt-4 grid gap-4">
                     <div>
                         <dt className="font-bold">¿Para qué?</dt>
                         <dd>Para que {vista.alumno} practique matemáticas y la dificultad se ajuste a su desempeño y a cómo se siente.</dd>
@@ -161,11 +162,11 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                         <dd>Puedes pedir acceso, corrección, borrado u oposición (derechos ARCO), y retirar este permiso cuando quieras desde esta misma página.</dd>
                     </div>
                 </dl>
-                {vista.aviso.url && <p className="mt-3"><a href={vista.aviso.url} className="font-bold text-marca underline">Leer el aviso completo</a></p>}
+                {vista.aviso.url && <p className="mt-3"><a href={vista.aviso.url} className="enlace">Leer el aviso completo</a></p>}
             </section>
 
             {accion === null && (estado === "vigente" || estado === "revocado" || estado === "vencido") && (
-                <section className="tarjeta flex flex-wrap gap-3" aria-label="Opciones">
+                <section className="flex flex-wrap justify-end gap-3" aria-label="Opciones">
                     {estado === "vigente" && (
                         <>
                             <button type="button" className="boton-secundario" onClick={() => elegir("aceptar")}>Cambiar permiso de cámara</button>
@@ -177,8 +178,8 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
             )}
 
             {accion && (
-                <form onSubmit={enviar} className="tarjeta flex flex-col gap-4">
-                    <h2 className="text-xl font-extrabold">
+                <form onSubmit={enviar} className="tarjeta flex flex-col gap-4 sm:rounded-[52px] sm:px-16 sm:py-10">
+                    <h2 className="text-2xl font-bold">
                         {accion === "aceptar" ? "Tu decisión" : accion === "revocar" ? "Retirar el permiso" : "Solicitud ARCO"}
                     </h2>
 
@@ -197,12 +198,12 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                                     </select>
                                 </div>
                             </div>
-                            <label className="flex items-start gap-3 rounded-xl border-2 border-slate-200 p-3">
-                                <input type="checkbox" name="plataforma" required defaultChecked={estado === "vigente"} className="mt-1 size-5" />
+                            <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-confirmacion px-5 py-4 text-lg">
+                                <input type="checkbox" name="plataforma" required defaultChecked={estado === "vigente"} className="mt-1 size-6 shrink-0 accent-marca-fuerte" />
                                 <span><strong>Autorizo que {vista.alumno} use la plataforma</strong> (obligatorio para que pueda entrar).</span>
                             </label>
-                            <label className="flex items-start gap-3 rounded-xl border-2 border-slate-200 p-3">
-                                <input type="checkbox" name="camara" defaultChecked={camara} className="mt-1 size-5" />
+                            <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-confirmacion px-5 py-4 text-lg">
+                                <input type="checkbox" name="camara" defaultChecked={camara} className="mt-1 size-6 shrink-0 accent-marca-fuerte" />
                                 <span><strong>Autorizo la cámara</strong> para detectar emociones durante las actividades (opcional; las imágenes no se guardan).</span>
                             </label>
                         </>
@@ -232,13 +233,13 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                     <Codigo token={token} correo={vista.correo} valor={otp} onCambio={setOtp} />
                     {error && <Aviso tipo="error">{error}</Aviso>}
 
-                    <div className="flex flex-wrap gap-3">
-                        <button type="submit" className="boton" disabled={ocupado || otp.length !== 6}>
+                    <div className="flex flex-wrap justify-end gap-3">
+                        {estado !== "pendiente" && estado !== "por_renovar" && (
+                            <button type="button" className="boton-secundario min-w-48 text-xl" onClick={() => setAccion(null)}>Cancelar</button>
+                        )}
+                        <button type="submit" className={`${accion === "aceptar" ? "boton-aceptar" : "boton"} min-w-48`} disabled={ocupado || otp.length !== 6}>
                             {accion === "aceptar" ? "Guardar mi decisión" : accion === "revocar" ? "Sí, retirar el permiso" : "Enviar solicitud"}
                         </button>
-                        {estado !== "pendiente" && estado !== "por_renovar" && (
-                            <button type="button" className="boton-secundario" onClick={() => setAccion(null)}>Cancelar</button>
-                        )}
                     </div>
                 </form>
             )}

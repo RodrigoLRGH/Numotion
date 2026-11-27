@@ -87,12 +87,12 @@ describe("GuiaPasoAPaso", () => {
 describe("ResolverActividad", () => {
     const siguiente = (e = ejercicio()) => ({ ejercicio: e, intentosUsados: 0, ayudaUsada: false, actividad: { nombre: "Sumas" }, progreso: { resueltos: 0, total: 2 } });
     const resultado = (extra: object) => ({
-        correcta: false, puntos: 0, ejercicioCerrado: false, intentosRestantes: 3, guia: null,
+        correcta: false, puntos: 0, ejercicioCerrado: false, intentosRestantes: 2, guia: null,
         asignacion: { estado: "en_curso", resueltos: 0, total: 2 }, recompensa: null, ...extra,
     });
     const respuesta = (cuerpo: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(cuerpo), { status }));
 
-    it("da retroalimentación al instante con el hash, abre la guía en el 3.er fallo y envía tiempo y clienteId", async () => {
+    it("da retroalimentación al instante con el hash, al 3.er fallo cierra con la guía y la respuesta (RF-11) y envía tiempo y clienteId", async () => {
         let posteo: Record<string, unknown> | null = null;
         let intento = 0;
         const fetch = vi.fn(async (url: string, init?: RequestInit) => {
@@ -100,7 +100,8 @@ describe("ResolverActividad", () => {
             if (url.endsWith("/intentos")) {
                 posteo = JSON.parse(String(init!.body));
                 intento++;
-                return respuesta(resultado({ intentosRestantes: 4 - intento, guia: intento === 3 ? { modo: "paso_a_paso", pasos: [{ orden: 1, texto: "Cuenta de 3 a 7" }] } : null }), 201);
+                return respuesta(resultado({ intentosRestantes: 3 - intento, ejercicioCerrado: intento === 3,
+                    guia: intento === 3 ? { modo: "final", pasos: [{ orden: 1, texto: "Cuenta de 3 a 7" }], respuestaCorrecta: "7" } : null }), 201);
             }
             return respuesta({}, 404);
         });
@@ -115,7 +116,7 @@ describe("ResolverActividad", () => {
 
         await u.click(screen.getByRole("button", { name: "8" }));
         await u.click(await screen.findByRole("button", { name: "12" }));
-        expect(await screen.findByRole("heading", { name: /paso a paso/i })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: /así se resuelve/i })).toBeInTheDocument();
         expect(screen.getByText("Cuenta de 3 a 7")).toBeInTheDocument();
     });
 

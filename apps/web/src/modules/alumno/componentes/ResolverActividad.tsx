@@ -10,9 +10,11 @@ import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { enviarIntento, sincronizarPendientes } from "../../../shared/cliente/cola-intentos";
 import { coincideHash } from "../../../shared/cliente/hash";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { Icono } from "../../../shared/ui/Icono";
 import { registroEjercicios } from "../ejercicios/registro";
 import type { EjercicioPublico } from "../ejercicios/tipos";
-import { IndicadorCamara, PreguntaAyuda, useCapturaEmocional, type OfertaAyuda } from "./CapturaEmocional";
+import { BurbujaPregunta } from "../ejercicios/BotonOpcion";
+import { CamaraRequerida, IndicadorCamara, PreguntaAyuda, useCapturaEmocional, type OfertaAyuda } from "./CapturaEmocional";
 import { Celebracion, type Insignia } from "./Gamificacion";
 import { GuiaPasoAPaso, type Guia } from "./GuiaPasoAPaso";
 
@@ -104,10 +106,12 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
         };
     }, []);
     const enEjercicio = Boolean(estado && "ejercicio" in estado) && !cerrado && !guia;
+    const [reintentoCamara, setReintentoCamara] = useState(0);
     const camara = useCapturaEmocional({
         permitida: camaraPermitida,
         activa: enEjercicio,
         asignacionId,
+        reintento: reintentoCamara,
         inactividadSeg: () => (performance.now() - ultimaInteraccion.current) / 1000,
         onOfrecerAyuda: (o) => setOferta((actual) => actual ?? o),
     });
@@ -231,17 +235,23 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
         return (
             <section className="tarjeta mx-auto max-w-xl text-center" aria-labelledby="fin">
                 <p aria-hidden="true" className="text-7xl">🎉</p>
-                <h1 id="fin" className="mt-2 text-4xl font-extrabold">¡Terminaste!</h1>
+                <h1 id="fin" className="mt-2 text-4xl font-bold">¡Terminaste!</h1>
                 <p className="mt-1 text-xl">{estado.actividad.nombre}</p>
-                <p className="mt-4 text-6xl" role="img" aria-label={`${recompensa.estrellas} de 3 estrellas`}>
-                    {"⭐".repeat(recompensa.estrellas)}
-                    <span className="opacity-25">{"⭐".repeat(3 - recompensa.estrellas)}</span>
+                <p className="mt-4 flex justify-center gap-2 text-6xl" role="img" aria-label={`${recompensa.estrellas} de 3 estrellas`}>
+                    {[0, 1, 2].map((i) => (
+                        <Icono key={i} nombre="estrella" className={i < recompensa.estrellas ? "" : "opacity-25"} />
+                    ))}
                 </p>
-                <p className="mt-3 text-3xl font-extrabold text-exito">+{recompensa.puntos} puntos</p>
+                <p className="mt-3 text-3xl font-bold text-exito">+{recompensa.puntos} puntos</p>
                 <Celebracion insignias={insignias} nivel={nivelSubido} />
                 <a href="/alumno" className="boton mt-6 min-h-14 px-8 text-2xl">Volver al inicio</a>
             </section>
         );
+    }
+
+    // RC-03: si el tutor autorizó la cámara, la actividad no sigue sin ella (sin cámara autorizada nunca se enciende)
+    if (camaraPermitida && (camara === "denegada" || camara === "sin_camara")) {
+        return <CamaraRequerida estado={camara} onReintentar={() => setReintentoCamara((n) => n + 1)} />;
     }
 
     const { ejercicio, progreso, actividad } = estado;
@@ -249,22 +259,29 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
     const avance = Math.round((progreso.resueltos / Math.max(1, progreso.total)) * 100);
 
     return (
-        <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="enunciado">
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-                <p className="font-extrabold">{actividad.nombre}</p>
-                <div className="h-4 min-w-32 flex-grow overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Avance"
-                    aria-valuemin={0} aria-valuemax={progreso.total} aria-valuenow={progreso.resueltos}>
-                    <div className="h-full rounded-full bg-marca transition-all" style={{ width: `${avance}%` }} />
+        <section className="mx-auto flex max-w-6xl flex-col" aria-labelledby="enunciado">
+            {/* Barra superior de Figma: cámara a la izquierda, actividad al centro, avance y puntos a la derecha */}
+            <div className="mb-8 grid items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
+                <div className="justify-self-start"><IndicadorCamara estado={camara} /></div>
+                <p className="text-center text-2xl">
+                    <span className="font-bold">Actividad:</span> <span className="text-alerta">{actividad.nombre}</span>
+                </p>
+                <div className="flex w-full max-w-xs flex-col gap-1 justify-self-end rounded-2xl bg-superficie-tenue px-4 py-2 text-base">
+                    <p className="flex justify-between gap-3">
+                        <span><span className="font-bold">Ejercicio:</span> {progreso.resueltos}/{progreso.total}</span>
+                        {puntosSesion > 0 && <span className="font-bold text-exito">+{puntosSesion} puntos</span>}
+                    </p>
+                    <div className="h-3 overflow-hidden rounded-full border border-tinta bg-white" role="progressbar" aria-label="Avance"
+                        aria-valuemin={0} aria-valuemax={progreso.total} aria-valuenow={progreso.resueltos}>
+                        <div className="h-full rounded-full bg-linear-to-r from-marca to-marca-claro transition-all" style={{ width: `${avance}%` }} />
+                    </div>
                 </div>
-                <span className="font-bold whitespace-nowrap">{progreso.resueltos}/{progreso.total}</span>
-                {puntosSesion > 0 && <span className="rounded-full bg-exito-suave px-3 py-1 font-bold text-exito">+{puntosSesion}</span>}
-                <IndicadorCamara estado={camara} />
             </div>
 
-            <div className="mb-6 flex items-center justify-center gap-3 text-center">
-                <h1 id="enunciado" className={`font-extrabold ${ejercicio.enunciado.length > 60 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`}>
-                    {ejercicio.enunciado}
-                </h1>
+            <div className="mb-10">
+                <BurbujaPregunta id="enunciado" numero={Math.min(progreso.resueltos + 1, progreso.total)}>
+                    <span className={ejercicio.enunciado.length > 60 ? "text-2xl sm:text-3xl" : ""}>{ejercicio.enunciado}</span>
+                </BurbujaPregunta>
             </div>
 
             {Componente ? (
@@ -273,10 +290,19 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
                 <Aviso tipo="info">Este tipo de ejercicio llegará muy pronto.</Aviso>
             )}
 
-            <div className="mt-5 min-h-14" aria-live="polite">
+            <div className="mx-auto mt-8 min-h-14 w-full max-w-3xl" aria-live="polite">
                 {guardando && <Aviso tipo="info">Guardando… <span className="text-base">Tu respuesta se enviará cuando vuelva el internet.</span></Aviso>}
-                {retro?.tipo === "bien" && <Aviso tipo="exito">¡Muy bien!{retro.puntos ? ` +${retro.puntos} puntos` : ""} <span aria-hidden="true">🎉</span></Aviso>}
-                {retro?.tipo === "casi" && retro.restantes !== 0 && <Aviso tipo="info">¡Casi! Intenta otra vez <span aria-hidden="true">💪</span></Aviso>}
+                {/* Bandas de Figma: verde al acertar, naranja al fallar */}
+                {retro?.tipo === "bien" && (
+                    <p role="status" className="rounded-2xl border border-tinta bg-aviso-exito px-6 py-4 text-center text-3xl font-bold">
+                        ¡Muy bien! Sigue así{retro.puntos ? ` · +${retro.puntos} puntos` : ""} <span aria-hidden="true">🎉</span>
+                    </p>
+                )}
+                {retro?.tipo === "casi" && retro.restantes !== 0 && (
+                    <p role="status" className="rounded-2xl border border-tinta bg-aviso-animo px-6 py-4 text-center text-3xl font-bold">
+                        ¡Casi! No te rindas, ¡tú puedes! <span aria-hidden="true">💪</span>
+                    </p>
+                )}
                 {error && <Aviso tipo="error">{error}</Aviso>}
                 {celebrar && <Celebracion insignias={celebrar.insignias} nivel={celebrar.nivel} />}
             </div>
@@ -286,18 +312,18 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
             {guia ? (
                 <GuiaPasoAPaso key={guia.modo} guia={guia} onCerrar={cerrarGuia} />
             ) : (
-                <div className="mt-4 flex flex-wrap justify-center gap-3">
+                <div className="mt-8 flex flex-wrap justify-end gap-4">
                     {!cerrado && (
                         <button type="button" className="boton-secundario" onClick={pedirAyuda} disabled={ocupado}>
                             <span aria-hidden="true">💡</span> Ayuda
                         </button>
                     )}
                     {cerrado && (
-                        <button type="button" className="boton min-h-14 px-8 text-2xl" onClick={siguiente} disabled={ocupado}>
+                        <button type="button" className="boton order-last min-w-48 uppercase" onClick={siguiente} disabled={ocupado}>
                             Siguiente <span aria-hidden="true">▶</span>
                         </button>
                     )}
-                    <button type="button" className="boton-secundario" onClick={() => irA("/alumno")}>
+                    <button type="button" className="boton-secundario min-w-48 uppercase" onClick={() => irA("/alumno")}>
                         Salir
                     </button>
                 </div>

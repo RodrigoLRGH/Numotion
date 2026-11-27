@@ -13,7 +13,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { requerida } from "./entorno";
 
 export type Tx = Prisma.TransactionClient;
-export type Contexto = { rol: "docente" | "alumno"; id: string } | null;
+export type Contexto = { rol: "docente" | "alumno" | "admin"; id: string } | null;
 export { Prisma };
 
 let cliente: PrismaClient | null = null;

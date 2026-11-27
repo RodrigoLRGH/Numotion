@@ -119,7 +119,7 @@ const Intento = z.object({
     clienteId: z.string().uuid(),
     asignacionId: z.string().uuid(),
     ejercicioId: z.string().uuid(),
-    respuesta: z.string().trim().min(1).max(200),
+    respuesta: z.string().trim().min(1).max(600), // la serie de RF-39 viaja como arreglo JSON
     tiempoMs: z.number().int().min(0).max(30 * 60_000),
     ayudaSolicitada: z.boolean().default(false),
 });
@@ -173,7 +173,7 @@ const ERRORES_PRACTICA: Record<FalloPractica["error"], ErrorHttp> = {
 const IntentoPractica = z.object({
     clienteId: z.string().uuid(),
     ejercicioId: z.string().uuid(),
-    respuesta: z.string().trim().min(1).max(200),
+    respuesta: z.string().trim().min(1).max(600), // la serie de RF-39 viaja como arreglo JSON
     tiempoMs: z.number().int().min(0).max(30 * 60_000),
 });
 

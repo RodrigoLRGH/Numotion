@@ -2,7 +2,7 @@
 // (tema, tipo) se pueden servir, cómo se representa cada ejercicio y cómo se clasifica un error.
 import type { Rng } from "./aleatorio";
 import { tiposDeTema, type TipoInteraccionActividad } from "./catalogo";
-import { coincideTolerante } from "./numeros";
+import { escrituraLegible, evaluarEscritura } from "./numeros";
 import { generarEjercicio, generarIncompleta, type Ejercicio, type Operacion, type TemaGenerador } from "./ejercicios";
 import { generarFraccion } from "./fracciones";
 import { errorColoreo, evaluarColoreo, generarColorear, generarGeometria, leerColoreo } from "./geometria";
@@ -45,12 +45,17 @@ export function validacionLocal(tema: TemaGenerador): boolean {
 }
 
 export function esCorrecta(e: Pick<Ejercicio, "tema" | "respuesta" | "lienzo">, respuesta: string): boolean {
-    if (e.tema === "escritura_numeros") return coincideTolerante(respuesta, e.respuesta).correcta;
+    if (e.tema === "escritura_numeros") return evaluarEscritura(respuesta, e.respuesta).correcta;
     if (e.tema === "colorear") {
         const coloreo = leerColoreo(respuesta);
         return Boolean(e.lienzo && coloreo && evaluarColoreo(e.lienzo, coloreo));
     }
     return normalizarRespuesta(respuesta).replace(/ /g, "") === normalizarRespuesta(e.respuesta).replace(/ /g, "");
+}
+
+/** Respuesta correcta tal como se muestra en la guía final (la serie de RF-39 como lista). */
+export function respuestaLegible(e: Pick<Ejercicio, "tema" | "respuesta">): string {
+    return e.tema === "escritura_numeros" ? escrituraLegible(e.respuesta) : e.respuesta;
 }
 
 export type TipoError = "calculo" | "procedimiento" | "lectura" | "ortografia" | "seleccion" | "tiempo_agotado" | "otro";
@@ -64,7 +69,7 @@ const OPERAR: Record<Operacion, (a: number, b: number) => number> = {
 
 /** Clasificación de tipo_error (RF-19, tabla de EXP-04). */
 export function clasificarError(e: Ejercicio, respuesta: string): TipoError {
-    if (e.tema === "escritura_numeros") return coincideTolerante(respuesta, e.respuesta).correcta ? "ortografia" : "lectura";
+    if (e.tema === "escritura_numeros") return evaluarEscritura(respuesta, e.respuesta).soloOrtografia ? "ortografia" : "lectura";
     if (e.tema === "identificar_numero") return "lectura";
     if (e.tema === "colorear") return e.lienzo ? errorColoreo(e.lienzo, leerColoreo(respuesta)) : "otro";
     if (e.tema === "fracciones" && e.respuesta.includes("/")) {

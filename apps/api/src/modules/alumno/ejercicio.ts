@@ -8,13 +8,16 @@ import { textoParaHash } from "@numotion/core/dominio/respuesta";
 import { Prisma, type Tx } from "../../infra/db";
 
 /** Valor para una columna jsonb (sin `undefined`, que Prisma rechaza). */
+/** RF-11: máximo 3 intentos por ejercicio de actividad; al agotarlos se cierra con la guía y la solución (RF-45). */
+export const MAX_INTENTOS = 3;
+
 export const json = (v: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 
 export interface FilaEjercicio {
     id: string;
     nivel: number;
     tipo_interaccion: string;
-    enunciado: { texto: string; expresion?: string; figuras?: Ejercicio["figuras"]; numeroMostrado?: number; lienzo?: Ejercicio["lienzo"] };
+    enunciado: { texto: string; expresion?: string; figuras?: Ejercicio["figuras"]; numeroMostrado?: number; numerosMostrados?: number[]; lienzo?: Ejercicio["lienzo"] };
     opciones: string[] | null;
     respuesta: { valor: string; generador: Ejercicio["tema"]; datos: Ejercicio["datos"] };
     pasos_solucion: { orden: number; texto: string }[];
@@ -28,6 +31,8 @@ export interface EjercicioPublico {
     expresion?: string;
     figuras?: Ejercicio["figuras"];
     numeroMostrado?: number;
+    /** Serie a escribir con letras, un campo por número (RF-39) */
+    numerosMostrados?: number[];
     lienzo?: Ejercicio["lienzo"];
     opciones?: string[];
     /**
@@ -51,6 +56,7 @@ export function aEjercicio(f: FilaEjercicio): Ejercicio {
         opciones: f.opciones ?? undefined,
         figuras: f.enunciado.figuras,
         numeroMostrado: f.enunciado.numeroMostrado,
+        numerosMostrados: f.enunciado.numerosMostrados,
         lienzo: f.enunciado.lienzo,
         respuesta: f.respuesta.valor,
         pasos: f.pasos_solucion.map((p) => p.texto),
@@ -67,6 +73,7 @@ export function aPublico(f: FilaEjercicio): EjercicioPublico {
         ...(f.enunciado.expresion ? { expresion: f.enunciado.expresion } : {}),
         ...(f.enunciado.figuras ? { figuras: f.enunciado.figuras } : {}),
         ...(f.enunciado.numeroMostrado !== undefined ? { numeroMostrado: f.enunciado.numeroMostrado } : {}),
+        ...(f.enunciado.numerosMostrados ? { numerosMostrados: f.enunciado.numerosMostrados } : {}),
         ...(f.enunciado.lienzo ? { lienzo: f.enunciado.lienzo } : {}),
         ...(f.opciones ? { opciones: f.opciones } : {}),
         hashRespuesta: validacionLocal(f.respuesta.generador) ? hashRespuesta(f.id, f.respuesta.valor) : null,
@@ -91,7 +98,7 @@ export async function insertarEjercicio(
             tema_id: destino.temaId,
             tipo_interaccion: destino.tipo,
             nivel: destino.nivel,
-            enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, lienzo: e.lienzo }),
+            enunciado: json({ texto: e.enunciado, expresion: e.expresion, figuras: e.figuras, numeroMostrado: e.numeroMostrado, numerosMostrados: e.numerosMostrados, lienzo: e.lienzo }),
             respuesta: json({ valor: e.respuesta, generador: e.tema, datos: e.datos, ...(contexto ? { contexto } : {}) }),
             opciones: e.opciones ? json(e.opciones) : Prisma.DbNull,
             pasos_solucion: json(e.pasos.map((texto, i) => ({ orden: i + 1, texto }))),

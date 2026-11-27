@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="212" height="210" viewBox="0 0 212 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Usuario">
+<ellipse id="Ellipse 1" cx="106" cy="105" rx="106" ry="105" fill="#0099FF"/>
+<g id="user-alt" clip-path="url(#clip0_0_4)">
+<path id="Vector" d="M106.5 112.312C125.909 112.312 141.656 96.5654 141.656 77.1562C141.656 57.7471 125.909 42 106.5 42C87.0908 42 71.3438 57.7471 71.3438 77.1562C71.3438 96.5654 87.0908 112.312 106.5 112.312ZM137.75 120.125H124.298C118.878 122.615 112.848 124.031 106.5 124.031C100.152 124.031 94.1465 122.615 88.7021 120.125H75.25C57.9893 120.125 44 134.114 44 151.375V155.281C44 161.751 49.249 167 55.7188 167H157.281C163.751 167 169 161.751 169 155.281V151.375C169 134.114 155.011 120.125 137.75 120.125Z" fill="white"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_4">
+<rect width="125" height="125" fill="white" transform="translate(44 42)"/>
+</clipPath>
+</defs>
+</svg>

@@ -1,7 +1,9 @@
 // P-UNIT-03/04 · contenido provisional de geometría y fracciones (A-30) y regla de coloreo (RF-44)
 import { describe, expect, it } from "vitest";
 import { crearRng } from "@numotion/core/dominio/aleatorio";
-import { combinacionDisponible, clasificarError, esCorrecta, generarParaActividad, validacionLocal } from "@numotion/core/dominio/contenido";
+import { combinacionDisponible, clasificarError, esCorrecta, generarParaActividad, respuestaLegible, validacionLocal } from "@numotion/core/dominio/contenido";
+import { NUMEROS_POR_SERIE } from "@numotion/core/dominio/ejercicios";
+import { evaluarEscritura, leerSerie, numeroAPalabras } from "@numotion/core/dominio/numeros";
 import { COLORES, evaluarColoreo, FORMAS, generarColorear } from "@numotion/core/dominio/geometria";
 import { TIPOS_POR_TEMA } from "@numotion/core/dominio/catalogo";
 
@@ -89,12 +91,30 @@ describe("validación optimista en el cliente", () => {
 });
 
 describe("números con letras (RF-39, A-07) y suma con figuras (RF-41)", () => {
-    it("tolera un error por cada 8 letras", () => {
+    it("RF-39: una serie de números, cada uno calificado con tolerancia (un error por cada 8 letras)", () => {
         const e = generarParaActividad("numeros", "numero_a_palabras", 2, crearRng(39))!;
-        expect(esCorrecta(e, e.respuesta.toUpperCase())).toBe(true);
-        expect(esCorrecta(e, e.respuesta.slice(1))).toBe(true); // una letra menos
-        expect(esCorrecta(e, "zzzzzzzz")).toBe(false);
-        expect(clasificarError(e, e.respuesta.slice(2) + "xx")).toMatch(/ortografia|lectura/);
+        expect(e.numerosMostrados).toHaveLength(NUMEROS_POR_SERIE);
+        expect(new Set(e.numerosMostrados).size).toBe(NUMEROS_POR_SERIE);
+        const esperadas = leerSerie(e.respuesta)!;
+        expect(esperadas).toEqual(e.numerosMostrados!.map((n) => numeroAPalabras(n)));
+        const serie = (v: string[]) => JSON.stringify(v);
+        expect(esCorrecta(e, serie(esperadas.map((x) => x.toUpperCase())))).toBe(true);
+        expect(esCorrecta(e, serie(esperadas.map((x) => x.slice(1))))).toBe(true); // una letra menos en cada uno
+        // Basta un número mal escrito para fallar; el orden importa
+        expect(esCorrecta(e, serie([...esperadas.slice(0, 2), "zzzzzzzz"]))).toBe(false);
+        expect(esCorrecta(e, serie([...esperadas].reverse()))).toBe(false);
+        expect(esCorrecta(e, esperadas[0])).toBe(false); // no es una serie
+        expect(clasificarError(e, serie([...esperadas.slice(0, 2), esperadas[2].slice(3)]))).toBe("ortografia");
+        expect(clasificarError(e, serie([...esperadas.slice(0, 2), "zzzzzzzzzzzz"]))).toBe("lectura");
+        expect(respuestaLegible(e)).toBe(esperadas.join(" · "));
+        expect(evaluarEscritura(serie([esperadas[0], "x", esperadas[2]]), e.respuesta).items).toEqual([true, false, true]);
+    });
+
+    it("los ejercicios antiguos de un solo número se siguen calificando", () => {
+        const viejo = { tema: "escritura_numeros" as const, respuesta: "cuarenta y siete" };
+        expect(esCorrecta(viejo, "cuarenta y ciete")).toBe(true);
+        expect(esCorrecta(viejo, "veinte")).toBe(false);
+        expect(respuestaLegible(viejo)).toBe("cuarenta y siete");
     });
 
     it("suma con figuras: el total es la suma de los grupos", () => {

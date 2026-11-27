@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { crearApp } from "../../apps/api/src/app";
+import { hashSecreto } from "../../apps/api/src/modules/core/auth";
 import { sql } from "../db/fixture";
 
 const app = crearApp();
@@ -213,5 +214,27 @@ describe("notas del docente por HTTP (CRUD)", () => {
         expect((await d.agente.delete(url)).status).toBe(404);
         expect((await d.agente.put(`${base}/no-es-uuid`).send({ texto: "x" })).status).toBe(404);
         expect((await d.agente.get(base)).body.items).toEqual([]);
+    });
+});
+describe("administrador ARCO por HTTP (RC-07)", () => {
+    it("entra por /auth/admin/login, ve la bandeja y valida la respuesta; el docente recibe 403", async () => {
+        const email = `admin-api-${randomUUID().slice(0, 8)}@escuela.mx`;
+        await sql`INSERT INTO administrador (nombre, email, password_hash) VALUES ('Admin API', ${email}, ${await hashSecreto("clave-admin-segura")})`;
+        const agente = request.agent(app);
+        expect((await agente.post("/api/v1/auth/admin/login").send({ email, password: "mala-clave-123" })).status).toBe(401);
+        const login = await agente.post("/api/v1/auth/admin/login").send({ email, password: "clave-admin-segura" });
+        expect(login.status).toBe(200);
+        expect(login.body.destino).toBe("/admin");
+        expect((await agente.get("/api/v1/auth/sesion")).body.usuario).toMatchObject({ rol: "admin", nombre: "Admin API" });
+        const bandeja = await agente.get("/api/v1/admin/arco?estado=todas");
+        expect(bandeja.status).toBe(200);
+        expect(Array.isArray(bandeja.body.items)).toBe(true);
+        expect((await agente.post(`/api/v1/admin/arco/${randomUUID()}/atender`).send({ respuesta: "corta" })).status).toBe(400);
+        expect((await agente.post(`/api/v1/admin/arco/${randomUUID()}/atender`).send({ respuesta: "Respuesta suficiente" })).status).toBe(404);
+        // El administrador no entra al área docente
+        expect((await agente.get("/api/v1/docente/grupos")).status).toBe(403);
+
+        const d = await docente();
+        expect((await d.agente.get("/api/v1/admin/arco")).status).toBe(403);
     });
 });

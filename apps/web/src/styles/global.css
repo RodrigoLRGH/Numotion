@@ -1,20 +1,57 @@
 @import "tailwindcss";
 
-/* Identidad visual FEEL-FACE (RI-01). Pares texto/fondo verificados >= 4.5:1 (WCAG 2.1 AA). */
+/*
+ * Identidad visual Numotion (RI-01), tomada del diseño de Figma "Proyecto_Integrador".
+ * Pares texto/fondo verificados (WCAG 2.1 AA): >= 4.5:1 para texto normal, >= 3:1 para texto grande
+ * (>= 24 px, o >= 18.66 px en negritas).
+ */
 @theme {
-    --color-marca: #1f5fbf; /* azul principal: blanco sobre él = 6.2:1 */
-    --color-marca-fuerte: #174a94;
-    --color-marca-suave: #dbe8fb;
-    --color-acento: #ffb30f; /* ámbar: usar con texto tinta */
-    --color-acento-suave: #fff3d1;
-    --color-alerta: #931f1d; /* rojo: blanco sobre él = 8.6:1 */
+    /* Azul de marca. Figma usa #0099FF, que con blanco da 2.9998:1; #0098FF es indistinguible y llega a 3.03:1.
+       Úsalo como fondo solo con texto blanco GRANDE (encabezado, .boton) o como relleno decorativo. */
+    --color-marca: #0098ff;
+    /* Azul oscuro de Figma (#085098): blanco sobre él = 8:1. Para texto pequeño, enlaces y hover. */
+    --color-marca-fuerte: #085098;
+    /* Escala de celestes de Figma: tarjeta de acceso, encabezados de tabla, filas */
+    --color-marca-panel: #a9ddff;
+    --color-marca-claro: #bde5ff;
+    --color-marca-suave: #dff2ff;
+    --color-marca-tenue: #f0f9ff;
+    /* Índigo de los títulos y enlaces de las pantallas de acceso: 11.9:1 sobre blanco */
+    --color-titulo: #1e0ab5;
+    /* Amarillo de la pestaña activa y de los marcadores: usar con texto tinta (16:1) */
+    --color-acento: #ffe44d;
+    --color-acento-suave: #fff6c4;
+    --color-alerta: #931f1d; /* blanco sobre él = 8.6:1 */
     --color-alerta-suave: #fbe3e2;
     --color-exito: #1e7a46;
     --color-exito-suave: #dcf3e5;
-    --color-tinta: #1f2937;
-    --color-tinta-suave: #4b5563;
-    --color-fondo: #f6f9fc;
-    --font-sans: "Nunito", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    /* Verde del botón "Aceptar" de Figma: usar con texto tinta (12.5:1) */
+    --color-exito-vivo: #69e06d;
+    /* Módulo alumno (Figma "Pantallas_Alumno") */
+    --color-estado-asignada: #feeb8a; /* píldora "Asignada" */
+    --color-estado-completada: #fdc76d; /* píldora "Completada" */
+    --color-aviso-exito: #d8fdc9; /* banda "¡Muy bien! Sigue así" */
+    --color-aviso-animo: #ffb13b; /* banda "No te rindas, ¡tú puedes!": texto tinta 10:1 */
+    --color-burbuja-inicio: #bfeafb; /* burbuja de diálogo en degradado */
+    --color-burbuja-fin: #f2f58e;
+    /* Franja de la casilla "He leído el consentimiento…" de Figma */
+    --color-confirmacion: #def1f1;
+    /* Gris del botón "Rechazar" de Figma: usar con texto tinta (14.8:1) */
+    --color-neutro: #d4dad4;
+    /* Superficies grises de Figma: pestañas, paneles y filas de lista */
+    --color-superficie: #f4f4f4;
+    --color-superficie-tenue: #fafafa;
+    --color-tinta: #000000;
+    --color-tinta-suave: #4b5563; /* 6.9:1 sobre superficie */
+    --color-fondo: #ffffff;
+    /* Gráficas de estado emocional: paleta validada (banda de luminosidad, croma y daltonismo) sobre blanco.
+       El ámbar queda < 3:1 contra blanco: la leyenda siempre muestra conteo y porcentaje. */
+    --color-grafica-positivo: #2fa84f;
+    --color-grafica-neutral: #0098ff;
+    --color-grafica-frustracion: #d9412b;
+    --color-grafica-desinteres: #d99a00;
+    --color-grafica-sin-dato: #9ca3af;
+    --font-sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
 @layer base {
@@ -23,7 +60,7 @@
         background: var(--color-fondo);
     }
     :focus-visible {
-        outline: 3px solid var(--color-acento);
+        outline: 3px solid var(--color-marca-fuerte);
         outline-offset: 2px;
     }
     @media (prefers-reduced-motion: reduce) {
@@ -37,22 +74,45 @@
 }
 
 @layer components {
+    /* Panel gris redondeado de Figma (Rectangle 6/11: #F4F4F4, radio 52 px) */
     .tarjeta {
-        @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+        @apply rounded-[2rem] bg-superficie p-6;
     }
+    /* Botón píldora azul: texto blanco en negritas de 20 px (texto grande, 3:1) */
     .boton {
-        @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-marca px-5 py-2.5 font-bold text-white transition-colors hover:bg-marca-fuerte disabled:cursor-not-allowed disabled:opacity-50;
+        @apply inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-marca px-8 py-2.5 text-xl font-bold text-white transition-colors hover:bg-marca-fuerte disabled:cursor-not-allowed disabled:opacity-50;
     }
+    /* Botón píldora gris (como "Rechazar" en Figma) */
     .boton-secundario {
-        @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-marca bg-white px-5 py-2 font-bold text-marca transition-colors hover:bg-marca-suave disabled:cursor-not-allowed disabled:opacity-50;
+        @apply inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-neutro px-8 py-2.5 font-bold text-tinta transition-colors hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50;
     }
+    /* Botón píldora verde (como "Aceptar" en Figma): texto tinta en negritas, 12.5:1 */
+    .boton-aceptar {
+        @apply inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-exito-vivo px-8 py-2.5 text-xl font-bold text-tinta transition-colors hover:bg-[#4fd154] disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    /* Botón píldora roja para acciones que no se deshacen (borrar datos de un alumno) */
+    .boton-peligro {
+        @apply inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-alerta px-8 py-2.5 text-xl font-bold text-white transition-colors hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    /* Campo píldora blanco */
     .campo {
-        @apply w-full rounded-xl border-2 border-slate-300 bg-white px-3 py-2 text-tinta focus:border-marca;
+        @apply w-full rounded-full border-2 border-slate-300 bg-white px-5 py-2.5 text-tinta placeholder:text-tinta-suave placeholder:italic focus:border-marca-fuerte;
+    }
+    textarea.campo {
+        @apply rounded-3xl;
     }
     .etiqueta {
-        @apply mb-1 block text-sm font-bold text-tinta;
+        @apply mb-1 block px-2 text-lg font-semibold text-tinta;
     }
     .insignia-estado {
         @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold;
+    }
+    /* Título de página de Figma: Inter Bold, mayúsculas, centrado (51 px en escritorio) */
+    .titulo-pagina {
+        @apply text-center text-4xl font-bold uppercase sm:text-5xl;
+    }
+    /* Enlace de texto pequeño: azul oscuro para mantener 8:1 sobre blanco */
+    .enlace {
+        @apply font-bold text-marca-fuerte underline underline-offset-2 hover:text-titulo;
     }
 }
