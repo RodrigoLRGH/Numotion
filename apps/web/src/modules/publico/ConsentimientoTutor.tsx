@@ -1,8 +1,8 @@
-// Página del tutor (T-03-01-10, HU-03, ADR-009): leer el aviso, verificar con un código enviado a su
-// correo y decidir por separado plataforma (obligatoria) y cámara (opcional). Desde el mismo enlace
-// puede cambiar la preferencia de cámara, retirar el permiso o pedir derechos ARCO.
+// Página del tutor (RC-08, RNF-10, T-03-01-10, HU-03, ADR-009): leer el aviso, verificar con un código
+// enviado a su correo y autorizar la plataforma, que incluye la detección emocional con la cámara (A-41).
+// Desde el mismo enlace puede retirar el permiso. Sin solicitudes ARCO (RC-07 fuera del MVP).
 import { useState } from "react";
-import { PARENTESCOS, TIPOS_ARCO, type EstadoConsentimiento, type TipoArco } from "@numotion/core/dominio/consentimiento";
+import { PARENTESCOS, type EstadoConsentimiento } from "@numotion/core/dominio/consentimiento";
 import { api, ErrorApi } from "../../shared/cliente/api";
 import { Aviso } from "../../shared/ui/Aviso";
 
@@ -14,18 +14,10 @@ export interface Vista {
     parentesco: string | null;
     correo: string;
     estado: EstadoConsentimiento;
-    aceptaCamara: boolean;
     aviso: { version: string | null; url: string | null };
 }
 
-type Accion = "aceptar" | "revocar" | "arco";
-
-const ETIQUETA_ARCO: Record<TipoArco, string> = {
-    acceso: "Acceso: saber qué datos tienen",
-    rectificacion: "Rectificación: corregir un dato",
-    cancelacion: "Cancelación: borrar los datos",
-    oposicion: "Oposición: que no usen los datos para algún fin",
-};
+type Accion = "aceptar" | "revocar";
 
 function mensaje(err: unknown): string {
     return err instanceof ErrorApi ? err.message : "Algo salió mal. Intenta otra vez.";
@@ -70,7 +62,6 @@ function Codigo({ token, correo, valor, onCambio }: { token: string; correo: str
 
 export default function ConsentimientoTutor({ token, vista }: { token: string; vista: Vista }) {
     const [estado, setEstado] = useState(vista.estado);
-    const [camara, setCamara] = useState(vista.aceptaCamara);
     const [accion, setAccion] = useState<Accion | null>(vista.estado === "pendiente" || vista.estado === "por_renovar" ? "aceptar" : null);
     const [otp, setOtp] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -84,24 +75,18 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
         setError(null);
         try {
             if (accion === "aceptar") {
-                const aceptaCamara = f.get("camara") === "on";
                 await api("POST", `/consentimiento/${token}`, {
                     otp,
                     tutorNombre: f.get("tutorNombre"),
                     parentesco: f.get("parentesco"),
                     aceptaPlataforma: f.get("plataforma") === "on",
-                    aceptaCamara,
                 });
                 setEstado("vigente");
-                setCamara(aceptaCamara);
-                setExito(`Listo. ${vista.alumno} ya puede usar la plataforma${aceptaCamara ? " con reconocimiento facial." : " sin cámara."}`);
+                setExito(`Listo. ${vista.alumno} ya puede usar la plataforma.`);
             } else if (accion === "revocar") {
                 await api("POST", `/consentimiento/${token}/revocar`, { otp });
                 setEstado("revocado");
-                setExito(`Retiraste el permiso. ${vista.alumno} ya no puede entrar y sus datos se borrarán en un máximo de 20 días hábiles.`);
-            } else if (accion === "arco") {
-                await api("POST", `/consentimiento/${token}/arco`, { otp, tipo: f.get("tipo"), detalle: f.get("detalle") });
-                setExito("Recibimos tu solicitud. La escuela la atenderá en un máximo de 20 días hábiles.");
+                setExito(`Retiraste el permiso. ${vista.alumno} ya no puede entrar a la plataforma.`);
             }
             setAccion(null);
             setOtp("");
@@ -128,7 +113,7 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                     Grupo {vista.grupo} · {vista.docente}
                 </p>
                 <p className="mt-3" role="status">
-                    {estado === "vigente" && <>Estado: <strong>autorizado</strong>, {camara ? "con cámara" : "sin cámara"}.</>}
+                    {estado === "vigente" && <>Estado: <strong>autorizado</strong>.</>}
                     {estado === "pendiente" && <>Estado: <strong>esperando tu autorización</strong>.</>}
                     {estado === "por_renovar" && <>Estado: <strong>el aviso de privacidad cambió</strong>; necesitamos que lo aceptes de nuevo.</>}
                     {estado === "revocado" && <>Estado: <strong>permiso retirado</strong>.</>}
@@ -147,11 +132,11 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                     </div>
                     <div>
                         <dt className="font-bold">¿Qué datos?</dt>
-                        <dd>Nombre, grupo, respuestas y tiempos de los ejercicios, un cuestionario breve de cómo se siente cada día y, solo si lo autorizas, el estado emocional que se deduce de la cámara.</dd>
+                        <dd>Nombre, grupo, respuestas y tiempos de los ejercicios, un cuestionario breve de cómo se siente cada día y el estado emocional que se deduce de la cámara durante las actividades.</dd>
                     </div>
                     <div>
                         <dt className="font-bold">¿Y la cámara?</dt>
-                        <dd>Las imágenes <strong>nunca se guardan</strong>: se analizan al momento con Amazon Rekognition y se descartan. Solo queda la emoción detectada (por ejemplo, "calma"). Es opcional: sin cámara la plataforma funciona igual.</dd>
+                        <dd>Las imágenes <strong>nunca se guardan</strong>: se analizan al momento con Amazon Rekognition y se descartan. Solo queda la emoción detectada (por ejemplo, "calma"). La cámara se usa durante las actividades con todos los alumnos.</dd>
                     </div>
                     <div>
                         <dt className="font-bold">¿Con quién se comparte?</dt>
@@ -159,28 +144,22 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                     </div>
                     <div>
                         <dt className="font-bold">Tus derechos</dt>
-                        <dd>Puedes pedir acceso, corrección, borrado u oposición (derechos ARCO), y retirar este permiso cuando quieras desde esta misma página.</dd>
+                        <dd>Puedes retirar este permiso cuando quieras desde esta misma página. Para consultar, corregir o borrar los datos, comunícate con la escuela.</dd>
                     </div>
                 </dl>
                 {vista.aviso.url && <p className="mt-3"><a href={vista.aviso.url} className="enlace">Leer el aviso completo</a></p>}
             </section>
 
-            {accion === null && (estado === "vigente" || estado === "revocado" || estado === "vencido") && (
+            {accion === null && estado === "vigente" && (
                 <section className="flex flex-wrap justify-end gap-3" aria-label="Opciones">
-                    {estado === "vigente" && (
-                        <>
-                            <button type="button" className="boton-secundario" onClick={() => elegir("aceptar")}>Cambiar permiso de cámara</button>
-                            <button type="button" className="boton-secundario" onClick={() => elegir("revocar")}>Retirar el permiso</button>
-                        </>
-                    )}
-                    <button type="button" className="boton-secundario" onClick={() => elegir("arco")}>Solicitar derechos ARCO</button>
+                    <button type="button" className="boton-secundario" onClick={() => elegir("revocar")}>Retirar el permiso</button>
                 </section>
             )}
 
             {accion && (
                 <form onSubmit={enviar} className="tarjeta flex flex-col gap-4 sm:rounded-[52px] sm:px-16 sm:py-10">
                     <h2 className="text-2xl font-bold">
-                        {accion === "aceptar" ? "Tu decisión" : accion === "revocar" ? "Retirar el permiso" : "Solicitud ARCO"}
+                        {accion === "aceptar" ? "Tu decisión" : "Retirar el permiso"}
                     </h2>
 
                     {accion === "aceptar" && (
@@ -200,34 +179,18 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                             </div>
                             <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-confirmacion px-5 py-4 text-lg">
                                 <input type="checkbox" name="plataforma" required defaultChecked={estado === "vigente"} className="mt-1 size-6 shrink-0 accent-marca-fuerte" />
-                                <span><strong>Autorizo que {vista.alumno} use la plataforma</strong> (obligatorio para que pueda entrar).</span>
-                            </label>
-                            <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-confirmacion px-5 py-4 text-lg">
-                                <input type="checkbox" name="camara" defaultChecked={camara} className="mt-1 size-6 shrink-0 accent-marca-fuerte" />
-                                <span><strong>Autorizo la cámara</strong> para detectar emociones durante las actividades (opcional; las imágenes no se guardan).</span>
+                                <span>
+                                    <strong>Autorizo que {vista.alumno} use la plataforma</strong>, incluida la cámara para detectar emociones
+                                    durante las actividades (las imágenes no se guardan). Es necesario para que pueda entrar.
+                                </span>
                             </label>
                         </>
                     )}
 
                     {accion === "revocar" && (
                         <Aviso tipo="error">
-                            {vista.alumno} ya no podrá entrar y se borrarán sus datos personales en un máximo de 20 días hábiles.
+                            {vista.alumno} ya no podrá entrar a la plataforma hasta que des un permiso nuevo.
                         </Aviso>
-                    )}
-
-                    {accion === "arco" && (
-                        <>
-                            <div>
-                                <label htmlFor="tipo" className="etiqueta">¿Qué solicitas?</label>
-                                <select id="tipo" name="tipo" required className="campo">
-                                    {TIPOS_ARCO.map((t) => <option key={t} value={t}>{ETIQUETA_ARCO[t]}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label htmlFor="detalle" className="etiqueta">Detalle (opcional)</label>
-                                <textarea id="detalle" name="detalle" maxLength={1000} rows={3} className="campo" />
-                            </div>
-                        </>
                     )}
 
                     <Codigo token={token} correo={vista.correo} valor={otp} onCambio={setOtp} />
@@ -238,7 +201,7 @@ export default function ConsentimientoTutor({ token, vista }: { token: string; v
                             <button type="button" className="boton-secundario min-w-48 text-xl" onClick={() => setAccion(null)}>Cancelar</button>
                         )}
                         <button type="submit" className={`${accion === "aceptar" ? "boton-aceptar" : "boton"} min-w-48`} disabled={ocupado || otp.length !== 6}>
-                            {accion === "aceptar" ? "Guardar mi decisión" : accion === "revocar" ? "Sí, retirar el permiso" : "Enviar solicitud"}
+                            {accion === "aceptar" ? "Guardar mi decisión" : "Sí, retirar el permiso"}
                         </button>
                     </div>
                 </form>

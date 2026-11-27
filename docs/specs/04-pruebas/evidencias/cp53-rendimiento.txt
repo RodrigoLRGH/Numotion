@@ -1,0 +1,122 @@
+Base http://localhost:3100 · 30 alumnos · 300 s
+{
+  "fecha": "2026-11-27T09:27:21.580Z",
+  "base": "http://localhost:3100",
+  "alumnos": 30,
+  "duracion_s": 302,
+  "intentos_registrados": 5856,
+  "intentos_rechazados": 0,
+  "rnf01": {
+    "interacciones": [
+      {
+        "interaccion": "login",
+        "n": 30,
+        "p50_ms": 214,
+        "p95_ms": 368,
+        "max_ms": 381,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "panel",
+        "n": 30,
+        "p50_ms": 68,
+        "p95_ms": 87,
+        "max_ms": 90,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "actividades",
+        "n": 151,
+        "p50_ms": 19,
+        "p95_ms": 34,
+        "max_ms": 43,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "siguiente",
+        "n": 4285,
+        "p50_ms": 36,
+        "p95_ms": 63,
+        "max_ms": 2435,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "intento",
+        "n": 5856,
+        "p50_ms": 74,
+        "p95_ms": 116,
+        "max_ms": 947,
+        "errores_5xx": 0
+      }
+    ],
+    "global": {
+      "n": 10352,
+      "p95_ms": 110,
+      "errores_5xx": 0
+    },
+    "cumple": true
+  },
+  "rnf02": {
+    "contenido": [
+      {
+        "interaccion": "guia",
+        "n": 590,
+        "p50_ms": 27,
+        "p95_ms": 45,
+        "max_ms": 690,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "resumen_grupo",
+        "n": 5,
+        "p50_ms": 19,
+        "p95_ms": 37,
+        "max_ms": 37,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "reporte_temas",
+        "n": 5,
+        "p50_ms": 89,
+        "p95_ms": 91,
+        "max_ms": 91,
+        "errores_5xx": 0
+      },
+      {
+        "interaccion": "historia",
+        "n": 4,
+        "p50_ms": 1208,
+        "p95_ms": 1719,
+        "max_ms": 1719,
+        "errores_5xx": 0
+      }
+    ],
+    "historias": [
+      {
+        "tema": "suma",
+        "ms": 65,
+        "origen": "openai",
+        "generada_ahora": false
+      },
+      {
+        "tema": "resta",
+        "ms": 1719,
+        "origen": "openai",
+        "generada_ahora": true
+      },
+      {
+        "tema": "multiplicacion",
+        "ms": 1208,
+        "origen": "openai",
+        "generada_ahora": true
+      },
+      {
+        "tema": "division",
+        "ms": 1347,
+        "origen": "openai",
+        "generada_ahora": true
+      }
+    ],
+    "cumple": true
+  }
+}

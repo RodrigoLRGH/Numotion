@@ -118,12 +118,6 @@ export function docenteDe(res: Response): UsuarioSesion {
     return u;
 }
 
-export function adminDe(res: Response): UsuarioSesion {
-    const u = usuarioDe(res);
-    if (!u || u.rol !== "admin") throw new Error("La guarda debió bloquear esta ruta");
-    return u;
-}
-
 export function alumnoDe(res: Response): UsuarioSesion & { grupoId: string } {
     const u = usuarioDe(res);
     if (!u || u.rol !== "alumno" || !u.grupoId) throw new Error("La guarda debió bloquear esta ruta");

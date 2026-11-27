@@ -31,9 +31,9 @@ async function docenteConGrupo() {
     return { docente, sesion, email, ctx, grupo };
 }
 
-/** Simula que el tutor aceptó (el flujo público con OTP llega en T-03-01-10). */
-async function aceptarConsentimiento(alumnoId: string, camara = false) {
-    await sql`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true, acepta_camara = ${camara}
+/** Simula que el tutor aceptó (el flujo público con OTP se prueba en consentimiento.test.ts). */
+async function aceptarConsentimiento(alumnoId: string) {
+    await sql`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true, acepta_camara = true
               WHERE alumno_id = ${alumnoId}`;
 }
 
@@ -86,7 +86,7 @@ describe("alta de alumnos y aislamiento entre docentes (P-SEC-01)", () => {
         expect(alta.invitacion.token.length).toBeGreaterThan(30);
 
         const lista = await conContexto(ctx, (tx) => alumnosDelGrupo(tx, grupo.id));
-        expect(lista).toEqual([expect.objectContaining({ nombre: "Ana María", estadoConsentimiento: "pendiente", aceptaCamara: false })]);
+        expect(lista).toEqual([expect.objectContaining({ nombre: "Ana María", estadoConsentimiento: "pendiente" })]);
         expect((await conContexto(ctx, gruposDelDocente))[0].alumnos).toBe(1);
 
         const repetido = await conContexto(ctx, (tx) =>
@@ -128,13 +128,13 @@ describe("alumno: código + avatar + PIN (ADR-004) y consentimiento (P-SEC-04)",
 
     it("entra con PIN correcto, recibe la sesión del día y la pierde al revocar el consentimiento", async () => {
         const { grupo, alumnoId, pin } = await alumnoListo();
-        await aceptarConsentimiento(alumnoId, true);
+        await aceptarConsentimiento(alumnoId);
         const r = await loginAlumno(grupo.id, alumnoId, pin, "127.0.0.1");
-        expect(r).toMatchObject({ ok: true, camaraPermitida: true, alumno: { id: alumnoId, avatar: "gato" } });
+        expect(r).toMatchObject({ ok: true, alumno: { id: alumnoId, avatar: "gato" } });
         if (!r.ok) return;
         expect(r.sesionId).toMatch(/^[0-9a-f-]{36}$/);
         expect(await usuarioDeToken(r.sesion.token)).toEqual({
-            id: alumnoId, nombre: "Luis Ramón", rol: "alumno", grupoId: grupo.id, aceptaCamara: true,
+            id: alumnoId, nombre: "Luis Ramón", rol: "alumno", grupoId: grupo.id,
         });
 
         await sql`UPDATE consentimiento_tutor SET revocado_en = now() WHERE alumno_id = ${alumnoId}`;

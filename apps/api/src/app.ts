@@ -5,7 +5,6 @@ import express, { type Express } from "express";
 import { decidirAcceso, type EstadoDiagnosticos } from "@numotion/core/guardas";
 import { conContexto } from "./infra/db";
 import { esProduccion } from "./infra/entorno";
-import { rutasAdmin } from "./modules/admin/rutas";
 import { rutasAlumno } from "./modules/alumno/rutas";
 import { tokenDeCookies, usuarioDeToken } from "./modules/core/auth";
 import { cabecerasSeguridad } from "./modules/core/cabeceras";
@@ -44,20 +43,13 @@ export function crearApp(): Express {
         }
         const decision = decidirAcceso(ruta, usuario, diagnosticos);
         if (decision.tipo === "noAutorizado") enviarError(res, "NO_AUTENTICADO", "Inicia sesión para continuar", 401);
-        else if (decision.tipo === "prohibido") {
-            // Acceso a un área de otro rol: queda en la auditoría (RC-07, T-03-01-08)
-            if (usuario) {
-                await conContexto(null, (tx) => tx.$executeRaw`SELECT fn_auditar(${usuario.id}::uuid, ${usuario.rol}::rol_usuario, 'acceso_denegado', ${ruta.slice(0, 200)}, NULL, ${req.ip ?? null}::inet)`).catch(() => {});
-            }
-            enviarError(res, "PROHIBIDO", "No tienes permiso para este recurso", 403);
-        }
+        else if (decision.tipo === "prohibido") enviarError(res, "PROHIBIDO", "No tienes permiso para este recurso", 403);
         else if (decision.tipo === "diagnosticosPendientes") enviarError(res, "DIAGNOSTICOS_PENDIENTES", "Primero completa los diagnósticos de hoy", 403);
     }));
 
     app.use("/api/v1", rutasCore);
     app.use("/api/v1/docente", rutasDocente);
     app.use("/api/v1/alumno", rutasAlumno);
-    app.use("/api/v1/admin", rutasAdmin);
     app.use("/api", (_req, res) => enviarError(res, "NO_ENCONTRADO", "Ruta no encontrada", 404));
     app.use(manejadorErrores);
     return app;

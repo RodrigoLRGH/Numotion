@@ -2,7 +2,11 @@
 
 Fuente: Matriz de Clasificación actualizada (`requerimientos_act.pdf`, revisada el 2026-11-26; antes `docs/requerimientos.docx`). Los IDs **no se renumeran**. Aquí se agrupan por módulo, se fijan criterios verificables y se resuelven ambigüedades.
 
-**Cambios de la matriz actualizada:** se retiraron **RF-35** (consolidar resultados) y **RF-44** (colorear figuras); **RF-22, RF-40 y RF-41** pasan a *Must*; se redefinieron **RF-03, RF-11, RF-39 y RF-52** y se agregaron **RF-69 a RF-72**. Las decisiones de alcance tomadas con el equipo para esta versión están en A-33 a A-40.
+**Cambios de la matriz actualizada:** se retiraron **RF-35** (consolidar resultados) y **RF-44** (colorear figuras); **RF-22, RF-40 y RF-41** pasan a *Must*; se redefinieron **RF-03, RF-11, RF-39 y RF-52** y se agregaron **RF-69 a RF-72**. Las decisiones de alcance tomadas con el equipo para esta versión están en A-33 a A-43.
+
+**Fuera del MVP (decisión del equipo, 2026-11-26, migración `0015_alcance_mvp.sql`):** RC-07 (administrador y derechos ARCO, auditoría de accesos y purga de datos emocionales) y las alertas al docente (RF-16 y la parte docente de RF-27). Ver A-41 a A-43.
+
+**De vuelta en el MVP (2026-11-27, migración `0016_consentimiento_tutor.sql`):** RC-08 y RNF-10, con el consentimiento verificable del tutor y el aviso de privacidad versionado. Ver A-44.
 
 ## 1. Requerimientos funcionales por módulo
 
@@ -10,7 +14,7 @@ Fuente: Matriz de Clasificación actualizada (`requerimientos_act.pdf`, revisada
 | ID | Nombre | Criterio verificable (resumen) | MoSCoW |
 |---|---|---|---|
 | RF-54 | Diagnóstico emocional PANAS-C | Cuestionario asignado al iniciar la sesión; registra afecto positivo (AP) y negativo (AN) | Must |
-| RF-55 | Diagnóstico matemático | Preguntas por tema; registra nivel de dominio 1–5 por tema | Must |
+| RF-55 | Diagnóstico matemático | Preguntas por tema; registra nivel de dominio 1–5 por tema. Completo cada día (sin versión corta, A-19) | Must |
 | RF-69 | Registrar resultado PANAS-C | Guarda AP y AN al completar el cuestionario; consultable por el docente | Must |
 | RF-70 | Registrar dominio del diagnóstico | Calcula y guarda el nivel de dominio por tema al responder todas las preguntas | Must |
 | RF-63 | Panel principal | Accesible **solo** con RF-54 y RF-55 completos en la sesión del día; enlaza a actividades, perfil, racha/insignias, práctica libre | Must |
@@ -45,9 +49,9 @@ Retirado de la matriz: **RF-44** (colorear figuras). El tipo "Colorea la figura"
 | RF-57 | Registrar asignación | Una asignación por alumno con nivel inicial basado en PANAS-C + diagnóstico | Must |
 | RF-58 | Actividades asignadas | Lista con estado por alumno, fecha y nivel inicial | Must |
 | RF-59 | Historial | Actividades finalizadas, cronológico, por alumno y grupo, filtros por alumno/tema/periodo | Must |
-| RF-16 | Alerta temprana de frustración | Alerta al docente en < 2 s antes del abandono. **Fuera del alcance de esta versión** (A-38) | Must |
-| RF-27 | Guía de actuación | Pasos sugeridos según la situación; en esta versión solo **desinterés** (A-34) | Must |
-| RF-29 | Consultar estudiante | Desempeño, estado emocional reciente, notas | Must |
+| RF-16 | Alerta temprana de frustración | Alerta al docente en < 2 s antes del abandono. **Fuera del MVP**: no hay alertas al docente (A-38) | Must |
+| RF-27 | Guía de actuación | Solo la parte del alumno: se le pregunta si quiere ayuda y, si acepta, se abre la guía paso a paso del ejercicio. La guía de actuación para el docente queda **fuera del MVP** (A-34) | Must |
+| RF-29 | Consultar estudiante | Desempeño, estado emocional reciente (PANAS-C del último diagnóstico y lecturas de la última sesión con cámara; sin histórico por fechas), notas | Must |
 | RF-19 | Perfil estadístico | Tiempo, intentos, tipos de error, habilidades de menor dominio | Must |
 | RF-18 | Reporte de índice de error | Temas/subtemas ordenados por **índice de error** a nivel grupal (A-39) | Must |
 | RF-50 | Notas rápidas | Fecha automática, texto libre, etiqueta opcional | Must |
@@ -70,9 +74,9 @@ Retirado de la matriz: **RF-35** (consolidar resultados). La captura de tareas, 
 | RNF-03 | Imagen facial solo en memoria durante la sesión | Auditoría + prueba P-SEC-03 |
 | RNF-04 | Docente autenticado; solo ve su grupo | P-SEC-01, P-DB-04 |
 | RNF-06 | 90 % de éxito, 10 alumnos, sin instrucción | Prueba de usabilidad (P-UX-01) |
-| RNF-10 | Consentimiento verificable previo | P-SEC-04, P-E2E-01 + revisión legal |
+| RNF-10 | Cumplir con la normativa de protección de datos de menores: el sistema debe cumplir con la normativa aplicable de protección de datos personales de menores de edad, incluyendo consentimiento verificable de padres o tutores previo al uso del sistema por parte del estudiante (A-44) | Revisión legal del flujo de consentimiento y del aviso de privacidad antes del despliegue en una institución; P-SEC-04, P-E2E-01 |
 | RI-01 | Web, identidad visual, WCAG 2.1 AA | axe-core en Playwright (P-A11Y-01) |
-| RI-02 / RC-03 | Cámara por alumno, activa durante actividad | P-E2E-04 (permiso/negación) |
+| RI-02 / RC-03 | Cámara por alumno, activa durante la actividad para **todos** los alumnos con consentimiento del tutor (A-41, A-44) | P-E2E-04 (permiso/negación) |
 | RI-03 | Táctil, mouse o teclado | Pruebas de interacción por puntero y teclado |
 | RI-05 | Internet estable | Manejo offline: cola local de intentos (EXP-04.9, P-E2E-05) |
 | RI-06 | Rekognition sin almacenar imagen | P-INT-01 (mock) + P-SEC-03 |
@@ -82,8 +86,8 @@ Retirado de la matriz: **RF-35** (consolidar resultados). La captura de tareas, 
 | RC-02 | AWS | IaC / despliegue |
 | RC-04 | Presupuesto limitado | Métricas de llamadas; topes configurables |
 | RC-05 | Sin biométricos almacenados | = RNF-03 |
-| RC-07 | LFPDPPP: cifrado, roles, auditoría, aviso, ARCO | P-SEC-*, tabla `auditoria_acceso`, endpoint ARCO |
-| RC-08 | LGDNNA: consentimiento parental | = RNF-10 |
+| RC-07 | LFPDPPP: cifrado, roles, auditoría, aviso, ARCO | **Fuera del MVP** (A-41). Se conservan el control de acceso por rol (RNF-04), HTTPS (RI-09), el aviso de privacidad versionado y la página «Aviso de privacidad» |
+| RC-08 | El sistema debe cumplir con los principios de protección de datos de menores establecidos en la Ley General de los Derechos de Niñas, Niños y Adolescentes, incluyendo el consentimiento de madres, padres o tutores para el tratamiento de datos del estudiante (A-44) | = RNF-10 |
 
 ## 3. Ambigüedades e inconsistencias detectadas
 
@@ -107,12 +111,12 @@ Retirado de la matriz: **RF-35** (consolidar resultados). La captura de tareas, 
 | A-16 | **RF-11** fija máximo 3 intentos, pero no dice qué pasa después. | El ejercicio admite **3 intentos**, en actividades asignadas y en práctica libre. Al 3.er fallo se cierra y se muestra la guía con la respuesta correcta (RF-45). Puntos al acertar: 10, 7 o 5 según el intento; 3 si se pidió la guía. *(Actualizado el 2026-11-26.)* |
 | A-17 | El modelo exige `intento_ejercicio.ejercicio_id` (FK a `ejercicio`), pero el código existente genera ejercicios al vuelo con un generador determinista. | Se agrega el valor `generador` a `origen_ejercicio`; cada ejercicio generado se inserta en `ejercicio` (sin datos del alumno) antes de presentarse. |
 | A-18 | ADR-004 dice que el alumno elige su avatar, pero no si la cuadrícula muestra nombres. | Según `05-contratos §1`, la cuadrícula muestra avatar + **nombre corto** (primer nombre, nunca apellidos). El avatar es único dentro del grupo. |
-| A-19 | EXP-02.6 pide la versión corta "con diagnóstico matemático completo en los últimos 7 días", sin decir qué nivel usar ni cómo calificar 1 sola pregunta. | Por tema: si en los últimos `diagnostico_corto_dias` hubo un resultado con ≥ 3 preguntas, se hace 1 pregunta en el último `nivel_dominio`; acierto → se mantiene, fallo → baja 1 (mín. 1). Una versión corta no habilita otra: se exige un diagnóstico completo en la ventana. |
+| A-19 | ~~EXP-02.6 pide la versión corta~~ **Retirada (2026-11-26):** el alumno hace el diagnóstico completo cada día. Texto original: EXP-02.6 pide la versión corta "con diagnóstico matemático completo en los últimos 7 días", sin decir qué nivel usar ni cómo calificar 1 sola pregunta. | Por tema: si en los últimos `diagnostico_corto_dias` hubo un resultado con ≥ 3 preguntas, se hace 1 pregunta en el último `nivel_dominio`; acierto → se mantiene, fallo → baja 1 (mín. 1). Una versión corta no habilita otra: se exige un diagnóstico completo en la ventana. |
 | A-20 | El banco `pregunta_diagnostico` (T-01-04) no existe aún. | Las preguntas del diagnóstico salen del generador determinista existente (semilla por sesión, tema y orden) para todos los temas del grado (con el contenido provisional de geometría y fracciones, A-30). *(Actualizado en EXP-04 entrega 2: antes excluía geometría y fracciones.)* |
 | A-21 | `05-contratos §3.1` devuelve `{ afectoPositivo, afectoNegativo }` al alumno al finalizar PANAS-C, pero EXP-02 y RF-65 prohíben que el alumno vea sus puntajes. | Gana la privacidad: `POST …/panas/finalizar` responde solo `{ completado: true }`. |
 | A-22 | EXP-02.1 pide una escala "pictográfica de 5 caras", pero una cara feliz en "Muchísimo" contradice los ítems negativos ("¿Qué tan triste…?"). | Se usan círculos de tamaño creciente (intensidad, sin valencia) con etiqueta y audio. A validar con psicopedagogía en T-01-03. |
 | A-23 | El nombre del producto es "Numotion" en los specs y "FEEL-FACE" en el código previo. | Se usa "Numotion" (jerarquía de verdad: specs > código), centralizado en `src/modules/shared/marca.ts`. |
-| A-24 | 03-seguridad §6 da 7 días al enlace del tutor, pero la revocación y los derechos ARCO deben poder ejercerse "desde el mismo enlace" en cualquier momento. | Los 7 días solo limitan la **primera aceptación**. Con el enlace vencido se puede revocar, pedir ARCO y cambiar la preferencia de cámara; siempre con OTP. Revocar es definitivo para ese consentimiento: para volver a autorizar, el docente genera un enlace nuevo. |
+| A-24 | **Vigente de nuevo (2026-11-27, A-44), sin ARCO ni preferencia de cámara.** 03-seguridad §6 da 7 días al enlace del tutor, pero la revocación y los derechos ARCO deben poder ejercerse "desde el mismo enlace" en cualquier momento. | Los 7 días solo limitan la **primera aceptación**. Con el enlace vencido se puede revocar, pedir ARCO y cambiar la preferencia de cámara; siempre con OTP. Revocar es definitivo para ese consentimiento: para volver a autorizar, el docente genera un enlace nuevo. |
 | A-25 | Los specs listan 7 tipos de interacción y 7 temas, pero no qué tipos admite cada tema. | Catálogo en `shared/dominio/catalogo.ts` (números: identificar, a palabras, selección; operaciones: selección, arrastrar, completar; suma además figuras; geometría: colorear, selección; fracciones: selección, arrastrar). La API rechaza combinaciones fuera del catálogo (422). EXP-04 debe servir cada combinación. |
 | A-26 | La tabla de `decidirNivel` (02-…§3.4) no dice cuántos ejercicios cerrados exige R3–R5 ("count(correcto) en ultimos3"). | R3, R4 y R5 solo se evalúan con 3 ejercicios cerrados en la asignación; antes, el nivel no cambia salvo por R1 o R2. |
 | A-27 | §4 fija puntos pero no cuántas estrellas da la recompensa (wireframe A6). | Resultado final ≥ 9 → 3 estrellas; ≥ 7 → 2; si no, 1. |
@@ -122,13 +126,17 @@ Retirado de la matriz: **RF-35** (consolidar resultados). La captura de tareas, 
 | A-31 | ¿Qué respuestas se validan de forma optimista en el cliente (EXP-04.8)? | Solo las cerradas (opciones, cifras). El número con letras (tolerancia ortográfica A-07) y el coloreo los evalúa únicamente el servidor: `hashRespuesta` es `null` y el alumno espera la confirmación. |
 | A-32 | Sin conexión, ¿se encolan también los intentos que el servidor rechazaría? | La cola (EXP-04.9) solo reintenta fallas de red y 502–504; un rechazo del servidor (4xx) o un error 500 se muestra y se descarta de la cola. Si IndexedDB no está disponible se encola en memoria (se pierde solo si se cierra la página). |
 | A-33 | **RF-39** pide una serie de números con un campo junto a cada uno, sin fijar cuántos. | Cada ejercicio muestra **3 números distintos** del rango del nivel, cada uno con su campo. La respuesta viaja como arreglo JSON en el mismo orden; cada número se califica con la tolerancia de A-07 y el ejercicio es correcto solo si los 3 lo son. Tras un fallo el alumno conserva lo escrito para corregirlo. Los ejercicios antiguos de un solo número se siguen calificando. |
-| A-34 | **RF-27** pide guías para frustración, ansiedad u otra situación. | Decisión del equipo (2026-11-26): solo existe la guía de **desinterés**. Las alertas de frustración llegan al docente sin guía, y al alumno se le ofrece el mensaje genérico "¿Quieres que te ayude?". |
+| A-34 | **RF-27** pide guías para frustración, ansiedad u otra situación. | Decisión del equipo (2026-11-26): primero se dejó solo la guía de desinterés; después, al retirar las alertas (A-38), se quitaron **todas** las guías de actuación para el docente. Queda solo la parte del alumno: con el Índice de Frustración alto en 2 evaluaciones seguidas se le pregunta "¿Quieres que te ayude?" (o "¿Te ayudo a seguir?" si hay desinterés), como máximo una vez cada 5 min por actividad; si acepta, se abre la guía paso a paso del ejercicio. |
 | A-35 | **RF-03** condiciona la práctica a un "dominio insuficiente en la operación". | Decisión del equipo (2026-11-26): todos los juegos siguen disponibles y el nivel no se adapta dentro de la práctica. Los temas con **dominio ≤ 2** en el diagnóstico más reciente se muestran primero (del más bajo al más alto) con la etiqueta "Recomendado". Cada respuesta correcta da puntos según el intento: 3, 2 o 1 (escala menor que la de las actividades, 10/7/5, porque la práctica es ilimitada). Se acreditan al momento; completar el juego no da puntos extra, pero sí suma racha. |
 | A-36 | **RF-22** no define qué parte del historial académico personaliza la frase. | Se usan las actividades completadas, el resultado y el tema de la última actividad, y los temas con dominio ≥ 4 y ≤ 2 del diagnóstico más reciente (marcadores `{actividades}`, `{resultado}`, `{tema}`, `{tema_fuerte}` y `{tema_reto}`). Los mensajes académicos pesan igual que los del estado del día y se alternan con ellos. |
 | A-37 | **RF-72** fija "en curso" al completarse el primer ejercicio. | Un intento fallido no cambia el estado (sigue "pendiente", aunque `iniciada_en` ya se registra); pasa a "en curso" cuando el primer ejercicio se acierta o agota sus 3 intentos. |
-| A-38 | **RF-16** pide la alerta en menos de 2 s. | Decisión del equipo (2026-11-26): las alertas quedan fuera del alcance de esta versión. El flujo actual se conserva tal cual (SSE con sondeo cada 2.5 s), sin la garantía de 2 s. |
+| A-38 | **RF-16** pide la alerta en menos de 2 s. | Decisión del equipo (2026-11-26): las alertas al docente quedan **fuera del MVP** y se retiraron por completo (creación, lista, SSE en vivo, «Marcar como atendida» con nota y guías). Se borraron las tablas `alerta` y `guia_actuacion`. |
 | A-39 | **RF-18** pide los temas con mayor índice de error **o** de frustración. | Decisión del equipo (2026-11-26): el reporte muestra solo el **índice de error** (intentos incorrectos / intentos), ordenado de mayor a menor. Se retiraron los aspectos emocionales de la cámara. |
 | A-40 | **RF-52** se redefinió: cruzar el diagnóstico de matemáticas con el PANAS-C, por tema. | Por tema y solo con sesiones que tengan ambos resultados: nivel de dominio y % de aciertos del diagnóstico frente al AP/AN del PANAS-C de esa misma sesión, con promedios y las últimas 5 sesiones. Se marca "coincidencia" cuando, en la última sesión, el dominio es ≤ 2 y el AN es ≥ 3. |
+| A-41 | RC-07, RC-08 y RNF-10 quedan fuera del MVP. | **RC-08 y RNF-10 volvieron al MVP el 2026-11-27 (A-44); lo demás sigue vigente.** Decisión del equipo (2026-11-26): el alumno entra sin consentimiento del tutor; el docente lo da de alta solo con nombre y apellidos. Se retiraron el flujo del tutor (enlace, código por correo, revocación, ARCO), el administrador, el correo SMTP, la auditoría de accesos y la purga de eventos emocionales, y se borraron sus tablas. La **cámara queda activa para todos los alumnos** durante la actividad (RC-03, RI-02); la imagen sigue sin guardarse (RNF-03, RC-05). Se conserva la página «Aviso de privacidad» (texto en revisión). **Antes de usar la app con alumnos reales debe volver a evaluarse este alcance**: procesa rostros de menores sin consentimiento parental. |
+| A-42 | Al retirar las alertas, la regla R2 del motor (bajar un nivel cuando el alumno acepta la ayuda) se quedó sin dato. | Se retiró R2. Aceptar la ayuda solo abre la guía; el acierto posterior vale 3 puntos (A-16). |
+| A-43 | ¿Qué muestra la ficha como "estado emocional reciente" (RF-29)? | El PANAS-C del último diagnóstico y las lecturas de la cámara de la última sesión. Se retiró el endpoint del histórico por fechas (`/docente/alumnos/:id/emociones`), que ninguna pantalla usaba. |
+| A-44 | RC-08 y RNF-10 vuelven al MVP. | Decisión del equipo (2026-11-27), migración `0016_consentimiento_tutor.sql`: vuelve el flujo del tutor como estaba antes de la 0015 (alta del alumno con nombre y correo del tutor, enlace de 7 días, código de 6 dígitos por correo, aviso de privacidad versionado, estado del consentimiento y «Nuevo enlace» en Mis grupos, bloqueo del alumno sin consentimiento vigente y cierre de sus sesiones al revocar). Diferencias: **sin ARCO, administrador ni auditoría** (RC-07 sigue fuera) y **sin preferencia de cámara**: al aceptar la plataforma el tutor acepta también la detección emocional, y la cámara se usa con todos los alumnos (A-41). Revocar ya no programa el borrado de datos (era una solicitud ARCO); el aviso indica que esas peticiones se hacen con la escuela. La 0015 se corrigió para **no borrar** `consentimiento_tutor` ni `aviso_privacidad`, así producción conserva los consentimientos existentes. Falta la revisión legal del flujo y del aviso antes de usarlo en una institución (métrica de RNF-10). |
 
 ## 4. Priorización para el MVP
 1. **Must** de core + docente + alumno (flujo principal completo).

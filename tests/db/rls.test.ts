@@ -60,10 +60,9 @@ describe("P-DB-04 · Row Level Security", () => {
             expect((await capturarError(tx, (sp) => sp`SELECT pin_hash FROM alumno`))?.code).toBe("42501");
             expect((await capturarError(tx, (sp) => sp`SELECT password_hash FROM docente`))?.code).toBe("42501");
             expect((await capturarError(tx, (sp) => sp`SELECT * FROM sesion_auth`))?.code).toBe("42501");
-            expect((await capturarError(tx, (sp) => sp`SELECT * FROM auditoria_acceso`))?.code).toBe("42501");
         }));
 
-    it("el alumno ve solo actividades asignadas y crea alertas solo para su docente", () =>
+    it("el alumno ve solo actividades asignadas", () =>
         enTransaccion(async (tx) => {
             await crearFixture(tx);
             await comoApp(tx, "docente", IDS.docenteA);
@@ -73,11 +72,6 @@ describe("P-DB-04 · Row Level Security", () => {
             expect(await tx`SELECT id FROM actividad`).toHaveLength(0);
             await comoApp(tx, "alumno", IDS.alumnoA1);
             expect(await tx`SELECT id FROM actividad`).toHaveLength(1);
-            const ajena = await capturarError(tx, (sp) =>
-                sp`INSERT INTO alerta (alumno_id, docente_id, indice) VALUES (${IDS.alumnoA1}, ${IDS.docenteB}, 0.7)`);
-            expect(ajena?.code).toBe("42501");
-            expect(await capturarError(tx, (sp) =>
-                sp`INSERT INTO alerta (alumno_id, docente_id, indice) VALUES (${IDS.alumnoA1}, ${IDS.docenteA}, 0.7)`)).toBeNull();
         }));
 });
 
@@ -92,7 +86,7 @@ describe("Autenticación por funciones SECURITY DEFINER", () => {
                 { grupo_id: IDS.grupoA, alumno_id: IDS.alumnoA2, avatar: "perro", nombre_corto: "Beto" },
             ]);
             const [datos] = await tx`SELECT * FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoA1})`;
-            expect(datos).toMatchObject({ id: IDS.alumnoA1, consentimiento: true, acepta_camara: true, pin_hash: "pin" });
+            expect(datos).toEqual({ id: IDS.alumnoA1, nombre: "Ana", avatar: "gato", pin_hash: "pin", bloqueado_hasta: null, consentimiento: true });
             // Un alumno de otro grupo no entra con el código de este
             expect(await tx`SELECT * FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoB1})`).toHaveLength(0);
 
@@ -102,32 +96,37 @@ describe("Autenticación por funciones SECURITY DEFINER", () => {
 
             const [{ s }] = await tx`SELECT fn_auth_alumno_resultado(${IDS.alumnoA1}, true, NULL) AS s`;
             expect(s).not.toBeNull();
-            await comoDueno(tx);
-            const [{ n }] = await tx`SELECT count(*)::int AS n FROM auditoria_acceso WHERE actor_id = ${IDS.alumnoA1}`;
-            expect(n).toBe(6);
         }));
 
-    it("la sesión del alumno deja de valer al revocar el consentimiento o cambiar el aviso", () =>
+    it("la sesión resuelve alumno y docente vigentes; una vencida no vale, ni la del alumno sin consentimiento (RC-08)", () =>
         enTransaccion(async (tx) => {
             await crearFixture(tx);
             await comoApp(tx, null, null);
             await tx`SELECT fn_crear_sesion_auth('h1', 'alumno', ${IDS.alumnoA1}, now() + interval '4 hours')`;
             await tx`SELECT fn_crear_sesion_auth('h2', 'docente', ${IDS.docenteA}, now() + interval '8 hours')`;
             await tx`SELECT fn_crear_sesion_auth('h3', 'docente', ${IDS.docenteA}, now() - interval '1 minute')`;
-            expect(await tx`SELECT * FROM fn_sesion_auth('h1')`).toHaveLength(1);
+            expect(await tx`SELECT * FROM fn_sesion_auth('h1')`).toEqual([{ rol: "alumno", usuario_id: IDS.alumnoA1, nombre: "Ana", grupo_id: IDS.grupoA }]);
             expect((await tx`SELECT * FROM fn_sesion_auth('h2')`)[0]).toMatchObject({ rol: "docente", nombre: "Docente A" });
             expect(await tx`SELECT * FROM fn_sesion_auth('h3')`).toHaveLength(0);
 
+            // Revocar el consentimiento o publicar un aviso nuevo invalida la sesión del alumno
             await comoDueno(tx);
             await tx`UPDATE consentimiento_tutor SET revocado_en = now() WHERE alumno_id = ${IDS.alumnoA1}`;
             await comoApp(tx, null, null);
             expect(await tx`SELECT * FROM fn_sesion_auth('h1')`).toHaveLength(0);
+            expect((await tx`SELECT consentimiento FROM fn_auth_alumno(${IDS.grupoA}, ${IDS.alumnoA1})`)[0].consentimiento).toBe(false);
 
             await comoDueno(tx);
             await tx`UPDATE consentimiento_tutor SET revocado_en = NULL WHERE alumno_id = ${IDS.alumnoA1}`;
             await tx`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v2', now(), '/privacidad')`;
             await comoApp(tx, null, null);
             expect(await tx`SELECT * FROM fn_sesion_auth('h1')`).toHaveLength(0);
+
+            // RC-07 sigue fuera del MVP (migración 0015): sin ARCO, administrador ni auditoría
+            await comoDueno(tx);
+            const [{ n }] = await tx`SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'
+                AND tablename IN ('auditoria_acceso', 'administrador', 'solicitud_arco', 'alerta', 'guia_actuacion')`;
+            expect(n).toBe(0);
         }));
 
     it("docente: registro único por correo (insensible a mayúsculas)", () =>

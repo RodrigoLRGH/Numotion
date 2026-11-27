@@ -272,7 +272,6 @@ async function senalesNivel(tx: Tx, a: Asignacion, ayudas: number) {
     const errores = intentos.findIndex((i) => i.correcta);
     const ultimoCambio = await tx.ajuste_dificultad.aggregate({ where: { asignacion_id: a.id }, _max: { creado_en: true } });
     const desde: Date | null = ultimoCambio._max.creado_en;
-    const acepto = (await tx.alerta.count({ where: { asignacion_id: a.id, alumno_acepto_ayuda: true, ...(desde ? { creado_en: { gt: desde } } : {}) } })) > 0;
     const ventana = await config(tx, "ventana_seg", 60);
     const muestras = await tx.$queryRaw<{ estado_derivado: string; emocion: string }[]>`SELECT * FROM fn_estados_recientes(${ventana}::int)`;
     const conDato = muestras.filter((m) => m.estado_derivado !== "sin_dato");
@@ -289,7 +288,6 @@ async function senalesNivel(tx: Tx, a: Asignacion, ayudas: number) {
             inactividadSeg: 0,
             ayudasEnEjercicio: ayudas,
         }),
-        aceptoAyuda: acepto,
         tiempoReferenciaMs: await config(tx, "tiempo_referencia_ms", 30_000),
         umbralAlerta: await config(tx, "umbral_alerta", 0.6),
     };

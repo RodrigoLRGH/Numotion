@@ -137,10 +137,10 @@ describe("diagnóstico matemático y retroalimentación (EXP-02.2–02.4, 02.6)"
         expect(n).toBe(1);
     });
 
-    it("al día siguiente vuelve a pedir los diagnósticos y aplica la versión corta (1 por tema)", async () => {
+    it("al día siguiente vuelve a pedir los diagnósticos completos (sin versión corta)", async () => {
         const a = await nuevoAlumno(3);
         await completarPanas(a, { positivo: 4, negativo: 1 });
-        await responderDiagnostico(a, (nivel) => nivel <= 4);
+        const primero = await responderDiagnostico(a, (nivel) => nivel <= 4);
         expect((await a.como((tx) => finalizarMatematico(tx, a.alumnoId))).ok).toBe(true);
 
         // Simula que eso pasó ayer
@@ -149,10 +149,11 @@ describe("diagnóstico matemático y retroalimentación (EXP-02.2–02.4, 02.6)"
 
         await completarPanas(a, { positivo: 4, negativo: 1 });
         const nTemas = (await sql`SELECT count(DISTINCT tema_id)::int AS n FROM diagnostico_mat_resultado WHERE alumno_id = ${a.alumnoId}`)[0].n;
-        // Falla todas: en la versión corta el dominio baja un nivel (4 → 3)
-        expect(await responderDiagnostico(a, () => false)).toBe(nTemas);
+        // Diagnóstico completo otra vez: al menos 3 preguntas por tema, aunque ayer ya lo hizo
+        expect(await responderDiagnostico(a, () => false)).toBeGreaterThanOrEqual(3 * nTemas);
+        expect(primero).toBeGreaterThanOrEqual(3 * nTemas);
         const fin = await a.como((tx) => finalizarMatematico(tx, a.alumnoId));
-        expect(fin.ok && Object.values(fin.dominio).every((n) => n === 3)).toBe(true);
+        expect(fin.ok && Object.values(fin.dominio).every((n) => n === 1)).toBe(true);
     });
 
     it("una pregunta ya respondida o ajena no se puede responder", async () => {

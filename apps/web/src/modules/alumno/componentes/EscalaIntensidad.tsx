@@ -9,6 +9,8 @@ interface Props {
 }
 
 const TAMANO = ["size-6", "size-9", "size-12", "size-15", "size-18"];
+// A mayor círculo, amarillo más intenso (Figma "002_*_Diagnostico")
+const COLOR = ["#fbf2be", "#f8eba8", "#f6e68a", "#f3df62", "#f0d84b"];
 
 export function EscalaIntensidad({ escala, elegido, deshabilitado, onElegir }: Props) {
     return (
@@ -28,7 +30,7 @@ export function EscalaIntensidad({ escala, elegido, deshabilitado, onElegir }: P
                     >
                         {/* Zonas de altura fija: los círculos quedan alineados aunque la etiqueta ocupe dos líneas */}
                         <span aria-hidden="true" className="flex h-20 items-end justify-center">
-                            <span className={`${TAMANO[i] ?? "size-12"} rounded-full bg-acento`} />
+                            <span className={`${TAMANO[i] ?? "size-12"} rounded-full`} style={{ backgroundColor: COLOR[i] ?? COLOR[2] }} />
                         </span>
                         <span className="flex min-h-12 items-center text-base leading-tight font-bold sm:text-lg">{e.etiqueta}</span>
                     </button>

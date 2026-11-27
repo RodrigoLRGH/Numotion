@@ -19,7 +19,6 @@ interface Alumno {
     apellidos: string;
     avatar: string;
     estadoConsentimiento: EstadoConsentimiento;
-    aceptaCamara: boolean;
 }
 interface Invitacion {
     url: string;
@@ -216,7 +215,6 @@ export default function GestionGrupos() {
                                     <tr className="border-b border-slate-200 text-sm text-tinta-suave">
                                         <th scope="col" className="py-2">Alumno</th>
                                         <th scope="col" className="py-2">Consentimiento</th>
-                                        <th scope="col" className="py-2">Cámara</th>
                                         <th scope="col" className="py-2"><span className="sr-only">Acciones</span></th>
                                     </tr>
                                 </thead>
@@ -227,7 +225,6 @@ export default function GestionGrupos() {
                                             <tr key={a.id} className="border-b border-slate-100">
                                                 <td className="py-2"><span aria-hidden="true" className="mr-2 text-2xl">{emoji(AVATARES, a.avatar)}</span>{a.nombre} {a.apellidos}</td>
                                                 <td className="py-2"><span className={`insignia-estado ${clase}`}>{texto}</span></td>
-                                                <td className="py-2">{a.aceptaCamara ? "Sí" : "No"}</td>
                                                 <td className="py-2 text-right">
                                                     {a.estadoConsentimiento !== "vigente" && (
                                                         <button type="button" className="cursor-pointer text-sm enlace" onClick={() => nuevoEnlace(a)}>

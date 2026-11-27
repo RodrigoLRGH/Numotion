@@ -1,4 +1,4 @@
-// Autenticación (RNF-04, RC-07, ADR-004, ADR-010). Contraseñas y PIN con scrypt; sesiones
+// Autenticación (RNF-04, RC-08, ADR-004, ADR-009, ADR-010). Contraseñas y PIN con scrypt; sesiones
 // opacas: en la cookie viaja un token aleatorio y en BD solo su hash SHA-256 (sesion_auth).
 // Todo pasa por funciones SECURITY DEFINER: la app nunca lee hashes ni sesiones directamente.
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
@@ -12,10 +12,10 @@ import type { CodigoError } from "./http";
 const scrypt = promisify(scryptCb) as (pwd: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
 export const COOKIE_SESION = "nm_sesion";
-export const DURACION_SESION_MS = { docente: 8 * 60 * 60 * 1000, alumno: 4 * 60 * 60 * 1000, admin: 8 * 60 * 60 * 1000 } as const;
+export const DURACION_SESION_MS = { docente: 8 * 60 * 60 * 1000, alumno: 4 * 60 * 60 * 1000 } as const;
 export const MIN_PASSWORD_DOCENTE = 10;
 
-export type Rol = "docente" | "alumno" | "admin";
+export type Rol = "docente" | "alumno";
 
 export interface UsuarioSesion {
     id: string;
@@ -23,7 +23,6 @@ export interface UsuarioSesion {
     rol: Rol;
     /** Solo alumno */
     grupoId?: string;
-    aceptaCamara?: boolean;
 }
 
 export interface SesionEmitida {
@@ -81,7 +80,6 @@ export async function registrarDocente(
     const hash = await hashSecreto(password);
     return conContexto(null, async (tx) => {
         const [{ id }] = await tx.$queryRaw<{ id: string }[]>`SELECT fn_registrar_docente(${nombre}, ${email}::citext, ${hash}) AS id`;
-        await tx.$executeRaw`SELECT fn_auditar(${id}::uuid, 'docente', 'login')`;
         return { ok: true as const, sesion: await emitirSesion(tx, "docente", id), docente: { id, nombre } };
     });
 }
@@ -105,31 +103,6 @@ export async function loginDocente(
         await tx.$executeRaw`SELECT fn_auth_docente_resultado(${d.id}::uuid, ${ok}, ${ip}::inet)`;
         if (!ok) return credencialesInvalidas("Correo o contraseña incorrectos");
         return { ok: true as const, sesion: await emitirSesion(tx, "docente", d.id), docente: { id: d.id, nombre: d.nombre } };
-    });
-}
-
-// ───────────── Administrador (atención ARCO, RC-07) ─────────────
-
-/** Sin autorregistro: las cuentas se crean con `npm run admin:crear`. */
-export async function loginAdmin(
-    email: string,
-    password: string,
-    ip: string | null,
-): Promise<{ ok: true; sesion: SesionEmitida; admin: { id: string; nombre: string } } | Fallo> {
-    return conContexto(null, async (tx) => {
-        const [a] = await tx.$queryRaw<{ id: string; nombre: string; password_hash: string; activo: boolean; bloqueado_hasta: Date | null }[]>`
-            SELECT * FROM fn_auth_admin(${email}::citext)`;
-        if (!a || !a.activo) {
-            await verificarSecreto(password, await relleno());
-            return credencialesInvalidas("Correo o contraseña incorrectos");
-        }
-        if (a.bloqueado_hasta && a.bloqueado_hasta > new Date()) {
-            return bloqueada("Demasiados intentos. Espera 15 minutos.");
-        }
-        const ok = await verificarSecreto(password, a.password_hash);
-        await tx.$executeRaw`SELECT fn_auth_admin_resultado(${a.id}::uuid, ${ok}, ${ip}::inet)`;
-        if (!ok) return credencialesInvalidas("Correo o contraseña incorrectos");
-        return { ok: true as const, sesion: await emitirSesion(tx, "admin", a.id), admin: { id: a.id, nombre: a.nombre } };
     });
 }
 
@@ -157,14 +130,13 @@ export interface LoginAlumno {
     sesion: SesionEmitida;
     alumno: { id: string; nombre: string; avatar: string };
     sesionId: string;
-    camaraPermitida: boolean;
 }
 
 export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknown, ip: string | null): Promise<LoginAlumno | Fallo> {
     const pinTexto = pinATexto(pin);
     return conContexto(null, async (tx) => {
         const [a] = await tx.$queryRaw<
-            { id: string; nombre: string; avatar: string; pin_hash: string | null; bloqueado_hasta: Date | null; consentimiento: boolean; acepta_camara: boolean }[]
+            { id: string; nombre: string; avatar: string; pin_hash: string | null; bloqueado_hasta: Date | null; consentimiento: boolean }[]
         >`SELECT * FROM fn_auth_alumno(${grupoId}::uuid, ${alumnoId}::uuid)`;
         if (!a) return credencialesInvalidas("No encontramos a ese alumno en el grupo");
         if (a.bloqueado_hasta && a.bloqueado_hasta > new Date()) {
@@ -175,7 +147,7 @@ export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknow
             await tx.$queryRaw`SELECT fn_auth_alumno_resultado(${a.id}::uuid, false, ${ip}::inet)`;
             return credencialesInvalidas("¡Casi! Esa no es tu clave. Intenta otra vez.");
         }
-        // ADR-009: sin consentimiento vigente del tutor no se entra
+        // RC-08, RNF-10: sin consentimiento vigente del tutor no se entra
         if (!a.consentimiento) {
             return {
                 ok: false as const,
@@ -190,7 +162,6 @@ export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknow
             sesion: await emitirSesion(tx, "alumno", a.id),
             alumno: { id: a.id, nombre: a.nombre, avatar: a.avatar },
             sesionId: sesion_id,
-            camaraPermitida: a.acepta_camara,
         };
     });
 }
@@ -200,11 +171,11 @@ export async function loginAlumno(grupoId: string, alumnoId: string, pin: unknow
 export async function usuarioDeToken(token: string | undefined): Promise<UsuarioSesion | null> {
     if (!token) return null;
     const [s] = await conContexto(null, (tx) =>
-        tx.$queryRaw<{ rol: Rol; usuario_id: string; nombre: string; grupo_id: string | null; acepta_camara: boolean }[]>`
+        tx.$queryRaw<{ rol: Rol; usuario_id: string; nombre: string; grupo_id: string | null }[]>`
             SELECT * FROM fn_sesion_auth(${hashToken(token)})`);
     if (!s) return null;
     return s.rol === "alumno"
-        ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id ?? undefined, aceptaCamara: s.acepta_camara }
+        ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id ?? undefined }
         : { id: s.usuario_id, nombre: s.nombre, rol: s.rol };
 }
 

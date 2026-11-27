@@ -1,4 +1,5 @@
-// P-SEC-04 · Consentimiento del tutor: OTP, aceptar, cámara separada, revocar, ARCO, renovar enlace.
+// P-SEC-04 · Consentimiento del tutor (RC-08, RNF-10): OTP, aceptar (incluye la cámara, A-41), revocar y
+// renovar el enlace. Sin ARCO ni auditoría: RC-07 está fuera del MVP.
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loginAlumno, registrarDocente, usuarioDeToken } from "../../apps/api/src/modules/core/auth";
@@ -10,11 +11,10 @@ import {
     enviarInvitacion,
     renovarInvitacion,
     revocarConsentimiento,
-    solicitarArco,
     verConsentimiento,
 } from "../../apps/api/src/modules/core/consentimiento";
 import { crearAlumno, crearGrupo } from "../../apps/api/src/modules/docente/grupos";
-import { sql } from "./fixture";
+import { enTransaccion, sql } from "./fixture";
 
 beforeEach(() => {
     bandejaMemoria.length = 0;
@@ -41,13 +41,13 @@ async function codigo(token: string): Promise<string> {
     return correo.texto.match(/\b(\d{6})\b/)![1];
 }
 
-const datos = (otp: string, aceptaCamara = false) => ({ otp, tutorNombre: "Rosa Vázquez", parentesco: "madre", aceptaCamara });
+const datos = (otp: string) => ({ otp, tutorNombre: "Rosa Vázquez", parentesco: "madre" });
 
 describe("vista pública del enlace", () => {
     it("muestra datos mínimos (sin apellidos) y el correo enmascarado", async () => {
         const inv = await invitacion();
         const v = await verConsentimiento(inv.token);
-        expect(v).toMatchObject({ alumno: "Emilia", grupo: "4B", docente: "Docente Tutor", estado: "pendiente", aceptaCamara: false });
+        expect(v).toMatchObject({ alumno: "Emilia", grupo: "4B", docente: "Docente Tutor", estado: "pendiente" });
         expect(v!.correo).toMatch(/^r\*+\w@correo\.mx$/);
         expect(JSON.stringify(v)).not.toContain("Vázquez");
         expect(JSON.stringify(v)).not.toContain(inv.tutorEmail);
@@ -79,19 +79,31 @@ describe("código de verificación (OTP)", () => {
     });
 });
 
-describe("aceptar, cámara separada y revocar (EXP-01.5, HU-03)", () => {
-    it("sin consentimiento no entra; al aceptar sin cámara entra con la cámara desactivada", async () => {
+describe("aceptar y revocar (EXP-01.5, HU-03)", () => {
+    it("sin consentimiento no entra; al aceptar entra y el consentimiento cubre la cámara", async () => {
         const inv = await invitacion();
-        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ code: "CONSENTIMIENTO_REQUERIDO" });
+        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ code: "CONSENTIMIENTO_REQUERIDO", status: 403 });
 
-        expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token), false), "10.0.0.1")).toBe("ok");
-        expect(await verConsentimiento(inv.token)).toMatchObject({ estado: "vigente", aceptaCamara: false, parentesco: "madre" });
-        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ ok: true, camaraPermitida: false });
+        expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), "10.0.0.1")).toBe("ok");
+        expect(await verConsentimiento(inv.token)).toMatchObject({ estado: "vigente", parentesco: "madre" });
+        const [c] = await sql`SELECT acepta_plataforma, acepta_camara, metodo_verificacion, host(ip) AS ip FROM consentimiento_tutor WHERE alumno_id = ${inv.alumnoId}`;
+        expect(c).toEqual({ acepta_plataforma: true, acepta_camara: true, metodo_verificacion: "email_otp", ip: "10.0.0.1" });
+        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ ok: true });
 
-        // El tutor cambia de opinión sobre la cámara sin revocar la plataforma, aun con el enlace vencido
+        // Ya aceptado, puede volver a aceptar (p. ej. un aviso nuevo) aun con el enlace vencido
         await sql`UPDATE consentimiento_tutor SET token_expira_en = now() - interval '1 day' WHERE alumno_id = ${inv.alumnoId}`;
-        expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token), true), null)).toBe("ok");
-        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ ok: true, camaraPermitida: true });
+        expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null)).toBe("ok");
+    });
+
+    it("un aviso de privacidad nuevo deja el consentimiento por renovar y bloquea la entrada", async () => {
+        const inv = await invitacion();
+        await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null);
+        // Dentro de una transacción revertida: el aviso nuevo no debe afectar a las demás pruebas
+        await enTransaccion(async (tx) => {
+            expect((await tx`SELECT vigente FROM fn_consentimiento_vigente(${inv.alumnoId}::uuid)`)[0].vigente).toBe(true);
+            await tx`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v-prueba', now(), '/privacidad')`;
+            expect((await tx`SELECT vigente FROM fn_consentimiento_vigente(${inv.alumnoId}::uuid)`)[0].vigente).toBe(false);
+        });
     });
 
     it("un enlace vencido no sirve para aceptar por primera vez", async () => {
@@ -101,7 +113,7 @@ describe("aceptar, cámara separada y revocar (EXP-01.5, HU-03)", () => {
         expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null)).toBe("token_vencido");
     });
 
-    it("revocar cierra la sesión activa, registra la solicitud de borrado y el docente puede reinvitar", async () => {
+    it("revocar cierra la sesión activa y el docente puede reinvitar", async () => {
         const inv = await invitacion();
         await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null);
         const login = await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null);
@@ -112,8 +124,7 @@ describe("aceptar, cámara separada y revocar (EXP-01.5, HU-03)", () => {
         expect(await usuarioDeToken(login.sesion.token)).toBeNull();
         expect((await verConsentimiento(inv.token))!.estado).toBe("revocado");
         expect(await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null)).toBe("revocado");
-        const [s] = await sql`SELECT tipo, atendida_en FROM solicitud_arco WHERE alumno_id = ${inv.alumnoId}`;
-        expect(s).toEqual({ tipo: "revocacion", atendida_en: null });
+        expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ code: "CONSENTIMIENTO_REQUERIDO" });
 
         // Reinvitación: nuevo enlace, el viejo deja de servir para aceptar
         const nueva = await conContexto(inv.ctx, (tx) => renovarInvitacion(tx, inv.alumnoId));
@@ -123,16 +134,13 @@ describe("aceptar, cámara separada y revocar (EXP-01.5, HU-03)", () => {
         expect(await loginAlumno(inv.grupo.id, inv.alumnoId, ["sol", "sol", "sol", "sol"], null)).toMatchObject({ ok: true });
     });
 
-    it("solicitud ARCO y auditoría de cada evento", async () => {
+    it("el docente ve el estado del consentimiento pero no puede aceptarlo por el tutor", async () => {
         const inv = await invitacion();
-        await aceptarConsentimiento(inv.token, datos(await codigo(inv.token)), null);
-        expect(await solicitarArco(inv.token, await codigo(inv.token), "acceso", "Quiero saber qué datos tienen", null)).toBe("ok");
-        const solicitudes = await sql`SELECT tipo, detalle FROM solicitud_arco WHERE alumno_id = ${inv.alumnoId}`;
-        expect(solicitudes).toEqual([{ tipo: "acceso", detalle: "Quiero saber qué datos tienen" }]);
-        const eventos = await sql`SELECT accion FROM auditoria_acceso WHERE recurso_id = ${inv.alumnoId} ORDER BY id`;
-        expect(eventos.map((e) => e.accion)).toEqual(["consentimiento", "arco"]);
-        // El docente del grupo ve la solicitud
-        expect(await conContexto(inv.ctx, (tx) => tx.$queryRaw<unknown[]>`SELECT tipo FROM solicitud_arco WHERE alumno_id = ${inv.alumnoId}::uuid`)).toHaveLength(1);
+        const filas = await conContexto(inv.ctx, (tx) =>
+            tx.$queryRaw<{ aceptado_en: Date | null }[]>`SELECT aceptado_en FROM consentimiento_tutor WHERE alumno_id = ${inv.alumnoId}::uuid`);
+        expect(filas).toEqual([{ aceptado_en: null }]);
+        await expect(conContexto(inv.ctx, (tx) =>
+            tx.$executeRaw`UPDATE consentimiento_tutor SET aceptado_en = now() WHERE alumno_id = ${inv.alumnoId}::uuid`)).rejects.toThrow();
     });
 
     it("otro docente no puede generar enlaces para alumnos ajenos", async () => {

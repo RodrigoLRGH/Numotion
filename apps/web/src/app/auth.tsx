@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../shared/cliente/api";
 
-export type Rol = "docente" | "alumno" | "admin";
+export type Rol = "docente" | "alumno";
 
 export interface Usuario {
     id: string;
@@ -15,7 +15,7 @@ export interface Usuario {
 export interface Sesion {
     estado: "cargando" | "listo";
     usuario: Usuario | null;
-    camaraPermitida: boolean;
+    /** RC-08: el alumno solo tiene sesión con consentimiento vigente del tutor */
     consentimientoVigente: boolean;
     /** Diagnósticos del día del alumno */
     sesion: { panasCompleto: boolean; diagnosticoCompleto: boolean };
@@ -29,7 +29,6 @@ interface ContextoAuth extends Sesion {
 const inicial: Sesion = {
     estado: "cargando",
     usuario: null,
-    camaraPermitida: false,
     consentimientoVigente: false,
     sesion: { panasCompleto: false, diagnosticoCompleto: false },
 };
@@ -38,7 +37,6 @@ const Contexto = createContext<ContextoAuth | null>(null);
 
 interface RespuestaSesion {
     usuario: Usuario | null;
-    camaraPermitida?: boolean;
     consentimientoVigente?: boolean;
     sesion?: Sesion["sesion"];
 }
@@ -52,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setEstado({
                 estado: "listo",
                 usuario: r.usuario,
-                camaraPermitida: Boolean(r.camaraPermitida),
                 consentimientoVigente: (r.usuario !== null && r.usuario.rol !== "alumno") || Boolean(r.consentimientoVigente),
                 sesion: r.sesion ?? inicial.sesion,
             });

@@ -341,7 +341,8 @@ export function generarIncompleta(
     };
 }
 
-const RANGOS_NUMEROS: [number, number][] = [[0, 20], [21, 100], [101, 999], [1000, 9999], [10000, 999999]];
+// Acorde a alumnos de 8 a 10 años: las 3 cifras se reparten en dos niveles y el máximo es 9,999
+const RANGOS_NUMEROS: [number, number][] = [[0, 20], [21, 100], [101, 500], [501, 999], [1000, 9999]];
 
 /** Números por ejercicio de escritura (RF-39: una serie, cada uno con su campo). */
 export const NUMEROS_POR_SERIE = 3;
@@ -368,9 +369,9 @@ function generarEscritura(nivel: number, rng: Rng): Ejercicio {
     };
 }
 
-function generarIdentificar(nivel: number, rng: Rng): Ejercicio {
+/** `cantidad` fija el número de opciones (el diagnóstico usa 4); por omisión, la cuadrícula crece con el nivel. */
+export function generarIdentificar(nivel: number, rng: Rng, cantidad = [6, 6, 9, 9, 12][limitarNivel(nivel) - 1]): Ejercicio {
     const [min, max] = RANGOS_NUMEROS[limitarNivel(nivel) - 1];
-    const cantidad = [6, 6, 9, 9, 12][limitarNivel(nivel) - 1];
     const usados = new Set<number>();
     // Números no consecutivos entre sí (RF-40)
     let guardia = 0;

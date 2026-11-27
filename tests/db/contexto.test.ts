@@ -19,11 +19,14 @@ describe("conContexto (ADR-003)", () => {
     });
 
     it("revierte todo si la función falla", async () => {
+        const email = `revierte-${Date.now()}@escuela.mx`;
         await expect(
             conContexto(null, async (tx) => {
-                await tx.$executeRaw`SELECT fn_auditar(NULL, NULL, 'login')`;
+                await tx.$executeRaw`SELECT fn_registrar_docente('Revierte', ${email}::citext, 'h')`;
                 throw new Error("falla");
             }, app),
         ).rejects.toThrow("falla");
+        const quedo = await conContexto(null, (tx) => tx.$queryRaw<unknown[]>`SELECT * FROM fn_auth_docente(${email}::citext)`, app);
+        expect(quedo).toHaveLength(0);
     });
 });

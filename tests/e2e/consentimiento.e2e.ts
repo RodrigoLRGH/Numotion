@@ -1,5 +1,6 @@
-// P-E2E-01 (paso de consentimiento) y P-SEC-04 en navegador: el docente da de alta, el tutor recibe
-// el correo, verifica con el código, decide plataforma/cámara, y después retira el permiso.
+// P-E2E-01 (paso de consentimiento) y P-SEC-04 en navegador (RC-08, RNF-10): el docente da de alta, el
+// tutor recibe el correo, verifica con el código, autoriza la plataforma (incluye la cámara, A-41) y
+// después retira el permiso.
 // Lee los correos que escribe CORREO_PROVEEDOR=archivo en CORREO_DIR (tmp/correos).
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
@@ -36,7 +37,7 @@ async function sinViolacionesSerias(page: Page) {
     expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
 }
 
-test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso", async ({ page, browser }) => {
+test("tutor: recibe la invitación, acepta y luego retira el permiso", async ({ page, browser }) => {
     test.setTimeout(90_000);
     const sufijo = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
     const tutor = `tutor.${sufijo}@ejemplo.mx`;
@@ -69,16 +70,15 @@ test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso
     const otp = await codigoNuevo(t, tutor);
     await t.getByLabel("Parentesco").selectOption("madre");
     await t.getByLabel(/autorizo que tomás use la plataforma/i).check();
-    await expect(t.getByLabel(/autorizo la cámara/i)).not.toBeChecked();
+    await expect(t.getByLabel(/autorizo la cámara/i)).toHaveCount(0); // la cámara va incluida
     await t.getByLabel("Código de 6 dígitos").fill(otp);
     await t.screenshot({ path: "test-results/capturas/09-tutor.png", fullPage: true });
     await t.getByRole("button", { name: /guardar mi decisión/i }).click();
-    await expect(t.getByText(/ya puede usar la plataforma sin cámara/i)).toBeVisible();
+    await expect(t.getByText(/ya puede usar la plataforma\./i)).toBeVisible();
 
-    // 3. Ahora el alumno sí entra, sin cámara
+    // 3. Ahora el alumno sí entra
     const login = await entrar();
     expect(login.status()).toBe(200);
-    expect((await login.json()).camaraPermitida).toBe(false);
     expect((await req.get("/api/v1/alumno/diagnostico/panas")).status()).toBe(200);
 
     // 4. El tutor retira el permiso → la sesión del alumno se cierra en el siguiente request
@@ -88,6 +88,7 @@ test("tutor: recibe la invitación, acepta sin cámara y luego retira el permiso
     await t.getByLabel("Código de 6 dígitos").fill(otp2);
     await t.getByRole("button", { name: /sí, retirar el permiso/i }).click();
     await expect(t.getByText(/retiraste el permiso/i)).toBeVisible();
+    await expect(t.getByRole("button", { name: /arco/i })).toHaveCount(0); // RC-07 fuera del MVP
     expect((await req.get("/api/v1/alumno/diagnostico/panas")).status()).toBe(401);
 
     // 5. El docente ve el estado y puede generar un enlace nuevo

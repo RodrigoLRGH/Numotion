@@ -1,7 +1,9 @@
-// Flujo público del consentimiento del tutor (T-03-01-10, ADR-009). El tutor no tiene cuenta:
-// el token del enlace identifica el consentimiento y un OTP enviado a su correo prueba que es él.
+// Flujo público del consentimiento del tutor (RC-08, RNF-10, T-03-01-10, ADR-009). El tutor no tiene
+// cuenta: el token del enlace identifica el consentimiento y un OTP enviado a su correo prueba que es él.
+// La cámara se usa con todos los alumnos (A-41): aceptar la plataforma incluye la detección emocional.
+// Sin solicitudes ARCO (RC-07 fuera del MVP).
 import { createHash, randomInt } from "node:crypto";
-import { enmascararCorreo, estadoConsentimiento, type EstadoConsentimiento, type TipoArco } from "@numotion/core/dominio/consentimiento";
+import { enmascararCorreo, estadoConsentimiento, type EstadoConsentimiento } from "@numotion/core/dominio/consentimiento";
 import { NOMBRE_PRODUCTO } from "@numotion/core/marca";
 import { hashToken, nuevoToken } from "./auth";
 import { proveedorCorreo } from "../../infra/correo";
@@ -22,7 +24,6 @@ export interface VistaConsentimiento {
     parentesco: string | null;
     correo: string;
     estado: EstadoConsentimiento;
-    aceptaCamara: boolean;
     aviso: { version: string | null; url: string | null };
 }
 
@@ -61,7 +62,6 @@ export async function verConsentimiento(token: string): Promise<VistaConsentimie
             versionVigente: c.version_vigente,
             tokenExpiraEn: c.token_expira_en,
         }),
-        aceptaCamara: c.acepta_plataforma && c.acepta_camara,
         aviso: { version: c.version_vigente, url: c.aviso_url },
     };
 }
@@ -85,26 +85,18 @@ export type Resultado = "ok" | "token_invalido" | "token_vencido" | "revocado" |
 
 export async function aceptarConsentimiento(
     token: string,
-    d: { otp: string; tutorNombre: string; parentesco: string; aceptaCamara: boolean },
+    d: { otp: string; tutorNombre: string; parentesco: string },
     ip: string | null,
 ): Promise<Resultado> {
     const tokenHash = hashToken(token);
     const [{ r }] = await conContexto(null, (tx) => tx.$queryRaw<{ r: Resultado }[]>`
-        SELECT fn_consentimiento_aceptar(${tokenHash}, ${hashOtp(tokenHash, d.otp)}, ${d.tutorNombre}, ${d.parentesco},
-                                         ${d.aceptaCamara}, ${ip}::inet) AS r`);
+        SELECT fn_consentimiento_aceptar(${tokenHash}, ${hashOtp(tokenHash, d.otp)}, ${d.tutorNombre}, ${d.parentesco}, ${ip}::inet) AS r`);
     return r;
 }
 
 export async function revocarConsentimiento(token: string, otp: string, ip: string | null): Promise<Resultado> {
     const tokenHash = hashToken(token);
     const [{ r }] = await conContexto(null, (tx) => tx.$queryRaw<{ r: Resultado }[]>`SELECT fn_consentimiento_revocar(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${ip}::inet) AS r`);
-    return r;
-}
-
-export async function solicitarArco(token: string, otp: string, tipo: TipoArco, detalle: string, ip: string | null): Promise<Resultado> {
-    const tokenHash = hashToken(token);
-    const [{ r }] = await conContexto(null, (tx) =>
-        tx.$queryRaw<{ r: Resultado }[]>`SELECT fn_consentimiento_arco(${tokenHash}, ${hashOtp(tokenHash, otp)}, ${tipo}::tipo_arco, ${detalle}, ${ip}::inet) AS r`);
     return r;
 }
 

@@ -1,0 +1,23 @@
+CP55 · RC-02 · Verificación del despliegue en Vercel — 2026-11-27T09:32Z
+
+== GET https://numotion.vercel.app/api/v1/catalogo/temas
+HTTP 200 en 1.409569s
+
+== Cabeceras de https://numotion.vercel.app/
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+Permissions-Policy: camera=(self), microphone=(), geolocation=()
+Server: Vercel
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Frame-Options: DENY
+X-Vercel-Id: cle1::b5p5x-1795771967333-ac948091e942
+
+== http:// redirige a https://
+HTTP 308 -> https://numotion.vercel.app/
+
+== SPA: ruta del alumno sirve index.html
+HTTP 200 text/html; charset=utf-8
+
+== Latencia en producción (20 peticiones de solo lectura c/u)
+catalogo/temas n=20 p50=0.302s p95=0.326s max=0.414s
+auth/sesion n=20 p50=0.293s p95=0.319s max=0.390s

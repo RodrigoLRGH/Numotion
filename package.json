@@ -16,11 +16,9 @@
     "test:db": "vitest run --project db",
     "test:e2e": "playwright test",
     "db:migrar": "node --env-file-if-exists=.env scripts/migrar.mjs",
-    "db:purgar": "node --env-file-if-exists=.env scripts/purgar.mjs",
-    "admin:crear": "node --env-file-if-exists=.env scripts/crear-admin.mjs",
     "db:seed": "node --env-file-if-exists=.env scripts/migrar.mjs --seed",
-    "correo:probar": "node --env-file-if-exists=.env scripts/probar-correo.mjs",
-    "db:pull": "node --env-file-if-exists=.env scripts/prisma-pull.mjs"
+    "db:pull": "node --env-file-if-exists=.env scripts/prisma-pull.mjs",
+    "correo:probar": "node --env-file-if-exists=.env scripts/probar-correo.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",

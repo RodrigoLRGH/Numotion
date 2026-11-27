@@ -65,7 +65,7 @@ Reglas para escribir consultas: ver el encabezado de `apps/api/src/infra/db.ts` 
    - `DATABASE_URL` = conexión **pooled** con el rol `numotion_app` + `?pgbouncer=true&connection_limit=1`
    - `NODE_ENV=production`, `WEB_ORIGIN=https://<tu-dominio>`
    - `CORREO_PROVEEDOR=smtp`, `SMTP_USUARIO`, `SMTP_PASSWORD`, `MAIL_FROM` (ver «Correo»)
-   - `EMOTION_PROVIDER` y `AWS_REGION` cuando se active la cámara (EXP-05)
+   - `EMOTION_PROVIDER` y `AWS_REGION` para la detección emocional con la cámara (EXP-05)
 5. **Despliegue de prueba:** `npx vercel` (preview). Comprueba `/api/v1/catalogo/temas` (200 con temas) y el registro de un docente.
 6. **Producción:** `npx vercel --prod`.
 

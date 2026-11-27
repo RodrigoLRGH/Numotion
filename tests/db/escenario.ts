@@ -8,7 +8,7 @@ import { crearActividad } from "../../apps/api/src/modules/docente/actividades";
 import { registrarIntento, siguienteEjercicio, type ResultadoIntento } from "../../apps/api/src/modules/alumno/motor";
 import { sql } from "./fixture";
 
-export async function escenarioCompleto(opciones: { num?: number; alumnos?: number; tema?: string; tipo?: string; camara?: boolean } = {}) {
+export async function escenarioCompleto(opciones: { num?: number; alumnos?: number; tema?: string; tipo?: string } = {}) {
     await sql`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', now() - interval '1 day', '/privacidad') ON CONFLICT DO NOTHING`;
     const { docente } = await registrarDocente("Docente Escenario", `esc-${randomUUID()}@escuela.mx`, "contraseña-segura");
     const ctxD: Contexto = { rol: "docente", id: docente.id };
@@ -20,7 +20,7 @@ export async function escenarioCompleto(opciones: { num?: number; alumnos?: numb
         ids.push(r.alumno.id);
     }
     // Consentimiento aceptado (como si el tutor ya hubiera confirmado), perfil y sesión del día
-    await sql`UPDATE consentimiento_tutor SET acepta_plataforma = true, acepta_camara = ${opciones.camara ?? true}, aceptado_en = now()
+    await sql`UPDATE consentimiento_tutor SET acepta_plataforma = true, acepta_camara = true, aceptado_en = now()
                WHERE alumno_id = ANY(${ids}::uuid[])`;
     await sql`INSERT INTO perfil_gamificacion (alumno_id) SELECT unnest(${ids}::uuid[]) ON CONFLICT DO NOTHING`;
     const sesiones: string[] = [];

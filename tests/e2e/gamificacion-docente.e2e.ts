@@ -1,14 +1,9 @@
 // P-E2E-01 (panel, práctica libre y perfil del alumno, EXP-06), P-E2E-04 (cámara: indicador y
-// fotogramas sin guardar imágenes, EXP-05.1), P-E2E-02/03 (panel docente con resumen previo y
-// alerta con guía, ficha y reporte, EXP-07) y P-A11Y-01 (axe sin violaciones serias).
+// fotogramas sin guardar imágenes, EXP-05.1), P-E2E-02/03 (panel docente con resumen previo,
+// ficha y reporte, EXP-07) y P-A11Y-01 (axe sin violaciones serias). La cámara simulada y su
+// permiso vienen de playwright.config.ts.
 import { expect, test } from "@playwright/test";
 import { captura, owner, preparar, respuestaCorrecta, sinViolacionesSerias } from "./alumno-listo";
-
-// Cámara simulada de Chromium y permiso concedido
-test.use({
-    launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
-    permissions: ["camera"],
-});
 
 test("alumno: panel con racha y mensaje, juego de práctica libre completo y perfil con insignias", async ({ page }) => {
     test.setTimeout(90_000);
@@ -47,9 +42,9 @@ test("alumno: panel con racha y mensaje, juego de práctica libre completo y per
     await captura(page, "alumno-perfil");
 });
 
-test("alumno con cámara autorizada: indicador visible y solo se guarda la emoción derivada", async ({ page }) => {
+test("alumno con cámara: indicador visible y solo se guarda la emoción derivada", async ({ page }) => {
     test.setTimeout(60_000);
-    const { alumnoId } = await preparar(page, [{ nombre: "Con cámara", tipo: "seleccion_multiple", num: 3 }], { camara: true });
+    const { alumnoId } = await preparar(page, [{ nombre: "Con cámara", tipo: "seleccion_multiple", num: 3 }]);
     await page.goto("/alumno");
     await page.getByRole("link", { name: /empezar/i }).click();
     await respuestaCorrecta(alumnoId, "Con cámara");
@@ -60,14 +55,9 @@ test("alumno con cámara autorizada: indicador visible y solo se guarda la emoci
     await sinViolacionesSerias(page);
 });
 
-test("docente: resumen previo, ficha del alumno con alerta y guía de actuación, y reporte", async ({ page }) => {
+test("docente: resumen previo, ficha del alumno (sin alertas) y reporte", async ({ page }) => {
     test.setTimeout(60_000);
-    const { alumnoId, grupoId, docente } = await preparar(page, [{ nombre: "Restas 2", tipo: "seleccion_multiple", num: 3, tema: "resta" }]);
-    // Una alerta temprana como la que generaría el motor (EXP-05.5)
-    const [s] = await owner`SELECT s.id FROM asignacion_alumno s JOIN actividad a ON a.id = s.actividad_id WHERE s.alumno_id = ${alumnoId} AND a.nombre = 'Restas 2'`;
-    const [g] = await owner`SELECT id FROM guia_actuacion WHERE estado = 'desinteres' LIMIT 1`;
-    await owner`INSERT INTO alerta (alumno_id, docente_id, asignacion_id, indice, senales, guia_id)
-                SELECT ${alumnoId}, gr.docente_id, ${s.id}, 0.68, '{"descripcion":["3 errores seguidos"]}', ${g.id} FROM grupo gr WHERE gr.id = ${grupoId}`;
+    const { docente } = await preparar(page, [{ nombre: "Restas 2", tipo: "seleccion_multiple", num: 3, tema: "resta" }]);
     await page.context().clearCookies();
     expect((await page.request.post("/api/v1/auth/docente/login", { data: docente })).status()).toBe(200);
 
@@ -80,7 +70,6 @@ test("docente: resumen previo, ficha del alumno con alerta y guía de actuación
     await sinViolacionesSerias(page);
     await captura(page, "docente-panel");
 
-    // La alerta se atiende desde la ficha del alumno
     // Retroalimentaciones: registro del diagnóstico de hoy, su detalle y de ahí a la ficha
     await page.getByRole("link", { name: "Retroalimentaciones" }).click();
     await page.getByRole("link", { name: /Sofía/ }).first().click();
@@ -88,21 +77,15 @@ test("docente: resumen previo, ficha del alumno con alerta y guía de actuación
     await sinViolacionesSerias(page);
     await page.getByRole("link", { name: "Ver ficha del alumno" }).click();
     await expect(page.getByRole("heading", { name: /Sofía/ })).toBeVisible();
-    await page.getByRole("button", { name: "Ver guía" }).click();
-    await expect(page.getByText(/qué le está pareciendo la actividad/)).toBeVisible();
-    await page.getByLabel("Nota rápida (opcional)").fill("Le ayudé con el primer paso");
-    await page.getByRole("button", { name: /Marcar como atendida/ }).click();
+    // Sin alertas al docente (RF-16 fuera del MVP): la ficha no muestra guía ni "Marcar como atendida"
+    await expect(page.getByRole("button", { name: "Ver guía" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Marcar como atendida/ })).toHaveCount(0);
-    await page.reload();
-    await expect(page.getByText("Le ayudé con el primer paso")).toBeVisible();
     await sinViolacionesSerias(page);
     for (const pestana of ["Perfil estadístico", "Cruce emoción-desempeño", "Resultados", "Notas"]) {
         await page.getByRole("tab", { name: pestana }).click();
         await expect(page.getByRole("tab", { name: pestana })).toHaveAttribute("aria-selected", "true");
     }
     await sinViolacionesSerias(page);
-    const [aud] = await owner`SELECT count(*)::int AS n FROM auditoria_acceso WHERE accion = 'ver_alumno' AND recurso_id = ${alumnoId}`;
-    expect(aud.n).toBeGreaterThan(0);
 
     await page.getByRole("link", { name: "Reportes" }).click();
     await expect(page.getByRole("heading", { name: "Reporte" })).toBeVisible();

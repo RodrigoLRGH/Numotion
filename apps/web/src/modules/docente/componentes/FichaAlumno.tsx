@@ -1,12 +1,10 @@
 // D4 · Ficha del alumno (RF-29, RF-19, RF-52, RF-35, RF-50): resumen, perfil estadístico, cruce
 // emoción-desempeño, resultados académicos (captura + consolidado) y notas rápidas.
-// Cada apertura queda auditada en el servidor (EXP-07.2).
 import { ArrowLeft, Check, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
-import { ListaAlertas, useAlertas } from "./Alertas";
 import { AVISO_ESTIMACION, Barra, ESTADO, EtiquetaEstado, fechaCorta, fechaHora, ICONO, IconoEstado } from "./estados";
 
 interface Nota {
@@ -17,7 +15,7 @@ interface Nota {
     propia: boolean;
 }
 interface Ficha {
-    datos: { id: string; nombre: string; apellidos: string; grupo: string; grado: number; camara: boolean };
+    datos: { id: string; nombre: string; apellidos: string; grupo: string; grado: number };
     estadoEmocionalReciente: {
         estadoInicial: string | null;
         afectoPositivo: number | null;
@@ -35,7 +33,6 @@ interface Ficha {
         puntos: number;
         nivelGamificacion: number;
         racha: { actual: number; mejor: number };
-        alertasPendientes: number;
     };
 }
 interface PerfilTema {
@@ -111,7 +108,6 @@ export default function FichaAlumno({ alumnoId }: { alumnoId: string }) {
     const [ficha, setFicha] = useState<Ficha | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [pestana, setPestana] = useState<Pestana>("resumen");
-    const alertas = useAlertas();
 
     const cargar = useCallback(() => {
         api<Ficha>("GET", `/docente/alumnos/${alumnoId}`)
@@ -123,7 +119,6 @@ export default function FichaAlumno({ alumnoId }: { alumnoId: string }) {
     if (error) return <Aviso tipo="error">{error}</Aviso>;
     if (!ficha) return <p role="status">Cargando ficha…</p>;
     const e = ficha.estadoEmocionalReciente;
-    const suyas = alertas.items.filter((a) => a.alumno.id === alumnoId);
 
     return (
         <div className="flex flex-col gap-4">
@@ -137,12 +132,6 @@ export default function FichaAlumno({ alumnoId }: { alumnoId: string }) {
                     <strong>Fecha:</strong> {e.fecha ? fechaCorta(e.fecha) : "sin datos"} <EtiquetaEstado estado={e.estadoInicial} />
                 </p>
             </header>
-
-            {suyas.length > 0 && (
-                <section className="tarjeta" aria-label="Alertas del alumno">
-                    <ListaAlertas alertas={suyas} onQuitar={alertas.quitar} />
-                </section>
-            )}
 
             <div role="tablist" aria-label="Secciones de la ficha" className="flex flex-wrap gap-2">
                 {PESTANAS.map((p) => (
@@ -186,7 +175,6 @@ function ResumenFicha({ ficha, alumnoId, onNota }: { ficha: Ficha; alumnoId: str
                     <li className={PILDORA}>Resultado promedio: <strong>{d.promedioResultado ?? "—"}</strong> / 10</li>
                     <li className={PILDORA}>Puntos: <strong>{d.puntos}</strong> · nivel {d.nivelGamificacion}</li>
                     <li className={PILDORA}>Racha: <strong>{d.racha.actual}</strong> (mejor {d.racha.mejor})</li>
-                    <li className={PILDORA}>Cámara: {ficha.datos.camara ? "autorizada por el tutor" : "sin cámara (solo desempeño)"}</li>
                 </ul>
             </div>
             <div className="rounded-[2rem] bg-white p-6">

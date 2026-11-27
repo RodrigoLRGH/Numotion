@@ -1,4 +1,4 @@
-// Reglas del consentimiento del tutor (ADR-009, 03-seguridad §6).
+// Reglas del consentimiento del tutor (RC-08, RNF-10, ADR-009, 03-seguridad §6). Sin ARCO: RC-07 está fuera del MVP.
 
 export type EstadoConsentimiento = "pendiente" | "vigente" | "revocado" | "por_renovar" | "vencido";
 
@@ -25,26 +25,6 @@ export function enmascararCorreo(correo: string): string {
 }
 
 export const PARENTESCOS = ["madre", "padre", "tutor legal", "abuela", "abuelo", "otro"] as const;
-export const TIPOS_ARCO = ["acceso", "rectificacion", "cancelacion", "oposicion"] as const;
-export type TipoArco = (typeof TIPOS_ARCO)[number];
-
-/** Tipos que registra la tabla solicitud_arco (las revocaciones también se atienden ahí). */
-export type TipoSolicitudArco = TipoArco | "revocacion";
-
-export const NOMBRE_TIPO_ARCO: Record<TipoSolicitudArco, string> = {
-    acceso: "Acceso",
-    rectificacion: "Rectificación",
-    cancelacion: "Cancelación",
-    oposicion: "Oposición",
-    revocacion: "Revocación del permiso",
-};
-
-/** Solicitudes cuya atención puede incluir borrar los datos personales del alumno (fn_anonimizar_alumno). */
-export const TIPOS_ANONIMIZABLES: readonly TipoSolicitudArco[] = ["cancelacion", "oposicion", "revocacion"];
-
-/** Plazo legal para atender una solicitud ARCO (RC-07): 20 días hábiles. */
-export const PLAZO_ARCO_DIAS_HABILES = 20;
-
 /** Textos para el tutor de cada resultado de las funciones de BD. */
 export const MENSAJE_RESULTADO: Record<string, string> = {
     token_invalido: "Este enlace no es válido. Pide uno nuevo a la maestra o maestro.",

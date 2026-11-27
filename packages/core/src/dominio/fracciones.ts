@@ -8,8 +8,15 @@ const frac = (n: number, d: number) => `${n}/${d}`;
 
 /** Correcta + 3 distractores distintos (errores típicos primero). */
 function opciones(correcta: string, candidatos: string[], rng: Rng): string[] {
-    const distintos = [...new Set(candidatos.filter((c) => c !== correcta && !/^-|\/0$|^0\/0$/.test(c)))];
-    return barajar(rng, [correcta, ...barajar(rng, distintos).slice(0, 3)]);
+    const valido = (c: string) => c !== correcta && !/^-|\/0$|^0\/0$/.test(c);
+    const elegidos = barajar(rng, [...new Set(candidatos.filter(valido))]).slice(0, 3);
+    // Si los errores típicos coinciden entre sí, se completa con valores cercanos a la correcta
+    const [num, den] = correcta.split("/").map(Number);
+    for (let k = 1; elegidos.length < 3; k++) {
+        const vecinos = den ? [frac(num + k, den), frac(num - k, den)] : [String(num + k), String(num - k)];
+        for (const c of vecinos) if (elegidos.length < 3 && valido(c) && !elegidos.includes(c)) elegidos.push(c);
+    }
+    return barajar(rng, [correcta, ...elegidos]);
 }
 
 export function generarFraccion(nivel: number, interaccion: InteraccionAsignable, rng: Rng): Ejercicio {

@@ -24,7 +24,7 @@ export function LoginDocente() {
 
 export const RegistroDocente = () => <FormularioAcceso modo="registro" />;
 
-// D1 · resumen previo y alertas (EXP-07.1, EXP-05.5); D4 · ficha; D6 · reportes
+// D1 · resumen previo (EXP-07.1); D4 · ficha; D6 · reportes
 export const PanelDocente = Panel;
 export const Reportes = ReportesTemas;
 

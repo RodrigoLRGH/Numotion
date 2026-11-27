@@ -1,10 +1,10 @@
 // Rutas públicas y de sesión: autenticación (EXP-01.2), sesión para el SPA, consentimiento del
-// tutor (T-03-01-10, 05-contratos §2) y catálogos (§4.7).
+// tutor (RC-08, RNF-10, T-03-01-10, 05-contratos §2) y catálogos (§4.7). Sin ARCO (RC-07 fuera del MVP).
 import { Router } from "express";
 import { z } from "zod";
 import { normalizarCodigo } from "@numotion/core/dominio/acceso";
 import { tiposDeTema } from "@numotion/core/dominio/catalogo";
-import { MENSAJE_RESULTADO, PARENTESCOS, TIPOS_ARCO } from "@numotion/core/dominio/consentimiento";
+import { MENSAJE_RESULTADO, PARENTESCOS } from "@numotion/core/dominio/consentimiento";
 import { combinacionDisponible } from "@numotion/core/dominio/contenido";
 import { destinoTrasLogin } from "@numotion/core/guardas";
 import { conContexto } from "../../infra/db";
@@ -14,14 +14,13 @@ import {
     cerrarSesionToken,
     fijarCookieSesion,
     grupoParaEntrar,
-    loginAdmin,
     loginAlumno,
     loginDocente,
     MIN_PASSWORD_DOCENTE,
     registrarDocente,
     tokenDeCookies,
 } from "./auth";
-import { aceptarConsentimiento, enviarCodigo, revocarConsentimiento, solicitarArco, verConsentimiento } from "./consentimiento";
+import { aceptarConsentimiento, enviarCodigo, revocarConsentimiento, verConsentimiento } from "./consentimiento";
 import { contextoDe, ErrorHttp, ipDe, noEncontrado, ruta, usuarioDe, validar, type CodigoError } from "./http";
 
 export const rutasCore = Router();
@@ -40,15 +39,6 @@ rutasCore.post("/auth/docente/login", ruta(async (req, res) => {
     if (!r.ok) throw new ErrorHttp(r.status, r.code, r.message);
     fijarCookieSesion(res, r.sesion);
     res.json({ docente: r.docente, destino: destinoTrasLogin("docente", d.siguiente) });
-}));
-
-// Administrador: mismo formulario que el docente, sin registro
-rutasCore.post("/auth/admin/login", ruta(async (req, res) => {
-    const d = validar(LoginDocente, req.body);
-    const r = await loginAdmin(d.email, d.password, ipDe(req));
-    if (!r.ok) throw new ErrorHttp(r.status, r.code, r.message);
-    fijarCookieSesion(res, r.sesion);
-    res.json({ admin: r.admin, destino: destinoTrasLogin("admin", d.siguiente) });
 }));
 
 // Los alumnos los da de alta su docente, nunca por autorregistro (RC-08)
@@ -92,7 +82,7 @@ rutasCore.post("/auth/alumno/login", ruta(async (req, res) => {
     const r = await loginAlumno(d.grupoId, d.alumnoId, d.pin, ipDe(req));
     if (!r.ok) throw new ErrorHttp(r.status, r.code, r.message);
     fijarCookieSesion(res, r.sesion);
-    res.json({ alumno: r.alumno, sesion: { id: r.sesionId }, camaraPermitida: r.camaraPermitida, destino: destinoTrasLogin("alumno", d.siguiente) });
+    res.json({ alumno: r.alumno, sesion: { id: r.sesionId }, destino: destinoTrasLogin("alumno", d.siguiente) });
 }));
 
 /** Sesión actual para el AuthProvider del SPA (06-navegacion §3). Sin sesión: { usuario: null }. */
@@ -105,7 +95,6 @@ rutasCore.get("/auth/sesion", ruta(async (_req, res) => {
         usuario: { id: u.id, nombre: u.nombre, rol: u.rol, grupoId: u.grupoId },
         // La sesión del alumno solo existe con consentimiento vigente (fn_sesion_auth)
         consentimientoVigente: true,
-        camaraPermitida: Boolean(u.aceptaCamara),
         sesion: { panasCompleto: d.panas, diagnosticoCompleto: d.matematico },
     });
 }));
@@ -140,19 +129,19 @@ rutasCore.get("/consentimiento/:token", ruta(async (req, res) => {
     res.json(vista);
 }));
 
+// Aceptar la plataforma incluye la cámara durante las actividades (A-41)
 const Aceptar = z.object({
     otp: Otp,
     tutorNombre: z.string().trim().min(3).max(120),
     parentesco: z.enum(PARENTESCOS),
     aceptaPlataforma: z.literal(true),
-    aceptaCamara: z.boolean(),
 });
 
 rutasCore.post("/consentimiento/:token", ruta(async (req, res) => {
     const d = validar(Aceptar, req.body);
     const r = await aceptarConsentimiento(req.params.token, d, ipDe(req));
     if (r !== "ok") throw errorDeResultado(r);
-    res.status(201).json({ aceptado: true, aceptaCamara: d.aceptaCamara });
+    res.status(201).json({ aceptado: true });
 }));
 
 // Envía un código de 6 dígitos al correo del tutor (1 por minuto)
@@ -168,14 +157,6 @@ rutasCore.post("/consentimiento/:token/revocar", ruta(async (req, res) => {
     const r = await revocarConsentimiento(req.params.token, d.otp, ipDe(req));
     if (r !== "ok") throw errorDeResultado(r);
     res.json({ revocado: true });
-}));
-
-// Solicitud ARCO: se atiende en ≤ 20 días hábiles
-rutasCore.post("/consentimiento/:token/arco", ruta(async (req, res) => {
-    const d = validar(z.object({ otp: Otp, tipo: z.enum(TIPOS_ARCO), detalle: z.string().trim().max(1000).default("") }), req.body);
-    const r = await solicitarArco(req.params.token, d.otp, d.tipo, d.detalle, ipDe(req));
-    if (r !== "ok") throw errorDeResultado(r);
-    res.status(202).json({ registrada: true });
 }));
 
 // ───────────── Catálogos ─────────────
