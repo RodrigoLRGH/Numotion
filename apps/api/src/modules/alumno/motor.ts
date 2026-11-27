@@ -4,16 +4,16 @@
 import { decidirNivel, estadoVentana, indiceFrustracion, type MotivoAjuste } from "@numotion/core/dominio/adaptativo";
 import { semillaDeTexto, crearRng } from "@numotion/core/dominio/aleatorio";
 import type { TipoInteraccionActividad } from "@numotion/core/dominio/catalogo";
-import { clasificarError, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { clasificarError, esCorrecta, generarParaActividad, respuestaLegible } from "@numotion/core/dominio/contenido";
 import { interesPara, pedidoDeHistoria, type PedidoHistoria } from "@numotion/core/dominio/historias";
 import type { Ejercicio } from "@numotion/core/dominio/ejercicios";
 import { estrellas, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
 import { errorBd, num, Prisma, type Tx } from "../../infra/db";
-import { aEjercicio, aPublico, cargarEjercicio, insertarEjercicio, json, type EjercicioPublico, type FilaEjercicio } from "./ejercicio";
+import { aEjercicio, aPublico, cargarEjercicio, insertarEjercicio, json, MAX_INTENTOS, type EjercicioPublico, type FilaEjercicio } from "./ejercicio";
 import { evaluarFrustracion, type OfertaAyuda } from "./emociones";
 import { otorgarInsignias, sumarPuntos, type InsigniaObtenida } from "./gamificacion";
 
-export const MAX_INTENTOS = 4;
+export { MAX_INTENTOS };
 
 async function config<T>(tx: Tx, clave: string, porDefecto: T): Promise<T> {
     const c = await tx.config_adaptativa.findUnique({ where: { clave }, select: { valor: true } });
@@ -312,12 +312,8 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
     const correcta = esCorrecta(ejercicio, d.respuesta);
     const cerrado = correcta || numeroIntento >= MAX_INTENTOS;
     const conGuia = a.ayuda_actual || d.ayudaSolicitada;
-    const guia: Guia | null =
-        cerrado && !correcta
-            ? { modo: "final", pasos: fila.pasos_solucion, respuestaCorrecta: ejercicio.respuesta }
-            : !correcta && numeroIntento === 3
-              ? { modo: "paso_a_paso", pasos: fila.pasos_solucion }
-              : null;
+    // Al agotar los 3 intentos se muestra la guía paso a paso completa con la respuesta (RF-11, RF-45)
+    const guia: Guia | null = cerrado && !correcta ? { modo: "final", pasos: fila.pasos_solucion, respuestaCorrecta: respuestaLegible(ejercicio) } : null;
     const puntos = puntosPorEjercicio(correcta, numeroIntento, conGuia);
 
     // El trigger trg_intento_asignacion avanza la asignación al insertar. SAVEPOINT explícito: si el
@@ -331,7 +327,7 @@ export async function registrarIntento(tx: Tx, alumnoId: string, d: DatosIntento
                 alumno_id: alumnoId,
                 ejercicio_id: d.ejercicioId,
                 nivel: fila.nivel,
-                respuesta: json({ valor: d.respuesta.slice(0, 200) }),
+                respuesta: json({ valor: d.respuesta.slice(0, 600) }),
                 correcta,
                 tipo_error: correcta ? null : clasificarError(ejercicio, d.respuesta),
                 numero_intento: numeroIntento,

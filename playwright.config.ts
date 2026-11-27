@@ -8,7 +8,14 @@ export default defineConfig({
     fullyParallel: false,
     workers: 1,
     reporter: [["list"]],
-    use: { baseURL: "http://localhost:5173", locale: "es-MX", timezoneId: "America/Tijuana", trace: "retain-on-failure" },
+    use: {
+        baseURL: "http://localhost:5173",
+        locale: "es-MX",
+        timezoneId: "America/Tijuana",
+        trace: "retain-on-failure",
+        // RC-03: el área del alumno exige un dispositivo con cámara; Chromium simula una (sin dar permiso de usarla)
+        launchOptions: { args: ["--use-fake-device-for-media-stream"] },
+    },
     projects: [
         { name: "escritorio", use: { ...devices["Desktop Chrome"] } },
         { name: "tableta", use: { ...devices["Galaxy Tab S4"], browserName: "chromium" } },

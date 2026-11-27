@@ -7,12 +7,13 @@ import { enviarInvitacion, renovarInvitacion } from "../core/consentimiento";
 import { consulta, contextoDe, docenteDe, ErrorHttp, ipDe, noEncontrado, paramId, ruta, validar } from "../core/http";
 import { alertas, atenderAlerta, guia } from "./alertas";
 import {
-    auditarVista, borrarNota, capturarResultado, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteCsv, reporteTemas, resultados, resumenGrupo,
+    auditarVista, borrarNota, capturarResultado, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteTemas, resultados, resumenGrupo,
     serieEmocional, TIPOS_CAPTURABLES,
 } from "./seguimiento";
 import { actividadesAsignadas, crearActividad, historial, previsualizarNiveles, type DatosActividad } from "./actividades";
 import { CrearActividad, DestinoActividad, Fecha } from "./esquemas";
 import { alumnosDelGrupo, crearAlumno, crearGrupo, gruposDelDocente } from "./grupos";
+import { detalleRetroalimentacion, retroalimentacionesDelGrupo } from "./retroalimentaciones";
 
 export const rutasDocente = Router();
 
@@ -344,7 +345,7 @@ rutasDocente.get("/alumnos/:id/emociones", ruta(async (req, res) => {
 
 // ───────────── Reportes (§4.6, RF-18) ─────────────
 
-const FiltrosReporte = z.object({ desde: Fecha.optional(), hasta: Fecha.optional() });
+const FiltrosReporte = z.object({ desde: Fecha.optional(), hasta: Fecha.optional(), alumnoId: z.string().uuid().optional() });
 
 rutasDocente.get("/grupos/:id/reportes/temas", ruta(async (req, res) => {
     const id = paramId(req, "id", "Grupo no encontrado");
@@ -354,17 +355,24 @@ rutasDocente.get("/grupos/:id/reportes/temas", ruta(async (req, res) => {
     res.json({ items: r });
 }));
 
-// CSV auditado (acción "exportar", RC-07)
-rutasDocente.get("/grupos/:id/reportes/temas.csv", ruta(async (req, res) => {
-    const docente = docenteDe(res);
+// ───────────── Retroalimentaciones de diagnóstico (RF-61, RF-62) ─────────────
+
+rutasDocente.get("/grupos/:id/retroalimentaciones", ruta(async (req, res) => {
     const id = paramId(req, "id", "Grupo no encontrado");
-    const f = validar(FiltrosReporte, consulta(req));
-    const r = await conContexto(contextoDe(docente), async (tx) => {
-        const filas = await reporteTemas(tx, id, f);
-        if (filas) await auditarVista(tx, docente.id, "exportar", "reporte_temas", id, ipDe(req));
-        return filas;
-    });
+    const r = await conContexto(contextoDe(docenteDe(res)), (tx) => retroalimentacionesDelGrupo(tx, id));
     if (!r) throw noEncontrado("Grupo no encontrado");
-    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="reporte-temas-${f.desde ?? "inicio"}-${f.hasta ?? "hoy"}.csv"` });
-    res.send(reporteCsv(r));
+    res.json({ items: r });
+}));
+
+rutasDocente.get("/retroalimentaciones/:id", ruta(async (req, res) => {
+    const docente = docenteDe(res);
+    const id = paramId(req, "id", "Retroalimentación no encontrada");
+    const r = await conContexto(contextoDe(docente), async (tx) => {
+        const d = await detalleRetroalimentacion(tx, id);
+        // Muestra datos emocionales del alumno: se audita igual que la ficha (RC-07)
+        if (d) await auditarVista(tx, docente.id, "ver_alumno", "alumno", d.alumno.id, ipDe(req));
+        return d;
+    });
+    if (!r) throw noEncontrado("Retroalimentación no encontrada");
+    res.json(r);
 }));

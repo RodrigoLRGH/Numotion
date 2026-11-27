@@ -145,7 +145,7 @@ Por tema se presentan preguntas de nivel 1 a 5 de forma escalonada (inicia en 2;
 | 4 | Ejercicio **cerrado incorrecto** → **explicación final** con solución (RF-45) |
 El botón "Ayuda" abre la guía en cualquier intento (`ayuda_solicitada = true`).
 
-**Puntos por ejercicio correcto:** intento 1 = 10, intento 2 = 7, intento 3 = 5, tras guía = 3. Práctica libre completada = 5. Sin puntos negativos.
+**Puntos por ejercicio correcto:** intento 1 = 10, intento 2 = 7, intento 3 = 5, tras guía = 3 (máximo 3 intentos, RF-11). Práctica libre (RF-03, A-35): 3, 2 o 1 por respuesta correcta según el intento; completar el juego no da puntos extra. Sin puntos negativos. *(Actualizado el 2026-11-26; antes la práctica completada daba 5.)*
 
 **Nivel de gamificación:** nivel `n` requiere `50·n·(n−1)` puntos (1: 0, 2: 100, 3: 300, 4: 600, 5: 1000…), máx. 20. Cada nivel desbloquea un accesorio del personaje.
 

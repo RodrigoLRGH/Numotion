@@ -1,9 +1,10 @@
-// A7 · Perfil del alumno (RF-65): nombre, grado, grupo, personaje, nivel e insignias.
+// A7 · Perfil del alumno (RF-65), según Figma "008_Perfil": "Mi perfil", tarjetas de
+// racha y mejor racha a la derecha del nivel, y panel de insignias ("Salir" está en el encabezado).
 // Sin datos emocionales ni comparaciones con otros alumnos.
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { Icono } from "../../../shared/ui/Icono";
 import { BarraNivel, ListaInsignias, Personaje, type Gamificacion, type Insignia } from "./Gamificacion";
 
 interface Perfil {
@@ -35,24 +36,51 @@ export default function PerfilAlumno() {
 
     const g = p.gamificacion;
     return (
-        <div className="flex flex-col gap-5">
-            <section aria-labelledby="mi-perfil" className="tarjeta flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col gap-6">
+            <p aria-hidden="true" className="text-center text-2xl font-bold uppercase">Mi perfil</p>
+
+            <section aria-labelledby="mi-perfil" className="flex flex-col items-center gap-3 text-center">
                 <Personaje g={g} tamano="grande" />
-                <h1 id="mi-perfil" className="text-4xl font-extrabold">{p.nombre}</h1>
+                <h1 id="mi-perfil" className="text-4xl font-bold">{p.nombre}</h1>
                 <p className="text-xl">
                     {p.grado}.º grado · Grupo {p.grupo}
                 </p>
-                <div className="w-full max-w-md text-left">
-                    <BarraNivel g={g} />
+                {/* Nivel a la izquierda y tarjetas de racha a la derecha */}
+                <div className="mt-3 grid w-full items-stretch gap-6 md:grid-cols-2">
+                    {/* Nivel en su propia tarjeta, de la misma altura que las de racha */}
+                    <div className="flex h-full w-full items-center rounded-[2rem] bg-superficie px-6 py-5 text-left">
+                        <BarraNivel g={g} gruesa />
+                    </div>
+                    <div className="grid w-full grid-cols-2 gap-4">
+                        <section aria-labelledby="racha-titulo" className="flex flex-col items-center justify-center gap-1 rounded-[2rem] bg-acento px-4 py-5">
+                            <h2 id="racha-titulo" className="text-lg font-bold uppercase">Racha</h2>
+                            <p className="flex items-center gap-2 text-5xl font-bold">
+                                <Icono nombre="fuego" />
+                                {p.racha.actual}
+                                <span className="text-xl font-normal">{p.racha.actual === 1 ? "día" : "días"}</span>
+                            </p>
+                        </section>
+                        <section aria-labelledby="mejor-racha-titulo" className="flex flex-col items-center justify-center gap-1 rounded-[2rem] bg-acento-suave px-4 py-5">
+                            <h2 id="mejor-racha-titulo" className="text-lg font-bold uppercase">Mejor racha</h2>
+                            <p className="flex items-center gap-2 text-5xl font-bold">
+                                <Icono nombre="trofeo" />
+                                {p.racha.mejor}
+                                <span className="text-xl font-normal">{p.racha.mejor === 1 ? "día" : "días"}</span>
+                            </p>
+                        </section>
+                    </div>
                 </div>
-                <p className="text-xl">
-                    <span aria-hidden="true">🔥 </span>Mejor racha: <strong>{p.racha.mejor}</strong> {p.racha.mejor === 1 ? "día" : "días"}
-                </p>
+            </section>
+
+            {/* Panel "Insignias" en el mismo gris que la tarjeta de nivel */}
+            <section aria-labelledby="insignias-titulo" id="insignias" className="rounded-[2rem] bg-superficie p-6">
+                <h2 id="insignias-titulo" className="mb-3 text-center text-2xl font-bold">Mis insignias ({p.insignias.length})</h2>
+                <ListaInsignias obtenidas={p.insignias} pendientes={p.insigniasPorGanar} />
             </section>
 
             {g.personaje.accesorios.length > 0 && (
                 <section aria-labelledby="accesorios" className="tarjeta">
-                    <h2 id="accesorios" className="mb-3 text-2xl font-extrabold">Accesorios de tu {g.personaje.nombre}</h2>
+                    <h2 id="accesorios" className="mb-3 text-2xl font-bold">Accesorios de tu {g.personaje.nombre}</h2>
                     <ul className="flex flex-wrap gap-3">
                         {g.personaje.accesorios.map((a) => (
                             <li key={a.nivel} className="flex items-center gap-2 rounded-xl bg-acento-suave px-3 py-2">
@@ -62,15 +90,6 @@ export default function PerfilAlumno() {
                     </ul>
                 </section>
             )}
-
-            <section aria-labelledby="insignias-titulo" id="insignias" className="tarjeta">
-                <div className="mb-3 flex items-center gap-3">
-                    <h2 id="insignias-titulo" className="text-2xl font-extrabold">Mis insignias ({p.insignias.length})</h2>
-                </div>
-                <ListaInsignias obtenidas={p.insignias} pendientes={p.insigniasPorGanar} />
-            </section>
-
-            <Link to="/alumno" className="boton-secundario self-center">← Volver a mi panel</Link>
         </div>
     );
 }

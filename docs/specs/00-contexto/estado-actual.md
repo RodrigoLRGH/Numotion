@@ -6,7 +6,7 @@
 
 | Aspecto | Estado |
 |---|---|
-| Requerimientos | Matriz de clasificación v actual (37 RF, 6 RNF, 7 RI, 7 RC) |
+| Requerimientos | Matriz de clasificación actualizada el 2026-11-26 (39 RF, 6 RNF, 7 RI, 7 RC); ver §5.1 |
 | SDD y specs | v1.0 — este documento |
 | Código | Inventariado (T-00-01, 2026-10-27). Backend de dominio y API avanzados; **sin pantallas** |
 | Stack | **ADR-011**: SPA React + Vite + React Router (`apps/web`), API Express (`apps/api`), dominio compartido (`packages/core`), PostgreSQL 16 con RLS vía Prisma 6 (ADR-012), Vercel |
@@ -74,21 +74,39 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 
 | Expect | Estado | Notas |
 |---|---|---|
-| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. ✅ Flujo del tutor con OTP, revocación y ARCO (T-03-01-10/15). Correo por Google Workspace (SMTP). Faltan: atención de solicitudes ARCO (rol admin), lint de límites, logger, rate-limit por IP |
+| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. ✅ Flujo del tutor con OTP, revocación y ARCO (T-03-01-10/15). Correo por Google Workspace (SMTP). ✅ Rol administrador (migración 0013, `npm run admin:crear`, `/admin`) que atiende ARCO y revocaciones en ≤ 20 días hábiles, responde al tutor por correo y anonimiza con `fn_anonimizar_alumno`; todo auditado. ✅ RC-03: el área del alumno exige un dispositivo con cámara y, con la cámara autorizada, la actividad no sigue sin ella. Faltan: lint de límites, logger, rate-limit por IP |
 | EXP-02 Diagnósticos PANAS-C y matemático | ✅ Hecho (pendiente validar contenido) | Backend y pantallas; P-E2E-01 y axe verdes en escritorio y tableta. Falta validar contenido: T-01-03, T-01-04, A-22 |
 | EXP-03 Asignación y seguimiento | ✅ Hecho | Asistente de 3 pasos con previsualización, seguimiento con refresco y historial con filtros/cursor. Las asignaciones se completan cuando exista el motor (EXP-04) |
-| EXP-04 Motor de ejercicios y adaptación | ✅ Entrega 2 de 2 | ✅ Motor completo (nivel, puntos, guía, idempotencia, ajuste_dificultad) + Mis actividades + los 7 tipos del catálogo (selección, encuentra el número, completar operación, arrastrar, con letras, suma con figuras, colorear) + contenido provisional de geometría y fracciones (A-30) + cola sin conexión con IndexedDB (EXP-04.9, P-E2E-05, A-32). Problemas con historia de OpenAI (T-03-04-20) y precarga + code splitting de la pantalla de actividad (T-03-04-21) |
-| EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔; faltan IF según spec, SSE, guías de actuación y límite diario |
-| EXP-06 Gamificación | ✅ Hecho | Panel (personaje + accesorios por nivel, mensaje del día sin repetir, racha L–V y mejor racha), perfil sin datos emocionales, insignias del catálogo (0011) evaluadas tras cada ejercicio cerrado/práctica, práctica libre de 5 ejercicios que dispara la racha, celebraciones de insignia y nivel |
-| EXP-07 Dashboard docente, perfil y reportes | ✅ Hecho | Resumen previo por grupo (distribución, AP/AN, dominio, "sin datos hoy"), alertas en vivo, ficha auditada (resumen, perfil estadístico, cruce emoción-desempeño, resultados con captura y consolidado, notas rápidas), reporte por tema/habilidad con CSV auditado. Las habilidades usan tipo de ejercicio + nivel mientras no haya subtemas en el catálogo |
+| EXP-04 Motor de ejercicios y adaptación | ✅ Entrega 2 de 2 | ✅ Motor completo (nivel, puntos, guía, idempotencia, ajuste_dificultad; máximo 3 intentos por ejercicio, RF-11) + Mis actividades + los 7 tipos del catálogo (selección, encuentra el número, completar operación, arrastrar, con letras en serie de 3 números (RF-39), suma con figuras, colorear) + contenido provisional de geometría y fracciones (A-30) + cola sin conexión con IndexedDB (EXP-04.9, P-E2E-05, A-32). Problemas con historia de OpenAI (T-03-04-20) y precarga + code splitting de la pantalla de actividad (T-03-04-21) |
+| EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔, IF, SSE, límite diario. Guía de actuación solo para desinterés (A-34). La alerta en < 2 s de RF-16 queda fuera de esta versión (A-38) |
+| EXP-06 Gamificación | ✅ Hecho | Panel (personaje + accesorios por nivel, mensaje del día sin repetir, racha L–V y mejor racha), perfil sin datos emocionales, insignias del catálogo (0011) evaluadas tras cada ejercicio cerrado/práctica, práctica libre de 5 ejercicios que dispara la racha (temas con dominio ≤ 2 primero, con etiqueta "Recomendado", RF-03), mensaje del día con historial académico (RF-22), celebraciones de insignia y nivel |
+| EXP-07 Dashboard docente, perfil y reportes | ✅ Hecho | Resumen previo por grupo (distribución, AP/AN, dominio, "sin datos hoy"), alertas en vivo, ficha auditada (resumen, perfil estadístico, cruce diagnóstico matemático × PANAS-C por tema (RF-52), resultados con captura y consolidado, notas rápidas), pantalla Retroalimentaciones (registros por alumno y fecha y detalle del diagnóstico matemático por tema con el PANAS-C del día; reemplaza el detalle por alumno del Dashboard), reporte por tema/habilidad (ejercicios, aciertos, errores e índice de error, ordenado por índice; filtro por grupo, alumno y fecha, sin exportación; RF-18). Las habilidades usan tipo de ejercicio + nivel mientras no haya subtemas en el catálogo |
 
 Leyenda: ⬜ Pendiente · 🟨 En curso · ✅ Hecho · ⛔ Bloqueado
+
+### 5.1 Ajustes a la matriz actualizada (2026-11-26)
+
+Se revisó el código contra `requerimientos_act.pdf`. Detalle e interpretaciones en `01-analisis/requerimientos.md` (A-33 a A-40). Migración `0014_ajustes_requerimientos.sql`.
+
+| RF | Cambio aplicado |
+|---|---|
+| RF-11 | Actividades asignadas con **3 intentos** (antes 4). El 3.er fallo cierra el ejercicio con la guía y la respuesta (RF-45). Trigger `fn_intento_actualiza_asignacion` y `MAX_INTENTOS` en `apps/api/src/modules/alumno/ejercicio.ts` |
+| RF-72 | "En curso" al completarse el primer ejercicio, no con el primer intento |
+| RF-52 | `cruce()` relaciona por tema el dominio del diagnóstico matemático con el AP/AN del PANAS-C de la misma sesión; ya no usa resultados consolidados ni la cámara |
+| RF-39 | Serie de 3 números con un campo por número; respuesta como arreglo JSON (`evaluarEscritura` en `numeros.ts`) |
+| RF-03 | Práctica libre: temas con dominio ≤ 2 primero y con "Recomendado"; todos los juegos siguen disponibles. Puntos por cada respuesta correcta (3, 2 o 1 según el intento, `puntosAciertoPractica`), en lugar de 5 fijos al terminar |
+| RF-22 | Mensaje del día con historial académico (actividades, último resultado y tema, temas fuerte y por reforzar); 6 mensajes nuevos |
+| RF-27 | Solo queda la guía de desinterés; las alertas de frustración van sin guía |
+| RF-18 | Reporte solo con índice de error; se retiraron los aspectos emocionales |
+| RF-16, RF-56 | Sin cambios por decisión del equipo (A-38, A-05) |
+
+Retirados de la matriz: RF-35 y RF-44 (su funcionalidad se conserva en la app).
 
 ### Pendientes fuera del código (2026-11-06)
 - **RC-02** despliegue en AWS (T-03-01-18): requiere cuenta, credenciales y decisión de infraestructura.
 - **RNF-01/RNF-02** medición de latencia con k6 (P-PERF) y **RNF-06** prueba de usabilidad con 10 alumnos.
-- **RNF-10/RC-07/RC-08** revisión legal del aviso y del flujo de consentimiento; atención de solicitudes ARCO por un rol administrador.
-- **RC-03**: la app avisa "sin cámara" y continúa (EXP-05.1); exigir dispositivo con cámara es una decisión operativa.
+- **RNF-10/RC-07/RC-08** revisión legal del aviso de privacidad y del flujo de consentimiento (la atención ARCO por un administrador ya está en la app). Cifrado en reposo: depende de la base gestionada (RDS/KMS, RC-02).
+- **RC-03**: hecho en la app (guarda `RequireCamara` + bloqueo en la actividad). La detección es del navegador: un dispositivo sin cámara no puede comprobarse desde el servidor.
 
 ## 6. Pendientes de validación con stakeholders
 Ver `01-analisis/requerimientos.md §3` (ambigüedades A-01 a A-16). Mientras no se validen, el agente aplica la **interpretación adoptada** de esa tabla.

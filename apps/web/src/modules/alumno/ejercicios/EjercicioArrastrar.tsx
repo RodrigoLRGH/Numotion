@@ -49,12 +49,12 @@ export function EjercicioArrastrar({ ejercicio, descartadas, deshabilitado, onRe
                             onClick={() => setColocada(o)}
                             disabled={deshabilitado || descartada}
                             aria-pressed={colocada === o}
-                            className={`min-h-16 min-w-20 cursor-grab rounded-2xl border-2 px-4 text-3xl font-extrabold shadow-sm active:cursor-grabbing disabled:cursor-not-allowed ${
+                            className={`min-h-16 min-w-20 cursor-grab rounded-2xl border-2 px-4 text-3xl font-bold shadow-sm active:cursor-grabbing disabled:cursor-not-allowed ${
                                 descartada
-                                    ? "border-slate-200 bg-slate-100 text-tinta-suave line-through"
+                                    ? "border-neutro bg-slate-100 text-tinta-suave line-through"
                                     : colocada === o
                                       ? "border-marca bg-marca-suave"
-                                      : "border-slate-200 bg-white hover:border-marca"
+                                      : "border-neutro bg-white hover:border-marca"
                             }`}
                         >
                             {o}
@@ -64,7 +64,7 @@ export function EjercicioArrastrar({ ejercicio, descartadas, deshabilitado, onRe
             </div>
 
             <div className="mt-6 text-center">
-                <button type="button" className="boton min-h-14 px-8 text-2xl" disabled={!colocada || deshabilitado} onClick={() => colocada && onResponder(colocada)}>
+                <button type="button" className="boton min-w-48 uppercase" disabled={!colocada || deshabilitado} onClick={() => colocada && onResponder(colocada)}>
                     Comprobar <span aria-hidden="true">✓</span>
                 </button>
             </div>

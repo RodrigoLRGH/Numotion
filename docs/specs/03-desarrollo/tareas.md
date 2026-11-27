@@ -11,13 +11,15 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-01-05 · *(`/api/v1/auth/docente/{login,registro}`, `/api/v1/auth/logout`; bloqueo 15 min tras 10 fallos en BD; sin refresh por ADR-010; rate-limit por IP pendiente)* · `POST /auth/docente/login|refresh`, `POST /auth/logout` con rate-limit y bloqueo → P-SEC-02
 - [x] T-03-01-06 · *(`/api/v1/auth/alumno/grupo/:codigo`, `/api/v1/auth/alumno/login`)* · `GET /auth/alumno/grupo/:codigo` y `POST /auth/alumno/login` (PIN pictográfico, bloqueo 5 min tras 5 fallos, crea/reanuda `sesion_alumno`) → P-SEC-02
 - [x] T-03-01-07 · *(middleware + `decidirAcceso`; el consentimiento se verifica en cada petición dentro de `fn_sesion_auth`, sin caché)* · Middlewares `requireAuth`, `requireRole`, `requireConsent` (caché 60 s) → P-SEC-01, P-SEC-04
-- [~] T-03-01-08 · *(login, ver_alumno, exportar y acceso_denegado auditados; faltan consentimiento/ARCO desde la app)* · `core/audit` + registro en login, ficha, exportación, consentimiento, acceso denegado → P-SEC-01
+- [x] T-03-01-08 · *(login, ver_alumno, acceso_denegado, consentimiento, revocación y ARCO auditados —tutor y administrador—; la exportación CSV se retiró)* · `core/audit` + registro en login, ficha, consentimiento, acceso denegado → P-SEC-01
 - [x] T-03-01-09 · *(invitación y OTP por correo con `correo.ts`: `smtp` Google Workspace en producción, `archivo` en desarrollo, `memoria` en pruebas; `npm run correo:probar`)* · Alta de grupo (`codigoAcceso` único) y alta de alumno con envío de invitación al tutor (SES o proveedor SMTP) → P-API-08
 - [x] T-03-01-10 · *(`/api/v1/consentimiento/:token[/otp|/revocar|/arco]`, migración 0007, reenvío del docente; A-24)* · Endpoints de consentimiento: ver aviso, OTP, aceptar (plataforma/cámara), revocar, ARCO → P-SEC-04
 - [x] T-03-01-11 · *(ADR-010: `shared/cliente/api.ts`; sin refresh; la navegación la resuelve el middleware)* · Web: `AuthProvider`, `http.ts` (refresh automático, traducción de 401/403 a navegación) → P-ROUTE-01
 - [x] T-03-01-12 · *(ADR-010: guardas en servidor con `decidirAcceso`; no hay router SPA)* · Web: router y guardas `RequireRole`, `RedirectIfAuth`, `RequireConsent` → P-ROUTE-01, P-ROUTE-03
 - [x] T-03-01-13 · *(página `/login` + registro; isla `FormularioAcceso`)* · Web: `LoginDocente` → P-E2E-02
 - [x] T-03-01-14 · *(página `/entrar`, isla `EntrarAlumno`; los íconos del PIN no se leen en voz alta)* · Web: `EntrarAlumno` (código → avatar → PIN, con audio) → P-E2E-01, P-A11Y-01
+- [x] T-03-01-19 · Rol administrador: atención de ARCO/revocaciones con plazo de 20 días hábiles, respuesta al tutor y anonimización (migración 0013, `/admin`, `npm run admin:crear`) → P-SEC-07
+- [x] T-03-01-20 · RC-03: `RequireCamara` en el área del alumno y bloqueo de la actividad si la cámara autorizada no está disponible → P-COMP
 - [x] T-03-01-15 · *(página `/consentimiento/:token`, isla `ConsentimientoTutor`; el resumen del aviso es borrador hasta T-01-06)* · Web: `ConsentimientoTutor` (aviso, OTP, casillas separadas, revocar, ARCO) → P-E2E-01
 - [x] T-03-01-16 · *(CSP, HSTS en producción, Permissions-Policy, nosniff, X-Frame-Options en `cabeceras.ts`; CORS innecesario: misma origen)* · Cabeceras de seguridad: helmet, CSP, HSTS, Permissions-Policy, CORS → P-SEC-05
 - [ ] T-03-01-17 · Logger pino con redacción de PII y exclusión de body en `/emociones/frame` → P-SEC-06
@@ -100,4 +102,4 @@ Formato: `- [ ] T-03-<EXP>-<n> · descripción → archivos · pruebas`
 - [x] T-03-07-06 · `GET …/cruce` + `CruceTemaChart` → P-API-06
 - [x] T-03-07-07 · `GET/POST …/notas` + `NotaRapida` (también desde alerta) → P-API-06
 - [x] T-03-07-08 · *(sin vista materializada: el reporte se calcula en la consulta y cumple RNF-02 con el volumen actual)* · Refresco de `mv_indice_tema_grupo` (cada 15 min + al completar asignación) → P-DB-08
-- [x] T-03-07-09 · `GET …/reportes/temas` (+ CSV auditado) + página `Reportes` → P-API-05, P-PERF-02
+- [x] T-03-07-09 · `GET …/reportes/temas` (filtro por alumno; sin CSV) + página `Reportes` → P-API-05, P-PERF-02

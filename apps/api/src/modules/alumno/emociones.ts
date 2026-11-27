@@ -50,8 +50,8 @@ export async function evaluarFrustracion(tx: Tx, alumnoId: string, asignacionId:
     await tx.asignacion_alumno.update({ where: { id: a.id }, data: { if_consecutivos: decision.consecutivos, ultimo_if: indice }, select: { id: true } });
     if (!decision.crear) return { indice, ofrecerAyuda: null };
 
-    const tipoGuia = estado === "desinteres" ? "desinteres" : "frustracion";
-    const guia = await tx.guia_actuacion.findFirst({ where: { estado: tipoGuia }, select: { id: true, mensaje_alumno: true } });
+    // RF-27: solo existe la guía de actuación para el desinterés; las demás alertas van sin guía
+    const guia = estado === "desinteres" ? await tx.guia_actuacion.findFirst({ where: { estado: "desinteres" }, select: { id: true, mensaje_alumno: true } }) : null;
     const senales = { estado: fraccion === null ? null : estado, erroresConsecutivos: errores, inactividadSeg: Math.round(inactividadSeg), ayudas: a.ayuda_actual ? 1 : 0, sinCamara: fraccion === null };
     const [alerta] = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO alerta (alumno_id, docente_id, asignacion_id, indice, senales, guia_id)

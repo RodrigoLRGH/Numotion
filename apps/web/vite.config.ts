@@ -9,7 +9,7 @@ const API = process.env.API_URL ?? "http://localhost:3000";
 // entre despliegues) y los módulos por rol con su nombre, para poder comprobar que el alumno nunca
 // descarga código del docente (P-PERF-01 auxiliar).
 const VENDOR = /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/;
-const MODULO = /[\\/]src[\\/]modules[\\/](docente|alumno|publico)[\\/]/;
+const MODULO = /[\\/]src[\\/]modules[\\/](docente|alumno|admin|publico)[\\/]/;
 
 export default defineConfig({
     plugins: [react(), tailwindcss()],

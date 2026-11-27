@@ -50,15 +50,20 @@ beforeEach(() => {
 });
 
 describe("PanelDocente (D1)", () => {
-    it("resumen previo del grupo y tabla con 'sin datos hoy', sin alertas", async () => {
+    it("resumen previo del grupo y lista de estados con 'sin datos hoy', sin alertas ni detalle por alumno", async () => {
         const llamadas = servidor();
         render(<MemoryRouter><PanelDocente /></MemoryRouter>);
-        expect(await screen.findByRole("heading", { name: /Cómo llega tu grupo hoy \(2 de 3 con diagnóstico/ })).toBeInTheDocument();
-        expect(screen.getByText(/Afecto positivo promedio/)).toHaveTextContent("3.0");
-        const tabla = screen.getByRole("table");
-        const mia = within(tabla).getByRole("row", { name: /Mia T\./ });
-        expect(mia).toHaveTextContent(/sin datos hoy \(último: 1 nov/);
-        expect(within(tabla).getByRole("row", { name: /Luis R\./ })).toHaveTextContent("Frustración");
+        expect(await screen.findByRole("heading", { name: "Gráfica global" })).toBeInTheDocument();
+        expect(screen.getByText(/2 de 3 con diagnóstico/)).toBeInTheDocument();
+        // Bajo la gráfica ya no se muestran los promedios de afecto ni de dominio
+        expect(screen.queryByText(/Afecto positivo promedio/)).not.toBeInTheDocument();
+        const lista = within(screen.getByRole("region", { name: /Alumnos/ })).getAllByRole("listitem");
+        expect(lista.find((li) => li.textContent?.includes("Mia T."))).toHaveTextContent(/Sin datos hoy/);
+        expect(lista.find((li) => li.textContent?.includes("Luis R."))).toHaveTextContent("Frustración");
+        expect(screen.getByRole("link", { name: "Luis R." })).toHaveAttribute("href", "/docente/alumnos/a2");
+        // El detalle por alumno se movió a Retroalimentaciones
+        expect(screen.queryByRole("heading", { name: "Detalle por alumno" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("table")).not.toBeInTheDocument();
         expect(screen.getByText(/no sustituyen el criterio docente/)).toBeInTheDocument();
 
         // El panel ya no muestra ni consulta alertas
@@ -67,30 +72,6 @@ describe("PanelDocente (D1)", () => {
         expect(llamadas.some((l) => l.url.includes("/docente/alertas"))).toBe(false);
     });
 
-    it("AP y AN explican su significado en un tooltip (mouse, teclado y toque)", async () => {
-        servidor();
-        const u = userEvent.setup();
-        render(<MemoryRouter><PanelDocente /></MemoryRouter>);
-        const ap = await screen.findByRole("button", { name: "AP: qué significa" });
-        expect(ap).toHaveAccessibleDescription(/Afecto positivo/);
-
-        await u.hover(ap);
-        expect(screen.getByRole("tooltip")).toHaveTextContent(/emociones agradables/);
-        await u.unhover(ap);
-        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-
-        const an = screen.getByRole("button", { name: "AN: qué significa" });
-        act(() => an.focus());
-        expect(screen.getByRole("tooltip")).toHaveTextContent(/desde 3\.0/);
-        await u.keyboard("{Escape}");
-        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-
-        // Toque: se abre y no se cierra con el mismo toque; se cierra al tocar fuera
-        await u.click(an);
-        expect(screen.getByRole("tooltip")).toBeInTheDocument();
-        await u.click(document.body);
-        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    });
 });
 
 describe("FichaAlumno (D4)", () => {
@@ -167,14 +148,25 @@ describe("FichaAlumno (D4)", () => {
 });
 
 describe("Reportes (D6)", () => {
-    it("lista temas por índice y enlaza el CSV con los mismos filtros", async () => {
-        servidor({
-            "GET /api/v1/docente/grupos/g1/reportes/temas": { items: [{ temaId: "t", tema: "Resta", subtema: "Completar la operación · nivel 3", intentos: 40, indiceError: 0.42, alumnosAfectados: 9 }] },
+    it("muestra ejercicios, aciertos, errores e índice de error, sin aspectos emocionales; filtra por alumno; sin exportar CSV", async () => {
+        const llamadas = servidor({
+            "GET /api/v1/docente/grupos/g1/alumnos": { items: [{ id: "a1", nombre: "Ana", apellidos: "López" }] },
+            "GET /api/v1/docente/grupos/g1/reportes/temas": {
+                items: [
+                    { temaId: "t", tema: "Fracciones", subtema: "División de fracciones", ejercicios: 12, aciertos: 10, errores: 2, intentos: 16, indiceError: 0.13 },
+                    { temaId: "u", tema: "Resta", subtema: "Completar la operación · nivel 3", ejercicios: 3, aciertos: 2, errores: 1, intentos: 4, indiceError: 0.25 },
+                ],
+            },
         });
         render(<MemoryRouter><Reportes /></MemoryRouter>);
-        const fila = await screen.findByRole("row", { name: /Resta/ });
-        expect(fila).toHaveTextContent("42 %");
-        expect(screen.queryByText(/frustración/i)).not.toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/api/v1/docente/grupos/g1/reportes/temas.csv");
+        const fila = await screen.findByRole("row", { name: /Fracciones: División de fracciones/ });
+        const celdas = within(fila).getAllByRole("cell").map((c) => c.textContent);
+        expect(celdas).toEqual(["12", "10", "2", "13%"]);
+        expect(screen.getByRole("columnheader", { name: /Índice de error/ })).toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: /Aspectos|Positivos|Negativos/ })).toBeNull();
+        expect(screen.queryByRole("link", { name: /Exportar CSV/ })).not.toBeInTheDocument();
+
+        await userEvent.selectOptions(await screen.findByRole("combobox", { name: /Alumno/ }), await screen.findByRole("option", { name: "Ana López" }));
+        expect(llamadas.some((l) => l.url.endsWith("/reportes/temas?alumnoId=a1"))).toBe(true);
     });
 });

@@ -17,6 +17,9 @@
 | `/docente/actividades/nueva` | `NuevaActividad` (wizard 3 pasos) | docente | RF-56, RF-57 |
 | `/docente/historial` | `Historial` | docente | RF-59 |
 | `/docente/reportes` | `Reportes` | docente | RF-18 |
+| `/docente/retroalimentaciones` | `Retroalimentaciones` | docente | RF-61, RF-62 |
+| `/docente/retroalimentaciones/:retroId` | `Retroalimentacion` | docente | RF-61, RF-62 |
+| `/admin` | `SolicitudesArco` | admin | RC-07, RC-08 |
 | `/docente/alertas/:alertaId` | `DetalleAlerta` + `GuiaActuacion` | docente | RF-27 |
 | **Alumno** | | | |
 | `/alumno/entrar` | `EntrarAlumno` (código → avatar → PIN) | `RedirectIfAuth` | ADR-004 |

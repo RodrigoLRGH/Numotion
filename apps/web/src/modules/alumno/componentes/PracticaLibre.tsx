@@ -1,10 +1,12 @@
 // Práctica libre (EXP-06.6, RF-03, RF-67): el alumno elige un juego (tema × tipo), resuelve 5
-// ejercicios a su nivel del tema y al terminar gana puntos y suma racha (una vez por día hábil).
+// ejercicios a su nivel del tema, gana puntos con cada respuesta correcta y al terminar suma racha
+// (una vez por día hábil).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ErrorApi } from "../../../shared/cliente/api";
 import { coincideHash } from "../../../shared/cliente/hash";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { Icono } from "../../../shared/ui/Icono";
 import { registroEjercicios } from "../ejercicios/registro";
 import type { EjercicioPublico } from "../ejercicios/tipos";
 import { Celebracion, type Insignia } from "./Gamificacion";
@@ -17,6 +19,8 @@ interface Juego {
     tema: string;
     nombre: string;
     icono: string;
+    /** Tema con dominio bajo en el diagnóstico: aparece primero (RF-03) */
+    recomendado: boolean;
 }
 interface Practica {
     practicaId: string;
@@ -31,6 +35,9 @@ interface ResultadoIntento {
     intentosRestantes: number;
     solucion: { pasos: { orden: number; texto: string }[]; respuestaCorrecta: string } | null;
     progreso: { resueltos: number; total: number };
+    /** Puntos de esta respuesta (RF-03) */
+    puntos: number;
+    subioNivel: number | null;
 }
 interface Completada {
     puntos: number;
@@ -38,7 +45,6 @@ interface Completada {
     total: number;
     racha: { actual: number; mejor: number; incremento: boolean };
     nuevasInsignias: Insignia[];
-    subioNivel: number | null;
 }
 
 export default function PracticaLibre() {
@@ -76,18 +82,29 @@ export default function PracticaLibre() {
     return (
         <div className="flex flex-col gap-5">
             <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-extrabold"><span aria-hidden="true">🎮 </span>Jugar libre</h1>
+                <h1 className="titulo-pagina w-full"><Icono nombre="fuego" className="mr-2" />Jugar libre</h1>
             </div>
-            <p className="text-tinta-suave">Cada juego tiene 5 retos. ¡Termina uno hoy para que crezca tu racha! <span aria-hidden="true">🔥</span></p>
+            <p className="text-center text-tinta-suave">Cada juego tiene 5 retos. ¡Termina uno hoy para que crezca tu racha! <Icono nombre="fuego" /></p>
             {error && <Aviso tipo="error">{error}</Aviso>}
             {!juegos && !error && <p role="status">Cargando juegos…</p>}
             {porTema.map(([tema, lista]) => (
-                <section key={tema} aria-labelledby={`tema-${lista[0].temaClave}`} className="tarjeta">
-                    <h2 id={`tema-${lista[0].temaClave}`} className="mb-3 text-2xl font-extrabold">{tema}</h2>
+                <section
+                    key={tema}
+                    aria-labelledby={`tema-${lista[0].temaClave}`}
+                    className={`tarjeta sm:rounded-[3rem] sm:p-8 ${lista[0].recomendado ? "border-2 border-marca" : ""}`}
+                >
+                    <div className="mb-3 flex flex-wrap items-center gap-3">
+                        <h2 id={`tema-${lista[0].temaClave}`} className="text-2xl font-bold">{tema}</h2>
+                        {lista[0].recomendado && (
+                            <span className="rounded-full bg-marca px-3 py-1 text-base font-bold text-white">
+                                <span aria-hidden="true">⭐ </span>Recomendado
+                            </span>
+                        )}
+                    </div>
                     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {lista.map((j) => (
                             <li key={j.tipo}>
-                                <button type="button" className="boton-secundario w-full justify-start text-xl" disabled={cargando} onClick={() => empezar(j)}>
+                                <button type="button" className="inline-flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-full border border-tinta bg-white px-6 text-xl hover:bg-marca-tenue disabled:cursor-wait" disabled={cargando} onClick={() => empezar(j)}>
                                     <span aria-hidden="true" className="text-3xl">{j.icono}</span> {j.nombre}
                                 </button>
                             </li>
@@ -95,7 +112,6 @@ export default function PracticaLibre() {
                     </ul>
                 </section>
             ))}
-            <Link to="/alumno" className="boton-secundario self-center">← Volver a mi panel</Link>
         </div>
     );
 }
@@ -104,6 +120,9 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
     const [indice, setIndice] = useState(0);
     const [descartadas, setDescartadas] = useState<string[]>([]);
     const [retro, setRetro] = useState<"bien" | "casi" | null>(null);
+    const [puntosGanados, setPuntosGanados] = useState<number | null>(null);
+    // Nivel de gamificación alcanzado durante el juego: se celebra al terminar
+    const [nivelSubido, setNivelSubido] = useState<number | null>(null);
     const [cerrado, setCerrado] = useState(false);
     const [solucion, setSolucion] = useState<Guia | null>(null);
     const [ocupado, setOcupado] = useState(false);
@@ -131,6 +150,7 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
         setIndice((i) => i + 1);
         setDescartadas([]);
         setRetro(null);
+        setPuntosGanados(null);
         setCerrado(false);
         setSolucion(null);
         inicio.current = performance.now();
@@ -150,6 +170,8 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
                 tiempoMs: Math.round(performance.now() - inicio.current),
             });
             setRetro(r.correcta ? "bien" : "casi");
+            setPuntosGanados(r.correcta ? r.puntos : null);
+            if (r.subioNivel) setNivelSubido((n) => Math.max(n ?? 0, r.subioNivel!));
             if (!r.correcta) setDescartadas((d) => [...d, respuesta]);
             setCerrado(r.ejercicioCerrado);
             if (r.solucion) setSolucion({ modo: "final", pasos: r.solucion.pasos, respuestaCorrecta: r.solucion.respuestaCorrecta });
@@ -163,16 +185,16 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
 
     if (fin) {
         return (
-            <section className="tarjeta mx-auto max-w-xl text-center" aria-labelledby="fin-juego">
+            <section className="mx-auto max-w-2xl rounded-[3rem] bg-linear-to-r from-burbuja-inicio to-burbuja-fin px-8 py-10 text-center" aria-labelledby="fin-juego">
                 <p aria-hidden="true" className="text-7xl">🎉</p>
-                <h1 id="fin-juego" className="mt-2 text-4xl font-extrabold">¡Terminaste el juego!</h1>
+                <h1 id="fin-juego" className="mt-2 text-4xl font-bold">¡Terminaste el juego!</h1>
                 <p className="mt-2 text-2xl">Acertaste {fin.aciertos} de {fin.total}</p>
-                <p className="mt-3 text-3xl font-extrabold text-exito">+{fin.puntos} puntos</p>
+                <p className="mt-3 text-3xl font-bold text-exito">+{fin.puntos} puntos</p>
                 <p className="mt-3 text-2xl">
-                    <span aria-hidden="true">🔥 </span>
+                    <Icono nombre="fuego" className="mr-2" />
                     {fin.racha.incremento ? `¡Tu racha creció a ${fin.racha.actual} ${fin.racha.actual === 1 ? "día" : "días"}!` : fin.racha.actual > 0 ? `Racha: ${fin.racha.actual} días` : "¡Vuelve el lunes para empezar tu racha!"}
                 </p>
-                <Celebracion insignias={fin.nuevasInsignias} nivel={fin.subioNivel} />
+                <Celebracion insignias={fin.nuevasInsignias} nivel={nivelSubido} />
                 <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <button type="button" className="boton min-h-14 px-6 text-xl" onClick={onOtro}>Jugar otro <span aria-hidden="true">🎮</span></button>
                     <Link to="/alumno" className="boton-secundario min-h-14 px-6 text-xl">Volver al inicio</Link>
@@ -182,17 +204,18 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
     }
 
     return (
-        <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="enunciado-practica">
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-                <p className="font-extrabold">{practica.juego} · {practica.tema}</p>
-                <div className="h-4 min-w-32 flex-grow overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Avance del juego"
+        <section className="mx-auto flex max-w-5xl flex-col" aria-labelledby="enunciado-practica">
+            {/* Figma "006_*_Gamificacion_Racha": juego arriba, avance con contorno y enunciado centrado */}
+            <div className="mb-8 flex flex-wrap items-center gap-3">
+                <p className="text-xl"><Icono nombre="fuego" className="mr-2" /><span className="font-bold">{practica.juego}</span> · {practica.tema}</p>
+                <div className="h-3 min-w-32 flex-grow overflow-hidden rounded-full border border-tinta bg-white" role="progressbar" aria-label="Avance del juego"
                     aria-valuemin={0} aria-valuemax={practica.ejercicios.length} aria-valuenow={indice + (cerrado ? 1 : 0)}>
-                    <div className="h-full rounded-full bg-acento transition-all" style={{ width: `${((indice + (cerrado ? 1 : 0)) / practica.ejercicios.length) * 100}%` }} />
+                    <div className="h-full rounded-full bg-linear-to-r from-marca to-marca-claro transition-all" style={{ width: `${((indice + (cerrado ? 1 : 0)) / practica.ejercicios.length) * 100}%` }} />
                 </div>
                 <span className="font-bold">{indice + 1}/{practica.ejercicios.length}</span>
             </div>
-            <div className="mb-6 flex items-center justify-center gap-3 text-center">
-                <h1 id="enunciado-practica" className="text-3xl font-extrabold">{ejercicio.enunciado}</h1>
+            <div className="mb-10 flex items-center justify-center gap-3 text-center">
+                <h1 id="enunciado-practica" className="text-3xl font-bold sm:text-4xl">{ejercicio.enunciado}</h1>
             </div>
             {Componente ? (
                 <Componente key={ejercicio.id} ejercicio={ejercicio} descartadas={descartadas} deshabilitado={ocupado || cerrado} onResponder={responder} />
@@ -200,7 +223,11 @@ function Jugar({ practica, onOtro }: { practica: Practica; onOtro(): void }) {
                 <Aviso>Este juego llegará muy pronto.</Aviso>
             )}
             <div className="mt-5 min-h-14" aria-live="polite">
-                {retro === "bien" && <Aviso tipo="exito">¡Muy bien! <span aria-hidden="true">🎉</span></Aviso>}
+                {retro === "bien" && (
+                    <Aviso tipo="exito">
+                        ¡Muy bien!{puntosGanados ? ` +${puntosGanados} ${puntosGanados === 1 ? "punto" : "puntos"}` : ""} <span aria-hidden="true">🎉</span>
+                    </Aviso>
+                )}
                 {retro === "casi" && !cerrado && <Aviso>¡Casi! Intenta otra vez <span aria-hidden="true">💪</span></Aviso>}
                 {error && <Aviso tipo="error">{error}</Aviso>}
             </div>

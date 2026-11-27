@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { EjercicioPublico } from "@numotion/core/dominio/ejercicios";
 import { api, ErrorApi, irA } from "../../../shared/cliente/api";
 import { Aviso } from "../../../shared/ui/Aviso";
+import { BotonOpcion, BurbujaPregunta } from "../ejercicios/BotonOpcion";
 
 type Pregunta = EjercicioPublico & { id: string };
 type Siguiente = { pregunta: Pregunta; progreso: { temasCompletados: number; temas: number } } | { terminado: true };
@@ -68,16 +69,18 @@ export default function DiagnosticoMatematico() {
     const avance = Math.round((progreso.temasCompletados / Math.max(1, progreso.temas)) * 100);
 
     return (
-        <section className="tarjeta mx-auto max-w-3xl" aria-labelledby="enunciado">
-            <div className="mb-6 flex items-center gap-3">
-                <div className="h-4 flex-grow overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={avance} aria-label="Avance">
-                    <div className="h-full rounded-full bg-marca transition-all" style={{ width: `${avance}%` }} />
+        <section className="mx-auto flex max-w-5xl flex-col" aria-labelledby="enunciado">
+            {/* Figma "003_*_Diagnostico_Matematico" */}
+            <p aria-hidden="true" className="text-center text-2xl font-bold">Examen diagnóstico</p>
+            <div className="mx-auto mt-4 mb-10 flex w-full max-w-md items-center gap-3">
+                <div className="h-3 flex-grow overflow-hidden rounded-full border border-tinta bg-white" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={avance} aria-label="Avance">
+                    <div className="h-full rounded-full bg-linear-to-r from-marca to-marca-claro transition-all" style={{ width: `${avance}%` }} />
                 </div>
-                <span className="text-lg font-bold whitespace-nowrap">Tema {Math.min(progreso.temasCompletados + 1, progreso.temas)} de {progreso.temas}</span>
+                <span className="text-base whitespace-nowrap text-tinta-suave">Tema {Math.min(progreso.temasCompletados + 1, progreso.temas)} de {progreso.temas}</span>
             </div>
 
-            <div className="mb-6 flex items-center justify-center gap-3 text-center">
-                <h1 id="enunciado" className="text-3xl font-extrabold sm:text-4xl">{pregunta.enunciado}</h1>
+            <div className="mb-10">
+                <BurbujaPregunta id="enunciado">{pregunta.enunciado}</BurbujaPregunta>
             </div>
 
             {pregunta.expresion && <p className="mb-6 text-center font-mono text-5xl font-bold">{pregunta.expresion}</p>}
@@ -89,17 +92,9 @@ export default function DiagnosticoMatematico() {
                 </p>
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {(pregunta.opciones ?? []).map((o) => (
-                    <button
-                        key={o}
-                        type="button"
-                        disabled={ocupado}
-                        onClick={() => responder(o)}
-                        className="min-h-20 cursor-pointer rounded-2xl border-2 border-slate-200 bg-white text-3xl font-extrabold hover:border-marca hover:bg-marca-suave disabled:cursor-wait"
-                    >
-                        {o}
-                    </button>
+            <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-x-16 gap-y-8 sm:grid-cols-2">
+                {(pregunta.opciones ?? []).map((o, i) => (
+                    <BotonOpcion key={o} indice={i} valor={o} deshabilitado={ocupado} onElegir={() => responder(o)} />
                 ))}
             </div>
 

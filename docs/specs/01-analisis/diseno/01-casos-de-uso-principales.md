@@ -52,7 +52,7 @@ Actores: **Docente**, **Alumno**, **Tutor** (consentimiento), **Rekognition** (s
 **Actor:** Alumno · **RF:** RF-60, RF-64, RF-01, RF-21, RF-10, RF-39–RF-44, RF-47, RF-11, RF-45, RF-03
 **Precondición:** panel desbloqueado; asignación pendiente o en curso.
 **Flujo:** 1) El alumno abre la actividad desde su panel. 2) El sistema solicita la cámara (si hay consentimiento de cámara) e inicia CU-07a. 3) Presenta el ejercicio del nivel actual. 4) El alumno responde. 5) El sistema valida, registra intento (respuesta, correcta, tiempo, número de intento) y otorga puntos si es correcto. 6) El motor adaptativo evalúa y, si corresponde, cambia el nivel (registrando el motivo). 7) Repite hasta completar N ejercicios. 8) Marca la asignación como completada y muestra recompensa.
-**Alternos:** A1 respuesta incorrecta → retroalimentación positiva, nuevo intento. A2 3.er intento fallido o botón "Ayuda" → guía paso a paso (RF-11). A3 ejercicio cerrado sin acierto → explicación final (RF-45). A4 el alumno sale → estado `en_curso`, se retoma en el siguiente ejercicio no resuelto. A5 sin conexión → los intentos se encolan localmente y se sincronizan.
+**Alternos:** A1 respuesta incorrecta → retroalimentación positiva, nuevo intento (máximo 3 por ejercicio). A2 botón "Ayuda" → guía paso a paso (RF-11). A3 3.er intento fallido → el ejercicio se cierra con la guía paso a paso y la respuesta correcta (RF-11, RF-45). A4 el alumno sale → se retoma en el ejercicio vigente; la asignación está `en_curso` desde que completó su primer ejercicio (RF-72). A5 sin conexión → los intentos se encolan localmente y se sincronizan.
 
 ## CU-07a · Detectar emoción (incluido en CU-06)
 **Actores:** Alumno, Rekognition · **RF/RI:** RI-02, RI-06, RNF-03, RC-05
@@ -65,12 +65,12 @@ Actores: **Docente**, **Alumno**, **Tutor** (consentimiento), **Rekognition** (s
 **Paralelo en el alumno:** el sistema le pregunta "¿Quieres que te ayude?" → si acepta, abre la guía del ejercicio y baja un nivel.
 
 ## CU-08 · Consultar información del alumno
-**Actor:** Docente · **RF:** RF-29, RF-19, RF-35, RF-50, RF-52
-**Flujo:** 1) Abre la ficha del alumno. 2) Ve perfil estadístico (tiempo promedio, intentos, tipos de error, habilidades de menor dominio), estado emocional reciente, resultados consolidados por tema, cruce académico-emocional y notas. 3) Agrega una nota rápida o captura una calificación externa (tarea/trabajo/interrogación).
+**Actor:** Docente · **RF:** RF-29, RF-19, RF-50, RF-52 (RF-35 se retiró de la matriz; la captura se conserva)
+**Flujo:** 1) Abre la ficha del alumno. 2) Ve perfil estadístico (tiempo promedio, intentos, tipos de error, habilidades de menor dominio), estado emocional reciente, resultados consolidados por tema, cruce por tema entre el dominio del diagnóstico matemático y el AP/AN del PANAS-C de la misma sesión (RF-52), y notas. 3) Agrega una nota rápida o captura una calificación externa (tarea/trabajo/interrogación).
 
 ## CU-09 · Generar reportes grupales
 **Actor:** Docente · **RF:** RF-18 · **RNF:** RNF-02
-**Flujo:** 1) Elige grupo y periodo. 2) El sistema muestra temas y subtemas ordenados por índice de error y por índice de frustración. 3) Puede exportar a CSV.
+**Flujo:** 1) Elige grupo, opcionalmente un alumno, y periodo. 2) El sistema muestra por tema y subtema los ejercicios, aciertos, errores e índice de error, ordenados por índice de error (RF-18, A-39).
 
 ## CU-10 · Gamificación y práctica libre
 **Actor:** Alumno · **RF:** RF-03, RF-22, RF-63, RF-65, RF-66, RF-67, RF-68

@@ -1,7 +1,7 @@
 // P-UNIT-01 (decidirNivel, tabla 02-…§3.4), índice de frustración (§3.3), estado de ventana (§3.1) y puntos (§4)
 import { describe, expect, it } from "vitest";
 import { decidirNivel, estadoVentana, indiceFrustracion, type EntradaAdaptativa } from "@numotion/core/dominio/adaptativo";
-import { estrellas, nivelGamificacion, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
+import { estrellas, nivelGamificacion, puntosAciertoPractica, puntosPorEjercicio } from "@numotion/core/dominio/puntos";
 
 const bien = { correctoPrimerIntento: true, correcto: true, tiempoMs: 10_000 };
 const tarde = { correctoPrimerIntento: false, correcto: true, tiempoMs: 20_000 };
@@ -114,6 +114,10 @@ describe("puntos y gamificación (§4)", () => {
         expect(puntosPorEjercicio(true, 4, false)).toBe(3);
         expect(puntosPorEjercicio(true, 1, true)).toBe(3);
         expect(puntosPorEjercicio(false, 1, false)).toBe(0);
+    });
+    it("RF-03: práctica libre da 3 / 2 / 1 por respuesta correcta según el intento; 0 si falla", () => {
+        expect([1, 2, 3].map((n) => puntosAciertoPractica(true, n))).toEqual([3, 2, 1]);
+        expect(puntosAciertoPractica(false, 1)).toBe(0);
     });
     it("nivel n requiere 50·n·(n−1) puntos, máximo 20", () => {
         expect([0, 99, 100, 299, 300, 600, 1000].map(nivelGamificacion)).toEqual([1, 1, 2, 2, 3, 4, 5]);

@@ -73,3 +73,50 @@ export function coincideTolerante(respuesta: string, esperada: string): { correc
     const d = distanciaEdicion(sinEspaciosR, sinEspaciosE);
     return { correcta: d <= tolerancia, exacta: false };
 }
+
+// ───────────── Serie de números con letras (RF-39) ─────────────
+// La actividad muestra varios números, cada uno con su campo. La respuesta (esperada y del alumno)
+// viaja como arreglo JSON de textos en el mismo orden; los ejercicios antiguos de un solo número
+// guardan el texto plano y se siguen calificando igual.
+
+/** Lee una serie (arreglo JSON de textos); null si el valor no es una serie. */
+export function leerSerie(valor: string): string[] | null {
+    if (!valor.trimStart().startsWith("[")) return null;
+    try {
+        const v: unknown = JSON.parse(valor);
+        return Array.isArray(v) && v.every((x) => typeof x === "string") ? v : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Un error "de ortografía" está a pocas letras de la escritura correcta; si no, es de lectura del número. */
+const DISTANCIA_ORTOGRAFIA = 3;
+
+export interface EvaluacionEscritura {
+    correcta: boolean;
+    /** Acierto por número de la serie (un solo elemento en los ejercicios antiguos) */
+    items: boolean[];
+    /** Todos los fallos están a ≤ 3 letras de la escritura correcta */
+    soloOrtografia: boolean;
+}
+
+/** Califica la escritura con tolerancia (A-07) número por número. */
+export function evaluarEscritura(respuesta: string, esperada: string): EvaluacionEscritura {
+    const esperadas = leerSerie(esperada) ?? [esperada];
+    const serie = leerSerie(esperada) !== null;
+    const dadas = serie ? (leerSerie(respuesta) ?? []) : [respuesta];
+    const items = esperadas.map((e, i) => coincideTolerante(dadas[i] ?? "", e).correcta);
+    const soloOrtografia = esperadas.every((e, i) => {
+        if (items[i]) return true;
+        const d = distanciaEdicion(normalizarTexto(dadas[i] ?? "").replace(/ /g, ""), normalizarTexto(e).replace(/ /g, ""));
+        return (dadas[i] ?? "").trim() !== "" && d <= DISTANCIA_ORTOGRAFIA;
+    });
+    return { correcta: items.every(Boolean), items, soloOrtografia };
+}
+
+/** Texto para mostrar la respuesta correcta en la guía (la serie como lista). */
+export function escrituraLegible(esperada: string): string {
+    const serie = leerSerie(esperada);
+    return serie ? serie.join(" · ") : esperada;
+}

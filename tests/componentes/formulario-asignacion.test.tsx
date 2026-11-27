@@ -38,15 +38,15 @@ describe("FormularioAsignacion", () => {
         servidor();
         const u = userEvent.setup();
         render(<FormularioAsignacion />);
-        const tema = await screen.findByLabelText("Tema");
+        const tema = await screen.findByLabelText("Tema de la actividad");
         await vi.waitFor(() => expect(screen.getAllByRole("option", { name: "Suma" })).toHaveLength(1));
         // Grupo de 2.º: División (3.º a 6.º) no aparece
         expect(screen.queryByRole("option", { name: "División" })).toBeNull();
         expect(screen.getByRole("button", { name: /siguiente/i })).toBeDisabled();
 
-        await u.type(screen.getByLabelText("Nombre"), "Sumas 1");
+        await u.type(screen.getByLabelText("Nombre de la actividad"), "Sumas 1");
         await u.selectOptions(tema, "t-suma");
-        expect([...(screen.getByLabelText("Tipo de ejercicio") as HTMLSelectElement).options].map((o) => o.textContent)).toEqual([
+        expect([...(screen.getByLabelText("Mecánica de actividad") as HTMLSelectElement).options].map((o) => o.textContent)).toEqual([
             "Selección múltiple", "Arrastrar y soltar", "Completar la operación", "Suma con figuras",
         ]);
         expect(screen.getByRole("button", { name: /siguiente/i })).toBeEnabled();
@@ -56,9 +56,9 @@ describe("FormularioAsignacion", () => {
         const llamadas = servidor();
         const u = userEvent.setup();
         render(<FormularioAsignacion />);
-        await u.type(await screen.findByLabelText("Nombre"), "Sumas 1");
+        await u.type(await screen.findByLabelText("Nombre de la actividad"), "Sumas 1");
         await vi.waitFor(() => expect(screen.getAllByRole("option", { name: "Suma" })).toHaveLength(1));
-        await u.selectOptions(screen.getByLabelText("Tema"), "t-suma");
+        await u.selectOptions(screen.getByLabelText("Tema de la actividad"), "t-suma");
         await u.click(screen.getByRole("button", { name: /siguiente/i }));
 
         // Paso 2: los inactivos no se ofrecen
@@ -86,9 +86,9 @@ describe("FormularioAsignacion", () => {
         const llamadas = servidor();
         const u = userEvent.setup();
         render(<FormularioAsignacion />);
-        await u.type(await screen.findByLabelText("Nombre"), "Repaso");
+        await u.type(await screen.findByLabelText("Nombre de la actividad"), "Repaso");
         await vi.waitFor(() => expect(screen.getAllByRole("option", { name: "Suma" })).toHaveLength(1));
-        await u.selectOptions(screen.getByLabelText("Tema"), "t-suma");
+        await u.selectOptions(screen.getByLabelText("Tema de la actividad"), "t-suma");
         await u.click(screen.getByRole("button", { name: /siguiente/i }));
         await u.click(await screen.findByRole("button", { name: /revisar niveles/i }));
         await u.click(await screen.findByRole("button", { name: /asignar/i }));

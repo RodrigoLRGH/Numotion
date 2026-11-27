@@ -387,59 +387,75 @@ export async function capturarResultado(
 }
 
 // ───────────── Cruce académico-emocional (RF-52, EXP-07.4) ─────────────
+// Relaciona, por tema, el resultado del diagnóstico de matemáticas con el PANAS-C de la MISMA
+// sesión. Solo entran las sesiones en las que el alumno tiene ambos resultados.
+
+export interface SesionCruce {
+    fecha: string;
+    nivelDominio: number;
+    porcentajeAciertos: number;
+    afectoPositivo: number;
+    afectoNegativo: number;
+}
 
 export interface CruceTema {
     temaId: string;
     tema: string;
-    promedioAcademico: number | null;
-    porcentajeFrustracion: number | null;
-    afectoNegativoProm: number | null;
-    muestras: number;
-    /** Promedio < 6 y frustración > 30 %: dificultad académica que coincide con señales emocionales */
+    /** Sesión más reciente con diagnóstico del tema y PANAS-C */
+    ultima: SesionCruce;
+    /** Promedios de todas las sesiones con ambos resultados */
+    sesiones: number;
+    dominioPromedio: number;
+    afectoPositivoProm: number;
+    afectoNegativoProm: number;
+    /** Últimas sesiones, la más reciente primero (máx. 5) */
+    historial: SesionCruce[];
+    /** Dominio ≤ 2 con AN ≥ 3 en la última sesión: la dificultad del tema coincide con afecto negativo alto */
     coincidencia: boolean;
 }
 
-export const UMBRAL_PROMEDIO = 6;
-export const UMBRAL_FRUSTRACION = 30;
+export const UMBRAL_DOMINIO_BAJO = 2;
+export const UMBRAL_AN_ALTO = 3;
+const HISTORIAL_CRUCE = 5;
 
 export async function cruce(tx: Tx, alumnoId: string): Promise<CruceTema[] | null> {
-    const r = await resultados(tx, alumnoId);
-    if (!r) return null;
-    // Frustración: eventos con dato durante actividades del tema
-    const emociones = await tx.$queryRaw<{ tema_id: string; tema: string; con_dato: number; frustracion: number }[]>`
-        SELECT ac.tema_id, t.nombre AS tema,
-               count(*) FILTER (WHERE e.estado_derivado <> 'sin_dato')::int AS con_dato,
-               count(*) FILTER (WHERE e.estado_derivado = 'frustracion')::int AS frustracion
-          FROM evento_emocional e JOIN asignacion_alumno s ON s.id = e.asignacion_id
-          JOIN actividad ac ON ac.id = s.actividad_id JOIN tema t ON t.id = ac.tema_id
-         WHERE e.alumno_id = ${alumnoId}::uuid GROUP BY ac.tema_id, t.nombre`;
-    // AN: promedio del PANAS-C de los días en que trabajó el tema
-    const an = await tx.$queryRaw<{ tema_id: string; tema: string; an: number | null }[]>`
-        SELECT x.tema_id, t.nombre AS tema, avg(p.afecto_negativo)::float AS an FROM (
-          SELECT DISTINCT e.tema_id, (i.creado_en AT TIME ZONE 'America/Tijuana')::date AS dia
-            FROM intento_ejercicio i JOIN ejercicio e ON e.id = i.ejercicio_id WHERE i.alumno_id = ${alumnoId}::uuid) x
-          JOIN sesion_alumno s ON s.alumno_id = ${alumnoId}::uuid AND s.fecha = x.dia
-          JOIN panas_resultado p ON p.sesion_id = s.id AND p.afecto_negativo IS NOT NULL
-          JOIN tema t ON t.id = x.tema_id
-         GROUP BY x.tema_id, t.nombre`;
-    const temasIds = new Map<string, string>();
-    for (const c of r.consolidado) temasIds.set(c.temaId, c.tema);
-    for (const e of emociones) temasIds.set(e.tema_id, e.tema);
-    for (const a of an) temasIds.set(a.tema_id, a.tema);
-    return [...temasIds.entries()].map(([temaId, tema]) => {
-        const c = r.consolidado.find((x) => x.temaId === temaId);
-        const e = emociones.find((x) => x.tema_id === temaId);
-        const n = an.find((x) => x.tema_id === temaId);
-        const porcentajeFrustracion = e && e.con_dato ? Math.round((100 * e.frustracion) / e.con_dato) : null;
-        const promedioAcademico = c?.promedio ?? null;
+    if (!(await tx.alumno.findUnique({ where: { id: alumnoId }, select: { id: true } }))) return null;
+    const filas = await tx.$queryRaw<{
+        tema_id: string; tema: string; fecha: string; nivel: number; aciertos: number; total: number; ap: Prisma.Decimal; an: Prisma.Decimal;
+    }[]>`
+        SELECT d.tema_id, t.nombre AS tema, to_char(s.fecha, 'YYYY-MM-DD') AS fecha, d.nivel_dominio::int AS nivel,
+               d.aciertos::int AS aciertos, d.total::int AS total, p.afecto_positivo AS ap, p.afecto_negativo AS an
+          FROM diagnostico_mat_resultado d
+          JOIN sesion_alumno s ON s.id = d.sesion_id
+          JOIN panas_resultado p ON p.sesion_id = d.sesion_id AND p.completado_en IS NOT NULL
+                                AND p.afecto_positivo IS NOT NULL AND p.afecto_negativo IS NOT NULL
+          JOIN tema t ON t.id = d.tema_id
+         WHERE d.alumno_id = ${alumnoId}::uuid
+         ORDER BY t.orden, t.nombre, s.fecha DESC, d.creado_en DESC`;
+    const porTema = new Map<string, { tema: string; sesiones: SesionCruce[] }>();
+    for (const f of filas) {
+        const grupo = porTema.get(f.tema_id) ?? { tema: f.tema, sesiones: [] };
+        grupo.sesiones.push({
+            fecha: f.fecha,
+            nivelDominio: f.nivel,
+            porcentajeAciertos: Math.round((100 * f.aciertos) / f.total),
+            afectoPositivo: num(f.ap) ?? 0,
+            afectoNegativo: num(f.an) ?? 0,
+        });
+        porTema.set(f.tema_id, grupo);
+    }
+    return [...porTema.entries()].map(([temaId, { tema, sesiones }]) => {
+        const ultima = sesiones[0];
         return {
             temaId,
             tema,
-            promedioAcademico,
-            porcentajeFrustracion,
-            afectoNegativoProm: redondear(n?.an ?? null),
-            muestras: e?.con_dato ?? 0,
-            coincidencia: promedioAcademico !== null && porcentajeFrustracion !== null && promedioAcademico < UMBRAL_PROMEDIO && porcentajeFrustracion > UMBRAL_FRUSTRACION,
+            ultima,
+            sesiones: sesiones.length,
+            dominioPromedio: redondear(promedio(sesiones.map((x) => x.nivelDominio)), 1) ?? 0,
+            afectoPositivoProm: redondear(promedio(sesiones.map((x) => x.afectoPositivo))) ?? 0,
+            afectoNegativoProm: redondear(promedio(sesiones.map((x) => x.afectoNegativo))) ?? 0,
+            historial: sesiones.slice(0, HISTORIAL_CRUCE),
+            coincidencia: ultima.nivelDominio <= UMBRAL_DOMINIO_BAJO && ultima.afectoNegativo >= UMBRAL_AN_ALTO,
         };
     });
 }
@@ -462,44 +478,52 @@ export interface FilaReporte {
     temaId: string;
     tema: string;
     subtema: string;
+    /** Ejercicios distintos que se resolvieron (cada alumno cuenta aparte). */
+    ejercicios: number;
+    /** De esos ejercicios, los que se terminaron respondiendo bien. */
+    aciertos: number;
+    /** Intentos incorrectos. */
+    errores: number;
     intentos: number;
     indiceError: number;
     alumnosAfectados: number;
 }
 
-export async function reporteTemas(tx: Tx, grupoId: string, f: { desde?: string; hasta?: string }): Promise<FilaReporte[] | null> {
+export interface FiltrosReporte {
+    desde?: string;
+    hasta?: string;
+    alumnoId?: string;
+}
+
+export async function reporteTemas(tx: Tx, grupoId: string, f: FiltrosReporte): Promise<FilaReporte[] | null> {
     if (!(await tx.grupo.findUnique({ where: { id: grupoId }, select: { id: true } }))) return null;
     const rango = (col: Prisma.Sql) => Prisma.sql`
         ${f.desde ? Prisma.sql`AND (${col} AT TIME ZONE 'America/Tijuana')::date >= ${f.desde}::text::date` : Prisma.empty}
         ${f.hasta ? Prisma.sql`AND (${col} AT TIME ZONE 'America/Tijuana')::date <= ${f.hasta}::text::date` : Prisma.empty}`;
-    const errores = await tx.$queryRaw<{ tema_id: string; tema: string; subtema: string | null; tipo: string; nivel: number; intentos: number; errores: number; afectados: number }[]>`
+    const alumno = f.alumnoId ? Prisma.sql`AND i.alumno_id = ${f.alumnoId}::uuid` : Prisma.empty;
+    const intentos = await tx.$queryRaw<{ tema_id: string; tema: string; subtema: string | null; tipo: string; nivel: number; ejercicios: number; aciertos: number; intentos: number; errores: number; afectados: number }[]>`
         SELECT e.tema_id, t.nombre AS tema, st.nombre AS subtema, e.tipo_interaccion::text AS tipo, e.nivel::int AS nivel,
+               count(DISTINCT (i.alumno_id, i.ejercicio_id))::int AS ejercicios,
+               count(DISTINCT (i.alumno_id, i.ejercicio_id)) FILTER (WHERE i.correcta)::int AS aciertos,
                count(*)::int AS intentos, count(*) FILTER (WHERE NOT i.correcta)::int AS errores,
                count(DISTINCT i.alumno_id) FILTER (WHERE NOT i.correcta)::int AS afectados
           FROM intento_ejercicio i JOIN alumno a ON a.id = i.alumno_id
           JOIN ejercicio e ON e.id = i.ejercicio_id JOIN tema t ON t.id = e.tema_id LEFT JOIN subtema st ON st.id = e.subtema_id
-         WHERE a.grupo_id = ${grupoId}::uuid ${rango(Prisma.sql`i.creado_en`)}
+         WHERE a.grupo_id = ${grupoId}::uuid ${alumno} ${rango(Prisma.sql`i.creado_en`)}
          GROUP BY e.tema_id, t.nombre, st.nombre, e.tipo_interaccion, e.nivel`;
-    const filas = errores.map((x) => ({
-        temaId: x.tema_id,
-        tema: x.tema,
-        subtema: habilidad(x.subtema, x.tipo, x.nivel),
-        intentos: x.intentos,
-        indiceError: redondear(x.errores / x.intentos) ?? 0,
-        alumnosAfectados: x.afectados,
-    }));
+    // RF-18: temas/subtemas ordenados por índice de error (intentos incorrectos / intentos)
+    const filas = intentos.map((x) => {
+        return {
+            temaId: x.tema_id,
+            tema: x.tema,
+            subtema: habilidad(x.subtema, x.tipo, x.nivel),
+            ejercicios: x.ejercicios,
+            aciertos: x.aciertos,
+            errores: x.errores,
+            intentos: x.intentos,
+            indiceError: redondear(x.errores / x.intentos) ?? 0,
+            alumnosAfectados: x.afectados,
+        };
+    });
     return filas.sort((a, b) => b.indiceError - a.indiceError);
-}
-
-const celda = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    // Evita inyección de fórmulas al abrir el CSV en una hoja de cálculo
-    const seguro = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-    return /[",\n;]/.test(seguro) ? `"${seguro.replaceAll('"', '""')}"` : seguro;
-};
-
-export function reporteCsv(filas: readonly FilaReporte[]): string {
-    const encabezado = ["Tema", "Subtema/habilidad", "Intentos", "Índice de error", "Alumnos con errores"];
-    const lineas = filas.map((f) => [f.tema, f.subtema, f.intentos, f.indiceError, f.alumnosAfectados].map(celda).join(","));
-    return `﻿${[encabezado.map(celda).join(","), ...lineas].join("\r\n")}\r\n`;
 }

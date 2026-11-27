@@ -2,7 +2,7 @@
 // (RF-03, RF-10, RF-39..RF-42) con solución guiada paso a paso (RF-11, RF-45).
 import { barajar, crearRng, elegir, entero, type Rng } from "./aleatorio";
 import { limitarNivel } from "./dificultad";
-import { coincideTolerante, distanciaEdicion, normalizarTexto, numeroAPalabras } from "./numeros";
+import { evaluarEscritura, numeroAPalabras } from "./numeros";
 
 export type TipoInteraccion = "seleccion_multiple" | "arrastrar" | "texto" | "numero";
 export type InteraccionAsignable = "seleccion_multiple" | "arrastrar";
@@ -62,8 +62,10 @@ export interface Ejercicio {
     expresion?: string;
     opciones?: string[];
     figuras?: { emoji: string; cantidad: number }[];
-    /** Número mostrado en ejercicios de escritura. */
+    /** Número mostrado en ejercicios de escritura antiguos (uno solo). */
     numeroMostrado?: number;
+    /** Serie de números a escribir con letras, cada uno con su campo (RF-39). */
+    numerosMostrados?: number[];
     lienzo?: Lienzo;
     respuesta: string;
     pasos: string[];
@@ -341,32 +343,28 @@ export function generarIncompleta(
 
 const RANGOS_NUMEROS: [number, number][] = [[0, 20], [21, 100], [101, 999], [1000, 9999], [10000, 999999]];
 
-function pasosEscritura(n: number): string[] {
-    const pasos = [`Lee el número ${n.toLocaleString("es-MX")} por partes.`];
-    if (n >= 1000) {
-        const miles = Math.floor(n / 1000);
-        const resto = n % 1000;
-        pasos.push(`Los miles: ${miles} → «${miles === 1 ? "mil" : numeroAPalabras(miles * 1000)}».`);
-        if (resto > 0) pasos.push(`Lo que sigue: ${resto} → «${numeroAPalabras(resto)}».`);
-    } else if (n > 30) {
-        pasos.push(`Separa centenas, decenas y unidades: ${digitos(n).reverse().join(" · ")}.`);
-    }
-    pasos.push(`Se escribe: «${numeroAPalabras(n)}».`);
-    return pasos;
-}
+/** Números por ejercicio de escritura (RF-39: una serie, cada uno con su campo). */
+export const NUMEROS_POR_SERIE = 3;
 
 function generarEscritura(nivel: number, rng: Rng): Ejercicio {
     const [min, max] = RANGOS_NUMEROS[limitarNivel(nivel) - 1];
-    const n = entero(rng, min, max);
+    const usados = new Set<number>();
+    let guardia = 0;
+    while (usados.size < NUMEROS_POR_SERIE && guardia++ < 1000) usados.add(entero(rng, min, max));
+    const numeros = [...usados];
+    const palabras = numeros.map((n) => numeroAPalabras(n));
     return {
         tema: "escritura_numeros",
         nivel,
         interaccion: "texto",
-        enunciado: "Escribe con palabras este número",
-        numeroMostrado: n,
-        respuesta: numeroAPalabras(n),
-        pasos: pasosEscritura(n),
-        datos: { a: n },
+        enunciado: "Escribe con palabras cada número",
+        numerosMostrados: numeros,
+        respuesta: JSON.stringify(palabras),
+        pasos: [
+            "Lee cada número por partes: primero los miles, luego centenas, decenas y unidades.",
+            ...numeros.map((n, i) => `${n.toLocaleString("es-MX")} se escribe «${palabras[i]}».`),
+        ],
+        datos: { a: numeros[0] },
     };
 }
 
@@ -451,16 +449,13 @@ export function generarEjercicio(
 // ---------- Evaluación ----------
 
 export function evaluarRespuesta(e: Ejercicio, respuesta: string): { correcta: boolean } {
-    if (e.tema === "escritura_numeros") return { correcta: coincideTolerante(respuesta, e.respuesta).correcta };
+    if (e.tema === "escritura_numeros") return { correcta: evaluarEscritura(respuesta, e.respuesta).correcta };
     return { correcta: respuesta.trim().replace(/\s+/g, "") === e.respuesta };
 }
 
 /** Tipo de error para el perfil estadístico (RF-19). */
 export function clasificarError(e: Ejercicio, respuesta: string): string {
-    if (e.tema === "escritura_numeros") {
-        const d = distanciaEdicion(normalizarTexto(respuesta).replace(/ /g, ""), normalizarTexto(e.respuesta).replace(/ /g, ""));
-        return d <= 4 ? "ortografia" : "lectura_numero";
-    }
+    if (e.tema === "escritura_numeros") return evaluarEscritura(respuesta, e.respuesta).soloOrtografia ? "ortografia" : "lectura_numero";
     if (e.tema === "identificar_numero") return "lectura_numero";
     if (e.tema === "suma_figuras") return "conteo";
     const n = Number(respuesta);

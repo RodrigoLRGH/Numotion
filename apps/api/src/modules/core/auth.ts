@@ -12,10 +12,10 @@ import type { CodigoError } from "./http";
 const scrypt = promisify(scryptCb) as (pwd: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
 export const COOKIE_SESION = "nm_sesion";
-export const DURACION_SESION_MS = { docente: 8 * 60 * 60 * 1000, alumno: 4 * 60 * 60 * 1000 } as const;
+export const DURACION_SESION_MS = { docente: 8 * 60 * 60 * 1000, alumno: 4 * 60 * 60 * 1000, admin: 8 * 60 * 60 * 1000 } as const;
 export const MIN_PASSWORD_DOCENTE = 10;
 
-export type Rol = "docente" | "alumno";
+export type Rol = "docente" | "alumno" | "admin";
 
 export interface UsuarioSesion {
     id: string;
@@ -108,6 +108,31 @@ export async function loginDocente(
     });
 }
 
+// ───────────── Administrador (atención ARCO, RC-07) ─────────────
+
+/** Sin autorregistro: las cuentas se crean con `npm run admin:crear`. */
+export async function loginAdmin(
+    email: string,
+    password: string,
+    ip: string | null,
+): Promise<{ ok: true; sesion: SesionEmitida; admin: { id: string; nombre: string } } | Fallo> {
+    return conContexto(null, async (tx) => {
+        const [a] = await tx.$queryRaw<{ id: string; nombre: string; password_hash: string; activo: boolean; bloqueado_hasta: Date | null }[]>`
+            SELECT * FROM fn_auth_admin(${email}::citext)`;
+        if (!a || !a.activo) {
+            await verificarSecreto(password, await relleno());
+            return credencialesInvalidas("Correo o contraseña incorrectos");
+        }
+        if (a.bloqueado_hasta && a.bloqueado_hasta > new Date()) {
+            return bloqueada("Demasiados intentos. Espera 15 minutos.");
+        }
+        const ok = await verificarSecreto(password, a.password_hash);
+        await tx.$executeRaw`SELECT fn_auth_admin_resultado(${a.id}::uuid, ${ok}, ${ip}::inet)`;
+        if (!ok) return credencialesInvalidas("Correo o contraseña incorrectos");
+        return { ok: true as const, sesion: await emitirSesion(tx, "admin", a.id), admin: { id: a.id, nombre: a.nombre } };
+    });
+}
+
 // ───────────── Alumno (ADR-004) ─────────────
 
 export interface GrupoParaEntrar {
@@ -180,7 +205,7 @@ export async function usuarioDeToken(token: string | undefined): Promise<Usuario
     if (!s) return null;
     return s.rol === "alumno"
         ? { id: s.usuario_id, nombre: s.nombre, rol: "alumno", grupoId: s.grupo_id ?? undefined, aceptaCamara: s.acepta_camara }
-        : { id: s.usuario_id, nombre: s.nombre, rol: "docente" };
+        : { id: s.usuario_id, nombre: s.nombre, rol: s.rol };
 }
 
 export async function cerrarSesionToken(token: string | undefined): Promise<void> {

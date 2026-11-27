@@ -79,7 +79,7 @@ async function asignacionDe3(tx: Tx): Promise<string> {
 }
 
 describe("P-DB-03 · trigger de avance de asignación (RF-60, RF-35)", () => {
-    it("avanza, cierra al 4.º fallo, completa con resultado y bloquea intentos posteriores", () =>
+    it("en curso al completar el primer ejercicio (RF-72), cierra al 3.er fallo (RF-11), completa con resultado y bloquea intentos posteriores", () =>
         enTransaccion(async (tx) => {
             await crearFixture(tx);
             const [e1, e2, e3, e4] = [await crearEjercicio(tx), await crearEjercicio(tx), await crearEjercicio(tx), await crearEjercicio(tx)];
@@ -90,15 +90,22 @@ describe("P-DB-03 · trigger de avance de asignación (RF-60, RF-35)", () => {
                    VALUES (${asig}, ${A1}, ${ej}, 2, '{"valor":2}', ${correcta}, ${n}, 1000, gen_random_uuid())`;
             const estado = async () => (await tx`SELECT * FROM asignacion_alumno WHERE id = ${asig}`)[0];
 
-            await intento(e1, true, 1);
+            // Un fallo no completa el ejercicio: sigue pendiente, pero ya cuenta como iniciada
+            await intento(e1, false, 1);
             let a = await estado();
+            expect(a.estado).toBe("pendiente");
+            expect(a.ejercicios_resueltos).toBe(0);
+            expect(a.iniciada_en).not.toBeNull();
+
+            await intento(e1, true, 2);
+            a = await estado();
             expect(a.estado).toBe("en_curso");
             expect(a.ejercicios_resueltos).toBe(1);
             expect(a.iniciada_en).not.toBeNull();
 
-            for (const n of [1, 2, 3]) await intento(e2, false, n);
+            for (const n of [1, 2]) await intento(e2, false, n);
             expect((await estado()).ejercicios_resueltos).toBe(1);
-            await intento(e2, false, 4);
+            await intento(e2, false, 3);
             expect((await estado()).ejercicios_resueltos).toBe(2);
 
             await intento(e3, true, 1);

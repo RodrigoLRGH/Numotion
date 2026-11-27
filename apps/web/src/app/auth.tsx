@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../shared/cliente/api";
 
-export type Rol = "docente" | "alumno";
+export type Rol = "docente" | "alumno" | "admin";
 
 export interface Usuario {
     id: string;
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 estado: "listo",
                 usuario: r.usuario,
                 camaraPermitida: Boolean(r.camaraPermitida),
-                consentimientoVigente: r.usuario?.rol === "docente" || Boolean(r.consentimientoVigente),
+                consentimientoVigente: (r.usuario !== null && r.usuario.rol !== "alumno") || Boolean(r.consentimientoVigente),
                 sesion: r.sesion ?? inicial.sesion,
             });
         } catch {

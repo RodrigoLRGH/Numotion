@@ -1,9 +1,18 @@
 // Puntos y nivel de gamificación (RF-03, 02-diseno/02-…§4). Sin puntos negativos.
 
-export const PUNTOS_PRACTICA = 5;
+/**
+ * Práctica libre (RF-03): puntos por cada respuesta correcta según el intento (1.º = 3, 2.º = 2,
+ * 3.º = 1). Escala menor que la de las actividades asignadas porque la práctica es ilimitada.
+ */
+export const PUNTOS_ACIERTO_PRACTICA = [3, 2, 1] as const;
+
+export function puntosAciertoPractica(correcta: boolean, numeroIntento: number): number {
+    if (!correcta) return 0;
+    return PUNTOS_ACIERTO_PRACTICA[numeroIntento - 1] ?? 1;
+}
 export const NIVEL_GAMIFICACION_MAX = 20;
 
-/** Ejercicio acertado: intento 1 = 10, 2 = 7, 3 = 5; tras la guía (4.º intento o ayuda pedida) = 3. */
+/** Ejercicio acertado: intento 1 = 10, 2 = 7, 3 = 5; tras pedir la guía = 3 (máximo 3 intentos, RF-11). */
 export function puntosPorEjercicio(correcta: boolean, numeroIntento: number, conGuia: boolean): number {
     if (!correcta) return 0;
     if (conGuia || numeroIntento >= 4) return 3;

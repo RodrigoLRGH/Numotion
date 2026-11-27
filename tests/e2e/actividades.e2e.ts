@@ -34,12 +34,12 @@ test("docente: asigna con el asistente, ve el avance y el historial", async ({ p
 
     // Asistente
     await page.goto("/docente/actividades/nueva");
-    await page.getByLabel("Nombre").fill("Sumas E2E");
-    await page.getByLabel("Tema").selectOption({ label: "Suma" });
+    await page.getByLabel("Nombre de la actividad").fill("Sumas E2E");
+    await page.getByLabel("Tema de la actividad").selectOption({ label: "Suma" });
     await page.getByLabel("Número de ejercicios").fill("3");
     await sinViolacionesSerias(page);
     await page.getByRole("button", { name: /siguiente/i }).click();
-    await page.getByLabel("Grupo", { exact: true }).selectOption(grupo.id);
+    await page.getByLabel("Grupo de alumnos").selectOption(grupo.id);
     await expect(page.getByText(/todo el grupo \(2 alumnos\)/i)).toBeVisible();
     await page.getByRole("button", { name: /revisar niveles/i }).click();
     await expect(page.getByRole("cell", { name: /lucía/i })).toBeVisible();

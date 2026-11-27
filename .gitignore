@@ -33,3 +33,6 @@ tmp/
 
 # Builds del monorepo
 apps/*/dist/
+
+# Exportaciones de Figma usadas como referencia visual (no se versionan)
+docs/figma-alumno/

@@ -179,4 +179,8 @@ Guía de actuación
 ```
 
 ### D6 · Reportes (RF-18)
-Tabla/heatmap tema × subtema con índice de error e índice de frustración, orden seleccionable, periodo, [Exportar CSV].
+Filtros Grupo, Alumno (s) y Fecha (periodo). Tabla en píldoras: Tema/Subtema · No. Ejercicios · No. Aciertos · No. Errores · Aspectos (Positivos / Negativos). Sin exportación.
+
+### D7 · Retroalimentaciones (RF-61, RF-62)
+Pestaña "Retroalimentaciones". Título "Retroalimentación de diagnósticos · Matemático y Emocional", enlaces "¿Qué es el diagnóstico matemático?" y "¿Qué es el diagnóstico emocional?" (ventanas modales) y "Registros:" (nombre del alumno · Fecha DD/MM/AAAA). Sin registros: "No se han realizado exámenes diagnósticos."
+Detalle: nombre, fecha, PANAS-C del día una sola vez (estado inicial, AP, AN con tooltips), "Descripción:" (tiempo, temas y aspectos detectados) y tabla por tema: Tema/Subtema · No. Ejercicios · No. Aciertos · No. Errores · Nivel de dominio. Sustituye al "Detalle por alumno" del Dashboard.

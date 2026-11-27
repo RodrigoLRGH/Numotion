@@ -14,6 +14,7 @@ import {
     cerrarSesionToken,
     fijarCookieSesion,
     grupoParaEntrar,
+    loginAdmin,
     loginAlumno,
     loginDocente,
     MIN_PASSWORD_DOCENTE,
@@ -39,6 +40,15 @@ rutasCore.post("/auth/docente/login", ruta(async (req, res) => {
     if (!r.ok) throw new ErrorHttp(r.status, r.code, r.message);
     fijarCookieSesion(res, r.sesion);
     res.json({ docente: r.docente, destino: destinoTrasLogin("docente", d.siguiente) });
+}));
+
+// Administrador: mismo formulario que el docente, sin registro
+rutasCore.post("/auth/admin/login", ruta(async (req, res) => {
+    const d = validar(LoginDocente, req.body);
+    const r = await loginAdmin(d.email, d.password, ipDe(req));
+    if (!r.ok) throw new ErrorHttp(r.status, r.code, r.message);
+    fijarCookieSesion(res, r.sesion);
+    res.json({ admin: r.admin, destino: destinoTrasLogin("admin", d.siguiente) });
 }));
 
 // Los alumnos los da de alta su docente, nunca por autorregistro (RC-08)
@@ -89,7 +99,7 @@ rutasCore.post("/auth/alumno/login", ruta(async (req, res) => {
 rutasCore.get("/auth/sesion", ruta(async (_req, res) => {
     const u = usuarioDe(res);
     if (!u) return void res.json({ usuario: null });
-    if (u.rol === "docente") return void res.json({ usuario: { id: u.id, nombre: u.nombre, rol: u.rol } });
+    if (u.rol !== "alumno") return void res.json({ usuario: { id: u.id, nombre: u.nombre, rol: u.rol } });
     const d = await conContexto(contextoDe(u), estadoDiagnosticos);
     res.json({
         usuario: { id: u.id, nombre: u.nombre, rol: u.rol, grupoId: u.grupoId },

@@ -74,6 +74,24 @@ describe("mensaje motivacional (P-UNIT-12)", () => {
         expect(elegirMensaje(cat, ctx, null)?.id).toBe("e");
     });
 
+    it("RF-22: personaliza con el historial académico y sus marcadores", () => {
+        const historial = { actividadesCompletadas: 4, ultimoResultado: 8.5, ultimoTema: "Suma", temaFuerte: "Resta", temaReto: "División" };
+        const academicos: MensajeCatalogo[] = [
+            ...cat,
+            { id: "f", texto: "¡Muy bien en {tema}, {nombre}! Sacaste {resultado}", condicion: { resultadoMin: 8 } },
+            { id: "g", texto: "{nombre}, practiquemos {tema_reto}", condicion: { conTemaReto: true } },
+            { id: "h", texto: "Primera actividad, {nombre}", condicion: { actividadesMax: 0 } },
+            { id: "i", texto: "{actividades} actividades", condicion: { actividadesMin: 10 } },
+        ];
+        // Sin historial no aplican los académicos
+        expect(elegirMensaje(academicos, { ...ctx, racha: 1 }, null)?.id).toMatch(/^[ab]$/);
+        // Con historial gana un mensaje académico (f o g; "i" exige 10 actividades y "h" ninguna)
+        const textos = ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-09", "2026-11-10"]
+            .map((fecha) => elegirMensaje(academicos, { ...ctx, racha: 1, fecha, historial }, null)?.texto);
+        for (const t of textos) expect(["¡Muy bien en suma, Ana! Sacaste 8.5", "Ana, practiquemos división"]).toContain(t);
+        expect(elegirMensaje(academicos, { ...ctx, racha: 1, historial: { ...historial, actividadesCompletadas: 0, ultimoResultado: null, ultimoTema: null, temaReto: null } }, null)?.id).toBe("h");
+    });
+
     it("estable en el día y sin repetir el de ayer", () => {
         const solo = cat.slice(0, 2);
         const hoy = elegirMensaje(solo, ctx, { id: "a", fecha: "2026-11-04" });

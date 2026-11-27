@@ -2,7 +2,7 @@
 // Función pura: el middleware de Express la aplica y las pruebas la verifican sin servidor.
 // Las guardas de pantalla del SPA (06-navegacion §3) usan las mismas rutas de entrada.
 
-export type Rol = "docente" | "alumno";
+export type Rol = "docente" | "alumno" | "admin";
 
 export type DecisionAcceso =
     | { tipo: "permitir" }
@@ -19,7 +19,7 @@ export interface EstadoDiagnosticos {
 export const API = "/api/v1";
 
 export function inicioDeRol(rol: Rol): string {
-    return rol === "docente" ? "/docente" : "/alumno";
+    return `/${rol}`;
 }
 
 function bajo(ruta: string, base: string): boolean {
@@ -29,11 +29,12 @@ function bajo(ruta: string, base: string): boolean {
 export function areaDeRuta(ruta: string): Rol | "publica" {
     if (bajo(ruta, "/docente") || bajo(ruta, `${API}/docente`)) return "docente";
     if (bajo(ruta, "/alumno") || bajo(ruta, `${API}/alumno`)) return "alumno";
+    if (bajo(ruta, "/admin") || bajo(ruta, `${API}/admin`)) return "admin";
     return "publica";
 }
 
 /** Páginas de entrada: con sesión activa no tienen sentido y se redirige al inicio del rol. */
-const PAGINAS_ENTRADA = new Set(["/docente/entrar", "/docente/registro", "/alumno/entrar"]);
+const PAGINAS_ENTRADA = new Set(["/docente/entrar", "/docente/registro", "/alumno/entrar", "/admin/entrar"]);
 
 export function entradaDeRol(rol: Rol): string {
     return `/${rol}/entrar`;

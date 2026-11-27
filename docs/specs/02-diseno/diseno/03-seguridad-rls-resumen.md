@@ -95,7 +95,7 @@ CREATE POLICY alumno_self ON alumno FOR SELECT
 2. El tutor abre `/consentimiento/:token` (ruta pública): aviso de privacidad (versión), finalidades, datos tratados (incluye estado emocional derivado), transferencias (AWS, OpenAI sin PII), derechos ARCO y contacto.
 3. Verificación: código OTP de 6 dígitos al correo del tutor + nombre y parentesco.
 4. Casillas separadas: **plataforma** (obligatoria) y **cámara** (opcional).
-5. Revocación y solicitudes ARCO desde el mismo enlace (`/consentimiento/:token/arco`) → se registran en auditoría y se atienden en ≤ 20 días hábiles (`fn_anonimizar_alumno`).
+5. Revocación y solicitudes ARCO desde el mismo enlace (`/consentimiento/:token/arco`) → se registran en auditoría y las atiende un **administrador** (`/admin`, tabla `administrador`, migración 0013) en ≤ 20 días hábiles: responde al tutor por correo y, en cancelación, oposición o revocación, puede borrar la PII con `fn_anonimizar_alumno`. Las funciones `fn_admin_*` exigen `app.role = 'admin'`.
 6. Cambio de versión del aviso → los consentimientos previos quedan "por renovar" y el alumno entra en modo bloqueado hasta renovar.
 
 ## 7. Transporte y cabeceras (RI-09)
