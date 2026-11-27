@@ -1,8 +1,8 @@
-// P-INT-01, P-SEC-03 (sin imágenes), P-API-07 (alertas) y RC-04 (topes en BD) de EXP-05.
+// P-INT-01, P-SEC-03 (sin imágenes), oferta de ayuda (RF-27 del alumno) y RC-04 (topes en BD) de EXP-05.
+// Sin alertas al docente (migración 0015). Con consentimiento del tutor la cámara procesa para todos (A-41).
 import { afterEach, describe, expect, it } from "vitest";
-import { procesarFrame, responderAlerta } from "../../apps/api/src/modules/alumno/emociones";
+import { procesarFrame } from "../../apps/api/src/modules/alumno/emociones";
 import { usarGatewayEmociones, type EmotionGateway, type Lectura } from "../../apps/api/src/infra/emociones";
-import { alertas, atenderAlerta, guia } from "../../apps/api/src/modules/docente/alertas";
 import { escenarioCompleto, responderActividad } from "./escenario";
 import { sql } from "./fixture";
 
@@ -30,7 +30,7 @@ describe("fotogramas (EXP-05.1, EXP-05.2)", () => {
         const g = gateway({ emocion: "HAPPY", confianza: 91.5 });
         usarGatewayEmociones(g);
         const img = jpeg();
-        const r = await procesarFrame({ rol: "alumno", id: e.alumnos[0] }, true, img, e.asignacionDe(e.alumnos[0]), 0);
+        const r = await procesarFrame({ rol: "alumno", id: e.alumnos[0] }, img, e.asignacionDe(e.alumnos[0]), 0);
         expect(r).toEqual({ procesado: true, ofrecerAyuda: null });
         expect(JSON.stringify(r)).not.toContain("HAPPY");
         expect([...img].every((b) => b === 0)).toBe(true);
@@ -40,26 +40,26 @@ describe("fotogramas (EXP-05.1, EXP-05.2)", () => {
         expect(await sql`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND data_type = 'bytea'`).toEqual([]);
     });
 
-    it("sin consentimiento de cámara no procesa ni llama al proveedor", async () => {
-        const e = await escenarioCompleto({ camara: false });
-        const g = gateway({ emocion: "SAD", confianza: 99 });
-        usarGatewayEmociones(g);
-        const r = await procesarFrame({ rol: "alumno", id: e.alumnos[0] }, false, jpeg(), null, 0);
-        expect(r).toEqual({ procesado: false, motivo: "sin_consentimiento" });
-        expect(g.vistos).toHaveLength(0);
+    it("sin proveedor configurado no procesa ni guarda nada", async () => {
+        const e = await escenarioCompleto();
+        usarGatewayEmociones(null);
+        const img = jpeg();
+        expect(await procesarFrame({ rol: "alumno", id: e.alumnos[0] }, img, null, 0)).toEqual({ procesado: false, motivo: "desactivado" });
+        expect([...img].every((b) => b === 0)).toBe(true);
+        expect(await sql`SELECT id FROM evento_emocional WHERE alumno_id = ${e.alumnos[0]}`).toHaveLength(0);
     });
 
     it("tope por alumno en BD: 1 fotograma por intervalo y máximo diario", async () => {
         const e = await escenarioCompleto();
         usarGatewayEmociones(gateway({ emocion: "CALM", confianza: 80 }));
         const ctx = { rol: "alumno" as const, id: e.alumnos[0] };
-        expect((await procesarFrame(ctx, true, jpeg(), null, 0)).procesado).toBe(true);
-        expect(await procesarFrame(ctx, true, jpeg(), null, 0)).toEqual({ procesado: false, motivo: "frecuencia" });
+        expect((await procesarFrame(ctx, jpeg(), null, 0)).procesado).toBe(true);
+        expect(await procesarFrame(ctx, jpeg(), null, 0)).toEqual({ procesado: false, motivo: "frecuencia" });
         await sinIntervalo();
         await sql`UPDATE config_adaptativa SET valor = '2' WHERE clave = 'rekognition_tope_diario'`;
         try {
-            expect((await procesarFrame(ctx, true, jpeg(), null, 0)).procesado).toBe(true);
-            expect(await procesarFrame(ctx, true, jpeg(), null, 0)).toEqual({ procesado: false, motivo: "tope" });
+            expect((await procesarFrame(ctx, jpeg(), null, 0)).procesado).toBe(true);
+            expect(await procesarFrame(ctx, jpeg(), null, 0)).toEqual({ procesado: false, motivo: "tope" });
         } finally {
             await sql`UPDATE config_adaptativa SET valor = '400' WHERE clave = 'rekognition_tope_diario'`;
             await sql`UPDATE config_adaptativa SET valor = '5' WHERE clave = 'rekognition_intervalo_seg'`;
@@ -67,8 +67,8 @@ describe("fotogramas (EXP-05.1, EXP-05.2)", () => {
     });
 });
 
-describe("alerta temprana y guía (EXP-05.5, EXP-05.6)", () => {
-    it("IF alto en 2 evaluaciones seguidas crea UNA alerta para el docente del grupo con guía; luego enfría", async () => {
+describe("oferta de ayuda al alumno (RF-27, EXP-05.4)", () => {
+    it("IF alto en 2 evaluaciones seguidas pregunta al alumno si quiere ayuda, sin crear alertas; luego enfría", async () => {
         const e = await escenarioCompleto({ num: 10 });
         await sinIntervalo();
         try {
@@ -76,54 +76,21 @@ describe("alerta temprana y guía (EXP-05.5, EXP-05.6)", () => {
             const ctx = { rol: "alumno" as const, id: e.alumnos[0] };
             const asig = e.asignacionDe(e.alumnos[0]);
             // Dos errores seguidos + emoción de frustración + inactividad: IF ≥ 0.6
-            await responderActividad(e, false);
-            await responderActividad(e, false);
-            const f1 = await procesarFrame(ctx, true, jpeg(), asig, 50);
-            const f2 = await procesarFrame(ctx, true, jpeg(), asig, 55);
-            const ofertas = [f1, f2].map((f) => (f.procesado ? f.ofrecerAyuda : null));
-            // La 2.ª evaluación alta (puede ser la del 2.º intento o la del 1.er fotograma) crea la alerta
-            const alerta = ofertas.find(Boolean) ?? null;
-            expect(alerta).not.toBeNull();
-            const f3 = await procesarFrame(ctx, true, jpeg(), asig, 60);
-            const f4 = await procesarFrame(ctx, true, jpeg(), asig, 60);
-            expect([f3, f4].every((f) => f.procesado && f.ofrecerAyuda === null)).toBe(true); // enfriamiento 5 min
+            const intentos = [await responderActividad(e, false), await responderActividad(e, false)];
+            const f1 = await procesarFrame(ctx, jpeg(), asig, 50);
+            const f2 = await procesarFrame(ctx, jpeg(), asig, 55);
+            // La 2.ª evaluación alta (la del 2.º intento o la de un fotograma) hace la pregunta
+            const ofertas = [...intentos.map((r) => r.ofrecerAyuda), ...[f1, f2].map((f) => (f.procesado ? f.ofrecerAyuda : null))].filter(Boolean);
+            expect(ofertas).toEqual([{ mensaje: "¿Quieres que te ayude? Vamos paso a paso." }]);
+            const [{ ultima }] = await sql`SELECT ultima_oferta_ayuda AS ultima FROM asignacion_alumno WHERE id = ${asig}`;
+            expect(ultima).not.toBeNull();
 
-            const lista = await e.comoDocente((tx) => alertas(tx, { pendientes: true }));
-            expect(lista).toHaveLength(1);
-            expect(lista[0]).toMatchObject({ alumno: { id: e.alumnos[0] }, actividad: "Actividad escenario", tema: "Suma" });
-            expect(lista[0].indice).toBeGreaterThanOrEqual(0.6);
-            expect(lista[0].senales.descripcion?.join(" ")).toMatch(/errores? seguidos/);
-            // RF-27: solo hay guía de actuación para el desinterés; la frustración no trae guía
-            expect(lista[0].guia).toBeNull();
-            const [desinteres] = await sql`SELECT id FROM guia_actuacion WHERE estado = 'desinteres'`;
-            const g = await e.comoDocente((tx) => guia(tx, desinteres.id));
-            expect(g?.pasos.length).toBeGreaterThanOrEqual(3);
-            expect(await sql`SELECT id FROM guia_actuacion WHERE estado <> 'desinteres'`).toHaveLength(0);
-
-            // El alumno acepta ayuda → R2 al cerrar el siguiente ejercicio
-            expect(await e.comoAlumno((tx) => responderAlerta(tx, e.alumnos[0], alerta!.alertaId, true))).toBe(true);
-            const [{ nivel_actual: antes }] = await sql`SELECT nivel_actual FROM asignacion_alumno WHERE id = ${asig}`;
-            usarGatewayEmociones(gateway({ emocion: "CALM", confianza: 95 }));
-            const r = await responderActividad(e, true);
-            if (antes > 1) expect(r.nivel).toMatchObject({ anterior: antes, actual: antes - 1, motivo: "solicitud_ayuda" });
-
-            // El docente atiende con nota → nota "emocional"
-            expect(await e.comoDocente((tx) => atenderAlerta(tx, e.docenteId, lista[0].alertaId, "Le expliqué el primer paso"))).toBe(true);
-            expect(await e.comoDocente((tx) => alertas(tx, { pendientes: true }))).toEqual([]);
-            const notas = await sql`SELECT texto, etiqueta FROM nota_docente WHERE alumno_id = ${e.alumnos[0]}`;
-            expect(notas).toEqual([{ texto: "Le expliqué el primer paso", etiqueta: "emocional" }]);
+            // Enfriamiento (cooldown_alerta_min = 5): no se vuelve a preguntar enseguida
+            const f3 = await procesarFrame(ctx, jpeg(), asig, 60);
+            const f4 = await procesarFrame(ctx, jpeg(), asig, 60);
+            expect([f3, f4].every((f) => f.procesado && f.ofrecerAyuda === null)).toBe(true);
         } finally {
             await sql`UPDATE config_adaptativa SET valor = '5' WHERE clave = 'rekognition_intervalo_seg'`;
         }
-    });
-
-    it("otro docente no ve la alerta ni puede atenderla", async () => {
-        const e = await escenarioCompleto();
-        const otro = await escenarioCompleto();
-        const [a] = await sql`INSERT INTO alerta (alumno_id, docente_id, asignacion_id, indice) VALUES (${e.alumnos[0]}, ${e.docenteId}, ${e.asignacionDe(e.alumnos[0])}, 0.7) RETURNING id`;
-        expect(await otro.comoDocente((tx) => alertas(tx, { pendientes: true }))).toEqual([]);
-        expect(await otro.comoDocente((tx) => atenderAlerta(tx, otro.docenteId, a.id))).toBe(false);
-        // Y el alumno de otro grupo no puede responderla
-        expect(await otro.comoAlumno((tx) => responderAlerta(tx, otro.alumnos[0], a.id, true), otro.alumnos[0])).toBe(false);
     });
 });

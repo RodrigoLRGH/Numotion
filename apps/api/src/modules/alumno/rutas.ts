@@ -7,7 +7,7 @@ import { alumnoDe, contextoDe, ErrorHttp, noEncontrado, paramId, ruta, validar }
 import { finalizarMatematico, finalizarPanas, panasDelDia, responderPanas, responderPregunta, siguientePregunta } from "./diagnostico";
 import { servirEjercicio } from "./contenido";
 import { TIPOS_INTERACCION } from "@numotion/core/dominio/catalogo";
-import { procesarFrame, responderAlerta } from "./emociones";
+import { procesarFrame } from "./emociones";
 import { completarPractica, iniciarPractica, intentoPractica, juegosDisponibles, panel, perfil, type FalloPractica } from "./gamificacion";
 import { misActividades, pedirGuia, registrarIntento, type FalloIntento, type Siguiente } from "./motor";
 
@@ -194,7 +194,7 @@ rutasAlumno.post("/practica/:id/completar", ruta(async (req, res) => {
     res.json(r);
 }));
 
-// ───────────── Emociones y alertas (§3.4, EXP-05) ─────────────
+// ───────────── Emociones (§3.4, EXP-05) ─────────────
 
 // Fotograma JPEG/PNG/WebP ≤ 100 KB. Nunca se guarda ni se registra; la respuesta no revela la emoción (RF-65).
 const cuerpoImagen = express.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "100kb" });
@@ -208,17 +208,9 @@ rutasAlumno.post("/emociones/frame", cuerpoImagen, ruta(async (req, res) => {
     const q = validar(ConsultaFrame, req.query);
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new ErrorHttp(400, "VALIDACION", "Envía una imagen JPEG, PNG o WebP");
     const imagen = new Uint8Array(req.body.buffer, req.body.byteOffset, req.body.length);
-    const r = await procesarFrame(contextoDe(alumno), Boolean(alumno.aceptaCamara), imagen, q.asignacionId ?? null, q.inactividadSeg);
+    const r = await procesarFrame(contextoDe(alumno), imagen, q.asignacionId ?? null, q.inactividadSeg);
     req.body = undefined;
     if (!r.procesado && r.motivo === "frecuencia") throw new ErrorHttp(429, "LIMITE_EXCEDIDO", "Demasiados fotogramas; espera unos segundos");
-    if (!r.procesado && r.motivo === "sin_consentimiento") throw new ErrorHttp(403, "CONSENTIMIENTO_REQUERIDO", "Tu tutor no autorizó el uso de la cámara");
     res.json(r.procesado ? { procesado: true, ofrecerAyuda: r.ofrecerAyuda } : { procesado: false, motivo: r.motivo });
 }));
 
-rutasAlumno.post("/alertas/:id/respuesta", ruta(async (req, res) => {
-    const alumno = alumnoDe(res);
-    const id = paramId(req, "id", "Alerta no encontrada");
-    const { aceptaAyuda } = validar(z.object({ aceptaAyuda: z.boolean() }), req.body);
-    if (!(await conContexto(contextoDe(alumno), (tx) => responderAlerta(tx, alumno.id, id, aceptaAyuda)))) throw noEncontrado("Alerta no encontrada");
-    res.status(204).end();
-}));

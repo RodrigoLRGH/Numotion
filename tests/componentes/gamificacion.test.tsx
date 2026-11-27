@@ -126,7 +126,7 @@ describe("PracticaLibre (EXP-06.6)", () => {
 describe("PreguntaAyuda (RF-27)", () => {
     it("ofrece Sí / No, yo puedo", async () => {
         const onResponder = vi.fn();
-        render(<PreguntaAyuda oferta={{ alertaId: "a", mensaje: "¿Quieres que te ayude? Vamos paso a paso." }} onResponder={onResponder} />);
+        render(<PreguntaAyuda oferta={{ mensaje: "¿Quieres que te ayude? Vamos paso a paso." }} onResponder={onResponder} />);
         await userEvent.click(screen.getByRole("button", { name: /No, yo puedo/ }));
         expect(onResponder).toHaveBeenCalledWith(false);
         await userEvent.click(screen.getByRole("button", { name: /Sí/ }));

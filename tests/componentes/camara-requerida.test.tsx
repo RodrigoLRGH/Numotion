@@ -1,5 +1,5 @@
-// P-COMP · RC-03: solo dispositivos con cámara. Sin cámara el alumno no entra; con la cámara
-// autorizada por el tutor, la actividad no continúa si el navegador la niega o no la encuentra.
+// P-COMP · RC-03: solo dispositivos con cámara. Sin cámara el alumno no entra, y la actividad no
+// continúa si el navegador la niega o no la encuentra (la cámara está activa para todos los alumnos).
 import { createHash } from "node:crypto";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -46,7 +46,7 @@ describe("RequireCamara", () => {
     });
 });
 
-describe("ResolverActividad con cámara autorizada", () => {
+describe("ResolverActividad pide la cámara siempre", () => {
     const hash = (id: string, v: string) => createHash("sha256").update(textoParaHash(id, v)).digest("hex");
     const siguiente = {
         ejercicio: { id: "e1", tipoInteraccion: "seleccion_multiple", nivel: 2, enunciado: "¿Cuánto es 3 + 4?", opciones: ["6", "7", "8", "12"], hashRespuesta: hash("e1", "7") },
@@ -57,7 +57,7 @@ describe("ResolverActividad con cámara autorizada", () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(siguiente), { status: 200 })));
         const getUserMedia = vi.fn().mockRejectedValueOnce(new DOMException("no", "NotAllowedError")).mockReturnValue(new Promise(() => {}));
         simularDispositivos([{ kind: "videoinput" }], { getUserMedia } as Partial<MediaDevices>);
-        render(<ResolverActividad asignacionId="a1" camaraPermitida />);
+        render(<ResolverActividad asignacionId="a1" />);
         expect(await screen.findByRole("heading", { name: "Necesitamos tu cámara" })).toBeInTheDocument();
         expect(screen.getByText(/no dejó usar la cámara/)).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "7" })).toBeNull();
@@ -67,12 +67,12 @@ describe("ResolverActividad con cámara autorizada", () => {
         expect(await screen.findByRole("button", { name: "7" })).toBeInTheDocument();
     });
 
-    it("sin autorización del tutor la cámara nunca se enciende y la actividad sigue", async () => {
+    it("pide la cámara al abrir la actividad (RC-03, RI-02)", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(siguiente), { status: 200 })));
-        const getUserMedia = vi.fn();
+        const getUserMedia = vi.fn(() => new Promise<MediaStream>(() => {}));
         simularDispositivos([{ kind: "videoinput" }], { getUserMedia } as Partial<MediaDevices>);
         render(<ResolverActividad asignacionId="a1" />);
         expect(await screen.findByRole("button", { name: "7" })).toBeInTheDocument();
-        expect(getUserMedia).not.toHaveBeenCalled();
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
 });

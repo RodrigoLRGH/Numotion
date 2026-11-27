@@ -15,7 +15,6 @@ const base: EntradaAdaptativa = {
     indiceFrustracion: 0.2,
     erroresConsecutivos: 0,
     ejerciciosDesdeUltimoCambio: 5,
-    aceptoAyuda: false,
 };
 
 const decide = (cambios: Partial<EntradaAdaptativa>) => decidirNivel({ ...base, ...cambios });
@@ -30,10 +29,6 @@ describe("decidirNivel (RF-01, RF-21)", () => {
         expect(decide({ indiceFrustracion: 0.7, erroresConsecutivos: 3 })).toMatchObject({ nivelNuevo: 2, motivo: "combinado" });
         expect(decide({ estadoVentana: "frustracion", erroresConsecutivos: 2 })).toMatchObject({ nivelNuevo: 2, motivo: "combinado" });
         expect(decide({ estadoVentana: "frustracion", erroresConsecutivos: 1 })).toMatchObject({ nivelNuevo: 3, motivo: null });
-    });
-
-    it("R2 ayuda aceptada → −1 (también en enfriamiento)", () => {
-        expect(decide({ aceptoAyuda: true, ejerciciosDesdeUltimoCambio: 0 })).toMatchObject({ nivelNuevo: 2, motivo: "solicitud_ayuda" });
     });
 
     it("R0 enfriamiento: menos de 2 ejercicios desde el último cambio bloquea R3–R5", () => {
@@ -67,7 +62,7 @@ describe("decidirNivel (RF-01, RF-21)", () => {
     it("nunca sale de [1, 5]", () => {
         expect(decide({ nivelActual: 1, ultimos3: [mal, mal, mal] })).toMatchObject({ nivelNuevo: 1 });
         expect(decide({ nivelActual: 5, ultimos3: [bien, bien, bien] })).toMatchObject({ nivelNuevo: 5 });
-        expect(decide({ nivelActual: 1, aceptoAyuda: true })).toMatchObject({ nivelNuevo: 1 });
+        expect(decide({ nivelActual: 1, indiceFrustracion: 0.9 })).toMatchObject({ nivelNuevo: 1 });
     });
 
     it("devuelve las reglas evaluadas para el detalle de ajuste_dificultad", () => {

@@ -7,14 +7,12 @@ import NoEncontrado from "../paginas/NoEncontrado";
 import Privacidad from "../paginas/Privacidad";
 import SinConsentimiento from "../paginas/SinConsentimiento";
 import { RedirectIfAuth, RequireCamara, RequireConsent, RequireDiagnosticos, RequirePanas, RequireRole } from "./guardas";
-import { LayoutAdmin, LayoutAlumno, LayoutDocente, LayoutPublico } from "./Marco";
+import { LayoutAlumno, LayoutDocente, LayoutPublico } from "./Marco";
 
 type Docente = typeof import("../modules/docente/paginas");
 type Alumno = typeof import("../modules/alumno/paginas");
-type Admin = typeof import("../modules/admin/paginas");
 const docente = () => import("../modules/docente/paginas");
 const alumno = () => import("../modules/alumno/paginas");
-const admin = () => import("../modules/admin/paginas");
 const PaginaConsentimiento = lazy(() => import("../modules/publico/PaginaConsentimiento"));
 
 const cargando = <p role="status" className="p-6 text-center text-xl">Cargando…</p>;
@@ -30,7 +28,6 @@ function perezosa<M>(cargar: () => Promise<M>, nombre: keyof M) {
 }
 const d = (nombre: keyof Docente) => perezosa(docente, nombre);
 const a = (nombre: keyof Alumno) => perezosa(alumno, nombre);
-const ad = (nombre: keyof Admin) => perezosa(admin, nombre);
 
 export const rutas: RouteObject[] = [
     {
@@ -98,15 +95,6 @@ export const rutas: RouteObject[] = [
                     },
                 ],
             },
-        ],
-    },
-    {
-        // Atención de solicitudes ARCO (RC-07). Sin enlace público: se entra por /admin/entrar
-        path: "/admin",
-        element: <LayoutAdmin />,
-        children: [
-            { path: "entrar", element: <RedirectIfAuth>{ad("LoginAdmin")}</RedirectIfAuth> },
-            { element: <RequireRole role="admin" />, children: [{ index: true, element: ad("SolicitudesArco") }] },
         ],
     },
 ];

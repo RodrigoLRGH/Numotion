@@ -3,7 +3,6 @@
 // en otro: se descarga en segundo plano desde "Mis actividades" (T-03-04-21, P-PERF-01).
 import { lazy, Suspense } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { useAuth } from "../../app/auth";
 import DiagnosticoMatematico from "./componentes/DiagnosticoMatematico";
 import EntrarAlumno from "./componentes/EntrarAlumno";
 import MisActividades from "./componentes/MisActividades";
@@ -32,10 +31,9 @@ export const Actividades = MisActividades;
 
 export function Resolver() {
     const { asignacionId = "" } = useParams();
-    const { camaraPermitida } = useAuth();
     return (
         <Suspense fallback={<p className="text-center text-xl" role="status">Preparando tu actividad…</p>}>
-            <ResolverActividad key={asignacionId} asignacionId={asignacionId} camaraPermitida={camaraPermitida} />
+            <ResolverActividad key={asignacionId} asignacionId={asignacionId} />
         </Suspense>
     );
 }

@@ -1,8 +1,8 @@
 // Diagnósticos de la sesión de clase del alumno (EXP-02: RF-54, RF-55, RF-61, RF-63).
 // Todas las funciones reciben una transacción con contexto del alumno (RLS).
 import { crearRng, semillaDeTexto } from "@numotion/core/dominio/aleatorio";
-import { nivelDominio, siguienteNivel, MIN_PREGUNTAS_TEMA, type Modo } from "@numotion/core/dominio/diagnostico";
-import { combinacionDisponible, esCorrecta, generarParaActividad } from "@numotion/core/dominio/contenido";
+import { nivelDominio, siguienteNivel } from "@numotion/core/dominio/diagnostico";
+import { combinacionDisponible, esCorrecta, generarParaDiagnostico } from "@numotion/core/dominio/contenido";
 import { aPublico, type Ejercicio, type EjercicioPublico } from "@numotion/core/dominio/ejercicios";
 import { calcularPanas, ESCALA_PANAS, esValorPanas, type Afecto } from "@numotion/core/dominio/panas";
 import type { Prisma, Tx } from "../../infra/db";
@@ -105,7 +105,6 @@ export interface TemaPlan {
     id: string;
     clave: string;
     nombre: string;
-    modo: Modo;
     respuestas: FilaRespuesta[];
 }
 
@@ -122,7 +121,7 @@ export function pasoSiguiente(plan: readonly TemaPlan[]): Paso {
     }
     for (const tema of plan) {
         const historial = tema.respuestas.map((r) => ({ nivel: r.nivel, correcta: r.correcta as boolean }));
-        const nivel = siguienteNivel(historial, tema.modo);
+        const nivel = siguienteNivel(historial);
         if (nivel !== null) return { tipo: "nueva", tema, nivel, orden: tema.respuestas.length + 1 };
     }
     return { tipo: "terminado" };
@@ -134,16 +133,6 @@ async function planDelDia(tx: Tx, alumnoId: string, sesionId: string): Promise<T
           FROM alumno a JOIN grupo g ON g.id = a.grupo_id
           JOIN tema t ON g.grado BETWEEN t.grado_min AND t.grado_max
          WHERE a.id = ${alumnoId}::uuid ORDER BY t.orden`;
-    const dias = await config(tx, "diagnostico_corto_dias", 7);
-    // EXP-02.6: versión corta si hubo un diagnóstico completo del tema en los últimos N días
-    const previos = await tx.$queryRaw<{ tema_id: string; nivel: number; hubo_completo: boolean }[]>`
-        SELECT d.tema_id,
-               (array_agg(d.nivel_dominio ORDER BY d.creado_en DESC))[1] AS nivel,
-               bool_or(d.total >= ${MIN_PREGUNTAS_TEMA}) AS hubo_completo
-          FROM diagnostico_mat_resultado d
-         WHERE d.alumno_id = ${alumnoId}::uuid AND d.sesion_id <> ${sesionId}::uuid
-           AND d.creado_en > now() - make_interval(days => ${dias}::int)
-         GROUP BY d.tema_id`;
     const filas = (await tx.diagnostico_mat_respuesta.findMany({
         where: { sesion_id: sesionId },
         orderBy: { orden: "asc" },
@@ -151,14 +140,7 @@ async function planDelDia(tx: Tx, alumnoId: string, sesionId: string): Promise<T
     })) as unknown as (FilaRespuesta & { tema_id: string })[];
     return temas
         .filter((t) => tieneDiagnostico(t.clave))
-        .map((t) => {
-            const previo = previos.find((p) => p.tema_id === t.id && p.hubo_completo);
-            return {
-                ...t,
-                modo: previo ? { tipo: "corto" as const, nivel: previo.nivel } : { tipo: "completo" as const },
-                respuestas: filas.filter((f) => f.tema_id === t.id),
-            };
-        });
+        .map((t) => ({ ...t, respuestas: filas.filter((f) => f.tema_id === t.id) }));
 }
 
 export interface PreguntaPublica extends EjercicioPublico {
@@ -185,7 +167,7 @@ export async function siguientePregunta(tx: Tx, alumnoId: string): Promise<Sigui
     }
     // Semilla fija por (sesión, tema, orden): la misma pregunta si se pide dos veces
     const rng = crearRng(semillaDeTexto(`diagnostico|${sesionId}|${paso.tema.id}|${paso.orden}`));
-    const ejercicio = generarParaActividad(paso.tema.clave, "seleccion_multiple", paso.nivel, rng)!;
+    const ejercicio = generarParaDiagnostico(paso.tema.clave, paso.nivel, rng)!;
     const fila = await tx.diagnostico_mat_respuesta.create({
         data: { sesion_id: sesionId, alumno_id: alumnoId, tema_id: paso.tema.id, orden: paso.orden, nivel: paso.nivel, pregunta: ejercicio as unknown as Prisma.InputJsonValue },
         select: { id: true },
@@ -228,7 +210,7 @@ export async function finalizarMatematico(tx: Tx, alumnoId: string): Promise<Fin
     const dominio: Record<string, number> = {};
     const resultados = plan.map((tema) => {
         const historial = tema.respuestas.map((r) => ({ nivel: r.nivel, correcta: r.correcta as boolean }));
-        const nivel = nivelDominio(historial, tema.modo);
+        const nivel = nivelDominio(historial);
         dominio[tema.clave] = nivel;
         return {
             sesion_id: sesionId,

@@ -175,46 +175,12 @@ describe("P-DB-05/06 · restricciones", () => {
         }));
 });
 
-describe("P-DB-07/08 · retención, anonimización y esquema", () => {
-    it("purga eventos de más de 180 días", () =>
-        enTransaccion(async (tx) => {
-            await crearFixture(tx);
-            const s = await crearSesion(tx, A1);
-            await tx`INSERT INTO evento_emocional (alumno_id, sesion_id, emocion, confianza, estado_derivado, capturado_en) VALUES
-                (${A1}, ${s}, 'CALM', 90, 'neutral', now() - interval '181 days'),
-                (${A1}, ${s}, 'CALM', 90, 'neutral', now() - interval '179 days')`;
-            const [{ n }] = await tx`SELECT fn_purgar_eventos_emocionales() AS n`;
-            expect(n).toBe(1);
-        }));
-
-    it("anonimiza PII, borra notas y eventos y conserva intentos", () =>
-        enTransaccion(async (tx) => {
-            await crearFixture(tx);
-            const s = await crearSesion(tx, A1);
-            const ej = await crearEjercicio(tx);
-            const [{ id: p }] = await tx`INSERT INTO practica_libre (alumno_id, juego, tema_id) VALUES (${A1}, 'arrastrar', ${IDS.temaSuma}) RETURNING id`;
-            await tx`INSERT INTO intento_ejercicio (practica_id, alumno_id, ejercicio_id, nivel, respuesta, correcta, numero_intento, tiempo_ms, cliente_id)
-                     VALUES (${p}, ${A1}, ${ej}, 2, '{}', true, 1, 10, gen_random_uuid())`;
-            await tx`INSERT INTO nota_docente (docente_id, alumno_id, texto) VALUES (${IDS.docenteA}, ${A1}, 'nota')`;
-            await tx`INSERT INTO evento_emocional (alumno_id, sesion_id, emocion, confianza, estado_derivado) VALUES (${A1}, ${s}, 'SAD', 80, 'frustracion')`;
-            await tx`SELECT fn_anonimizar_alumno(${A1})`;
-            const [a] = await tx`SELECT nombre, pin_hash FROM alumno WHERE id = ${A1}`;
-            expect(a).toEqual({ nombre: "Alumno anonimizado", pin_hash: null });
-            const [c] = await tx`SELECT
-                (SELECT count(*) FROM nota_docente WHERE alumno_id = ${A1})::int AS notas,
-                (SELECT count(*) FROM evento_emocional WHERE alumno_id = ${A1})::int AS eventos,
-                (SELECT count(*) FROM intento_ejercicio WHERE alumno_id = ${A1})::int AS intentos`;
-            expect(c).toEqual({ notas: 0, eventos: 0, intentos: 1 });
-        }));
-
-    it("ninguna columna es binaria (RC-05) y la auditoría es inmutable", () =>
+describe("P-DB-08 · esquema", () => {
+    it("ninguna columna es binaria (RC-05)", () =>
         enTransaccion(async (tx) => {
             const binarias = await tx`SELECT table_name, column_name FROM information_schema.columns
                                       WHERE table_schema = 'public' AND data_type = 'bytea'`;
             expect(binarias).toHaveLength(0);
-            await tx`SELECT fn_auditar(NULL, NULL, 'login')`;
-            const err = await capturarError(tx, (sp) => sp`DELETE FROM auditoria_acceso`);
-            expect(err?.message).toBe("AUDITORIA_INMUTABLE");
         }));
 });
 

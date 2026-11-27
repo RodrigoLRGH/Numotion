@@ -68,8 +68,7 @@ function useCronometro() {
     };
 }
 
-/** `camaraPermitida`: el tutor autorizó la cámara (consentimiento vigente, de la sesión). */
-export default function ResolverActividad({ asignacionId, camaraPermitida = false }: { asignacionId: string; camaraPermitida?: boolean }) {
+export default function ResolverActividad({ asignacionId }: { asignacionId: string }) {
     const [estado, setEstado] = useState<Siguiente | null>(null);
     const [descartadas, setDescartadas] = useState<string[]>([]);
     const [guia, setGuia] = useState<Guia | null>(null);
@@ -89,7 +88,7 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
     const [recompensaPendiente, setRecompensaPendiente] = useState<Recompensa | null>(null);
     const cronometro = useCronometro();
     const precarga = useRef<Promise<Siguiente> | null>(null);
-    // Gamificación y alerta temprana (EXP-05, EXP-06)
+    // Gamificación y oferta de ayuda (EXP-05, EXP-06)
     const [insignias, setInsignias] = useState<Insignia[]>([]);
     const [nivelSubido, setNivelSubido] = useState<number | null>(null);
     const [oferta, setOferta] = useState<OfertaAyuda | null>(null);
@@ -108,7 +107,6 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
     const enEjercicio = Boolean(estado && "ejercicio" in estado) && !cerrado && !guia;
     const [reintentoCamara, setReintentoCamara] = useState(0);
     const camara = useCapturaEmocional({
-        permitida: camaraPermitida,
         activa: enEjercicio,
         asignacionId,
         reintento: reintentoCamara,
@@ -213,12 +211,11 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
         }
     }
 
+    /** RF-27 lado alumno: si acepta, se abre la guía paso a paso del ejercicio. */
     async function responderOferta(acepta: boolean) {
         const o = oferta;
         setOferta(null);
-        if (!o) return;
-        await api("POST", `/alumno/alertas/${o.alertaId}/respuesta`, { aceptaAyuda: acepta }).catch(() => {});
-        if (acepta) await pedirAyuda();
+        if (o && acepta) await pedirAyuda();
     }
 
     function cerrarGuia() {
@@ -249,8 +246,8 @@ export default function ResolverActividad({ asignacionId, camaraPermitida = fals
         );
     }
 
-    // RC-03: si el tutor autorizó la cámara, la actividad no sigue sin ella (sin cámara autorizada nunca se enciende)
-    if (camaraPermitida && (camara === "denegada" || camara === "sin_camara")) {
+    // RC-03: la actividad no sigue sin cámara
+    if (camara === "denegada" || camara === "sin_camara") {
         return <CamaraRequerida estado={camara} onReintentar={() => setReintentoCamara((n) => n + 1)} />;
     }
 

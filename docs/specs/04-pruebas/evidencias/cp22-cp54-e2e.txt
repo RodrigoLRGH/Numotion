@@ -1,0 +1,19 @@
+
+Running 10 tests using 1 worker
+
+  ok  1 [escritorio] › tests\e2e\accesibilidad.e2e.ts:17:1 › WCAG 2.1 AA: pantallas públicas (8.8s)
+  ok  2 [escritorio] › tests\e2e\accesibilidad.e2e.ts:23:1 › WCAG 2.1 AA: pantallas del alumno y del docente (19.6s)
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  3 [escritorio] › tests\e2e\motor.e2e.ts:6:1 › alumno: resuelve una actividad con acierto, guía y respuesta tras 3 fallos, y recompensa (7.7s)
+  ok  4 [escritorio] › tests\e2e\motor.e2e.ts:57:1 › alumno: arrastrar y soltar se puede resolver solo con toques (2.9s)
+  ok  5 [escritorio] › tests\e2e\motor.e2e.ts:70:1 › alumno: colorea la figura pedida con la paleta (nombre y patrón) y toques (2.8s)
+  ok  6 [tableta] › tests\e2e\accesibilidad.e2e.ts:17:1 › WCAG 2.1 AA: pantallas públicas (8.5s)
+  ok  7 [tableta] › tests\e2e\accesibilidad.e2e.ts:23:1 › WCAG 2.1 AA: pantallas del alumno y del docente (19.4s)
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  8 [tableta] › tests\e2e\motor.e2e.ts:6:1 › alumno: resuelve una actividad con acierto, guía y respuesta tras 3 fallos, y recompensa (7.7s)
+  ok  9 [tableta] › tests\e2e\motor.e2e.ts:57:1 › alumno: arrastrar y soltar se puede resolver solo con toques (2.7s)
+  ok 10 [tableta] › tests\e2e\motor.e2e.ts:70:1 › alumno: colorea la figura pedida con la paleta (nombre y patrón) y toques (2.9s)
+
+  10 passed (1.5m)

@@ -13,8 +13,10 @@ export default defineConfig({
         locale: "es-MX",
         timezoneId: "America/Tijuana",
         trace: "retain-on-failure",
-        // RC-03: el área del alumno exige un dispositivo con cámara; Chromium simula una (sin dar permiso de usarla)
-        launchOptions: { args: ["--use-fake-device-for-media-stream"] },
+        // RC-03: el área del alumno exige un dispositivo con cámara y la actividad siempre la usa:
+        // Chromium simula una y concede el permiso
+        launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
+        permissions: ["camera"],
     },
     projects: [
         { name: "escritorio", use: { ...devices["Desktop Chrome"] } },

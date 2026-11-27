@@ -1,22 +1,19 @@
 // Captura de la cámara durante una actividad (EXP-05.1, RI-02, RC-03, RNF-03).
-// · Solo si el tutor autorizó la cámara y solo en la pantalla de actividad, con indicador visible.
+// · Siempre activa en la pantalla de actividad (RC-03, RI-02), con indicador visible.
 // · Un fotograma pequeño (320×240 JPEG) cada `intervaloSeg` [10] s, solo con la pestaña visible y
 //   el ejercicio activo. El fotograma se envía y se descarta: nunca se guarda en el navegador.
-// · Si el permiso se niega o no hay cámara, la actividad sigue sin cámara.
+// · Si el navegador la niega o no hay cámara, la actividad se detiene hasta resolverlo (RC-03).
 // · Se apaga al salir de la pantalla.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icono } from "../../../shared/ui/Icono";
 
-export type EstadoCamara = "apagada" | "solicitando" | "activa" | "denegada" | "sin_camara" | "sin_permiso";
+export type EstadoCamara = "apagada" | "solicitando" | "activa" | "denegada" | "sin_camara";
 
 export interface OfertaAyuda {
-    alertaId: string;
     mensaje: string;
 }
 
 interface Opciones {
-    /** Consentimiento de cámara del tutor (de la sesión) */
-    permitida: boolean;
     /** Ejercicio en pantalla y sin cerrar */
     activa: boolean;
     asignacionId: string;
@@ -43,8 +40,8 @@ async function enviarFotograma(blob: Blob, asignacionId: string, inactividadSeg:
     }
 }
 
-export function useCapturaEmocional({ permitida, activa, asignacionId, intervaloSeg = 10, reintento = 0, inactividadSeg, onOfrecerAyuda }: Opciones): EstadoCamara {
-    const [estado, setEstado] = useState<EstadoCamara>(permitida ? "apagada" : "sin_permiso");
+export function useCapturaEmocional({ activa, asignacionId, intervaloSeg = 10, reintento = 0, inactividadSeg, onOfrecerAyuda }: Opciones): EstadoCamara {
+    const [estado, setEstado] = useState<EstadoCamara>("apagada");
     const flujo = useRef<MediaStream | null>(null);
     const video = useRef<HTMLVideoElement | null>(null);
     const activaRef = useRef(activa);
@@ -54,7 +51,6 @@ export function useCapturaEmocional({ permitida, activa, asignacionId, intervalo
 
     // Encender la cámara al entrar y apagarla al salir
     useEffect(() => {
-        if (!permitida) return setEstado("sin_permiso");
         if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return setEstado("sin_camara");
         let cancelado = false;
         setEstado("solicitando");
@@ -83,7 +79,7 @@ export function useCapturaEmocional({ permitida, activa, asignacionId, intervalo
             if (video.current) video.current.srcObject = null;
             video.current = null;
         };
-    }, [permitida, reintento]);
+    }, [reintento]);
 
     // Muestreo
     useEffect(() => {
@@ -142,7 +138,7 @@ export function IndicadorCamara({ estado }: { estado: EstadoCamara }) {
     );
 }
 
-/** RC-03: con la cámara autorizada por el tutor, la actividad no sigue sin ella. */
+/** RC-03: la actividad no sigue sin cámara. */
 export function CamaraRequerida({ estado, onReintentar }: { estado: "denegada" | "sin_camara"; onReintentar(): void }) {
     return (
         <section role="alert" aria-labelledby="camara-requerida" className="tarjeta mx-auto max-w-xl text-center">

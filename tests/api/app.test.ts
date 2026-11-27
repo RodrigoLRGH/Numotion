@@ -4,13 +4,11 @@ import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { crearApp } from "../../apps/api/src/app";
-import { hashSecreto } from "../../apps/api/src/modules/core/auth";
 import { sql } from "../db/fixture";
 
 const app = crearApp();
 
 async function docente() {
-    await sql`INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', now() - interval '1 day', '/privacidad') ON CONFLICT DO NOTHING`;
     const agente = request.agent(app);
     const email = `api-${randomUUID()}@escuela.mx`;
     const r = await agente.post("/api/v1/auth/docente/registro").send({ nombre: "Docente API", email, password: "contraseña-segura", aceptaAviso: true });
@@ -22,7 +20,7 @@ async function alumnoConSesion() {
     const d = await docente();
     const grupo = (await d.agente.post("/api/v1/docente/grupos").send({ nombre: "API", grado: 3, cicloEscolar: "2026-2027" })).body;
     const alta = (await d.agente.post(`/api/v1/docente/grupos/${grupo.id}/alumnos`).send({ nombre: "Lía", tutorNombre: "Tutor Lía", tutorEmail: "t@c.mx" })).body;
-    await sql`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true WHERE alumno_id = ${alta.alumno.id}`;
+    await sql`UPDATE consentimiento_tutor SET aceptado_en = now(), acepta_plataforma = true, acepta_camara = true WHERE alumno_id = ${alta.alumno.id}`;
     const agente = request.agent(app);
     const r = await agente.post("/api/v1/auth/alumno/login").send({ grupoId: grupo.id, alumnoId: alta.alumno.id, pin: alta.pin });
     expect(r.status).toBe(200);
@@ -130,39 +128,41 @@ describe("alumno: compuerta de diagnósticos (RF-63)", () => {
     });
 });
 
-describe("consentimiento público", () => {
-    it("enlace inventado → 404 con Referrer-Policy no-referrer", async () => {
+describe("consentimiento del tutor (RC-08, RNF-10)", () => {
+    it("el alta exige datos del tutor y devuelve el enlace; el alumno sin consentimiento recibe 403", async () => {
+        const d = await docente();
+        const grupo = (await d.agente.post("/api/v1/docente/grupos").send({ nombre: "Tutor", grado: 3, cicloEscolar: "2026-2027" })).body;
+        expect((await d.agente.post(`/api/v1/docente/grupos/${grupo.id}/alumnos`).send({ nombre: "Sin Tutor" })).status).toBe(400);
+        const alta = await d.agente.post(`/api/v1/docente/grupos/${grupo.id}/alumnos`).send({ nombre: "Rita", tutorNombre: "Tutor Rita", tutorEmail: "t@c.mx" });
+        expect(alta.status).toBe(201);
+        expect(alta.body.invitacion.url).toMatch(/\/consentimiento\/[\w-]{30,}$/);
+        expect(alta.body.correoEnviado).toBe(true);
+        const login = await request(app).post("/api/v1/auth/alumno/login").send({ grupoId: grupo.id, alumnoId: alta.body.alumno.id, pin: alta.body.pin });
+        expect(login.status).toBe(403);
+        expect(login.body.error.code).toBe("CONSENTIMIENTO_REQUERIDO");
+        // Nuevo enlace para el tutor
+        const otro = await d.agente.post(`/api/v1/docente/alumnos/${alta.body.alumno.id}/invitacion`);
+        expect(otro.status).toBe(201);
+        expect(otro.body.invitacion.url).not.toBe(alta.body.invitacion.url);
+    });
+
+    it("enlace inventado → 404 con Referrer-Policy no-referrer; ya no hay ruta ARCO", async () => {
         const r = await request(app).get("/api/v1/consentimiento/no-existe");
         expect(r.status).toBe(404);
         expect(r.headers["referrer-policy"]).toBe("no-referrer");
+        expect((await request(app).post("/api/v1/consentimiento/no-existe/arco").send({ otp: "123456", tipo: "acceso" })).status).toBe(404);
     });
 });
 
-describe("EXP-05 por HTTP: alertas en vivo (SSE), fotogramas y acceso denegado auditado", () => {
-    it("el stream SSE entrega una alerta creada después de conectarse en < 5 s", async () => {
-        const { docente: d, alta } = await alumnoConSesion();
-        const servidor = app.listen(0);
-        const puerto = (servidor.address() as { port: number }).port;
-        const control = new AbortController();
-        try {
-            const r = await fetch(`http://localhost:${puerto}/api/v1/docente/alertas/stream`, { headers: { cookie: d.cookie.join("; ") }, signal: control.signal });
-            expect(r.headers.get("content-type")).toMatch(/text\/event-stream/);
-            const [doc] = await sql`SELECT g.docente_id FROM alumno a JOIN grupo g ON g.id = a.grupo_id WHERE a.id = ${alta.alumno.id}`;
-            const inicio = Date.now();
-            await sql`INSERT INTO alerta (alumno_id, docente_id, indice) VALUES (${alta.alumno.id}, ${doc.docente_id}, 0.7)`;
-            const lector = r.body!.getReader();
-            let texto = "";
-            while (!texto.includes("alerta.nueva") && Date.now() - inicio < 5000) texto += new TextDecoder().decode((await lector.read()).value);
-            expect(texto).toContain("event: alerta.nueva");
-            expect(texto).toContain(alta.alumno.id);
-            expect(Date.now() - inicio).toBeLessThan(5000);
-        } finally {
-            control.abort();
-            servidor.close();
+describe("EXP-05 por HTTP: fotogramas, sin alertas al docente", () => {
+    it("ya no existen las alertas en vivo ni las guías de actuación", async () => {
+        const { docente: d } = await alumnoConSesion();
+        for (const ruta of ["/api/v1/docente/alertas", "/api/v1/docente/alertas/stream", `/api/v1/docente/guias/${randomUUID()}`]) {
+            expect((await d.agente.get(ruta)).status).toBe(404);
         }
     });
 
-    it("fotograma: solo imágenes ≤ 100 KB; sin consentimiento de cámara → 403", async () => {
+    it("fotograma: solo imágenes ≤ 100 KB; con el consentimiento del tutor se procesa (cámara para todos, A-41)", async () => {
         const { agente, alta } = await alumnoConSesion();
         const [s] = await sql`INSERT INTO sesion_alumno (alumno_id, fecha) VALUES (${alta.alumno.id}, fn_hoy_local()) ON CONFLICT (alumno_id, fecha) DO UPDATE SET fecha = EXCLUDED.fecha RETURNING id`;
         await sql`INSERT INTO panas_resultado (sesion_id, alumno_id, afecto_positivo, afecto_negativo, completado_en) VALUES (${s.id}, ${alta.alumno.id}, 4, 1, now()) ON CONFLICT DO NOTHING`;
@@ -172,15 +172,13 @@ describe("EXP-05 por HTTP: alertas en vivo (SSE), fotogramas y acceso denegado a
         const grande = await agente.post("/api/v1/alumno/emociones/frame").set("Content-Type", "image/jpeg").send(Buffer.alloc(101 * 1024, 1));
         expect(grande.status).toBe(413);
         const ok = await agente.post("/api/v1/alumno/emociones/frame").set("Content-Type", "image/jpeg").send(Buffer.from([0xff, 0xd8, 0xff, 1]));
-        expect(ok.status).toBe(403);
-        expect(ok.body.error.code).toBe("CONSENTIMIENTO_REQUERIDO");
+        expect(ok.status).toBe(200);
+        expect(ok.body.error).toBeUndefined();
     });
 
-    it("un alumno que intenta entrar al área docente queda auditado como acceso_denegado", async () => {
-        const { agente, alta } = await alumnoConSesion();
+    it("un alumno que intenta entrar al área docente recibe 403", async () => {
+        const { agente } = await alumnoConSesion();
         expect((await agente.get("/api/v1/docente/grupos")).status).toBe(403);
-        const filas = await sql`SELECT accion, recurso FROM auditoria_acceso WHERE actor_id = ${alta.alumno.id} AND accion = 'acceso_denegado'`;
-        expect(filas).toEqual([{ accion: "acceso_denegado", recurso: "/api/v1/docente/grupos" }]);
     });
 });
 
@@ -216,25 +214,10 @@ describe("notas del docente por HTTP (CRUD)", () => {
         expect((await d.agente.get(base)).body.items).toEqual([]);
     });
 });
-describe("administrador ARCO por HTTP (RC-07)", () => {
-    it("entra por /auth/admin/login, ve la bandeja y valida la respuesta; el docente recibe 403", async () => {
-        const email = `admin-api-${randomUUID().slice(0, 8)}@escuela.mx`;
-        await sql`INSERT INTO administrador (nombre, email, password_hash) VALUES ('Admin API', ${email}, ${await hashSecreto("clave-admin-segura")})`;
-        const agente = request.agent(app);
-        expect((await agente.post("/api/v1/auth/admin/login").send({ email, password: "mala-clave-123" })).status).toBe(401);
-        const login = await agente.post("/api/v1/auth/admin/login").send({ email, password: "clave-admin-segura" });
-        expect(login.status).toBe(200);
-        expect(login.body.destino).toBe("/admin");
-        expect((await agente.get("/api/v1/auth/sesion")).body.usuario).toMatchObject({ rol: "admin", nombre: "Admin API" });
-        const bandeja = await agente.get("/api/v1/admin/arco?estado=todas");
-        expect(bandeja.status).toBe(200);
-        expect(Array.isArray(bandeja.body.items)).toBe(true);
-        expect((await agente.post(`/api/v1/admin/arco/${randomUUID()}/atender`).send({ respuesta: "corta" })).status).toBe(400);
-        expect((await agente.post(`/api/v1/admin/arco/${randomUUID()}/atender`).send({ respuesta: "Respuesta suficiente" })).status).toBe(404);
-        // El administrador no entra al área docente
-        expect((await agente.get("/api/v1/docente/grupos")).status).toBe(403);
-
+describe("sin administrador ARCO (RC-07 fuera del MVP)", () => {
+    it("no existen el acceso ni la bandeja del administrador", async () => {
+        expect((await request(app).post("/api/v1/auth/admin/login").send({ email: "a@b.mx", password: "x" })).status).toBe(404);
         const d = await docente();
-        expect((await d.agente.get("/api/v1/admin/arco")).status).toBe(403);
+        expect((await d.agente.get("/api/v1/admin/arco")).status).toBe(404);
     });
 });

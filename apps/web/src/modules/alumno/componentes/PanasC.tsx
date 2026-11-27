@@ -19,6 +19,15 @@ interface EstadoPanas {
 
 const SIGUIENTE = "/alumno/diagnostico/matematico";
 
+// La emoción de la pregunta va en negritas: «¿Qué tan **asustado o asustada** te sientes hoy?»,
+// «¿Cuánto **miedo** sientes hoy?». Si el texto no sigue el patrón, se muestra tal cual.
+const PATRON = /^(¿Qué tan |¿Cuánta |¿Cuánto )(.+?)((?: de ti)?(?: te sientes| estás| tienes| sientes) hoy\?)$/;
+function Pregunta({ texto }: { texto: string }) {
+    const m = PATRON.exec(texto);
+    if (!m) return <>{texto}</>;
+    return <>{m[1]}<strong className="font-bold">{m[2]}</strong>{m[3]}</>;
+}
+
 export default function PanasC() {
     const [estado, setEstado] = useState<EstadoPanas | null>(null);
     const [indice, setIndice] = useState(0);
@@ -90,7 +99,7 @@ export default function PanasC() {
             </div>
 
             <div className="mb-12 flex items-center justify-center gap-3 text-center">
-                <h1 id="pregunta" className="text-3xl sm:text-4xl">{item.texto}</h1>
+                <h1 id="pregunta" className="text-3xl sm:text-4xl"><Pregunta texto={item.texto} /></h1>
             </div>
 
             <EscalaIntensidad escala={estado.escala} elegido={elegidos[item.id]} deshabilitado={ocupado} onElegir={elegir} />

@@ -13,7 +13,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { requerida } from "./entorno";
 
 export type Tx = Prisma.TransactionClient;
-export type Contexto = { rol: "docente" | "alumno" | "admin"; id: string } | null;
+export type Contexto = { rol: "docente" | "alumno"; id: string } | null;
 export { Prisma };
 
 let cliente: PrismaClient | null = null;
@@ -29,7 +29,7 @@ function db(): PrismaClient {
 
 /**
  * Ejecuta fn en una transacción con el contexto del usuario. Con contexto null
- * (login, consentimiento del tutor) RLS no deja ver datos de alumnos: esas rutas
+ * (login) RLS no deja ver datos de alumnos: esas rutas
  * usan funciones SECURITY DEFINER.
  */
 export async function conContexto<T>(ctx: Contexto, fn: (tx: Tx) => Promise<T>, prisma: PrismaClient = db()): Promise<T> {

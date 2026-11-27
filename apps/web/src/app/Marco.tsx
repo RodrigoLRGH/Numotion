@@ -76,7 +76,7 @@ function Encabezado() {
                 <Link to={usuario ? `/${usuario.rol}` : "/"} className="text-4xl font-bold tracking-tight uppercase focus-visible:outline-white sm:text-6xl">
                     {NOMBRE_PRODUCTO}
                 </Link>
-                {(usuario?.rol === "docente" || usuario?.rol === "admin") && <MenuUsuario nombre={usuario.nombre} />}
+                {usuario?.rol === "docente" && <MenuUsuario nombre={usuario.nombre} />}
                 {usuario?.rol === "alumno" && <NavAlumno />}
             </div>
         </header>
@@ -150,7 +150,7 @@ function Pestanas() {
     );
 }
 
-export function Marco({ children, modulo = "publico", ancho = "normal" }: { children?: ReactNode; modulo?: "alumno" | "docente" | "admin" | "publico"; ancho?: "normal" | "amplio" }) {
+export function Marco({ children, modulo = "publico", ancho = "normal" }: { children?: ReactNode; modulo?: "alumno" | "docente" | "publico"; ancho?: "normal" | "amplio" }) {
     return (
         <div className={`flex min-h-screen flex-col bg-fondo font-sans ${modulo === "alumno" ? "text-xl" : ""}`} data-modulo={modulo}>
             <Encabezado />
@@ -170,4 +170,3 @@ export function Marco({ children, modulo = "publico", ancho = "normal" }: { chil
 export const LayoutPublico = () => <Marco modulo="publico" />;
 export const LayoutDocente = () => <Marco modulo="docente" ancho="amplio" />;
 export const LayoutAlumno = () => <Marco modulo="alumno" ancho="amplio" />;
-export const LayoutAdmin = () => <Marco modulo="admin" ancho="amplio" />;

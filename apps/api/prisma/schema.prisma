@@ -46,30 +46,6 @@ model ajuste_dificultad {
   @@index([asignacion_id, creado_en], map: "ajuste_asignacion_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model alerta {
-  id                                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  alumno_id                            String             @db.Uuid
-  docente_id                           String             @db.Uuid
-  asignacion_id                        String?            @db.Uuid
-  tipo                                 String             @default("frustracion_temprana")
-  indice                               Decimal            @db.Decimal(3, 2)
-  senales                              Json               @default("{}")
-  guia_id                              String?            @db.Uuid
-  alumno_acepto_ayuda                  Boolean?
-  atendida_en                          DateTime?          @db.Timestamptz(6)
-  atendida_por                         String?            @db.Uuid
-  creado_en                            DateTime           @default(now()) @db.Timestamptz(6)
-  alumno                               alumno             @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  asignacion_alumno                    asignacion_alumno? @relation(fields: [asignacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  docente_alerta_atendida_porTodocente docente?           @relation("alerta_atendida_porTodocente", fields: [atendida_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  docente_alerta_docente_idTodocente   docente            @relation("alerta_docente_idTodocente", fields: [docente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  guia_actuacion                       guia_actuacion?    @relation(fields: [guia_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([alumno_id, asignacion_id, creado_en(sort: Desc)], map: "alerta_alumno_idx")
-}
-
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model alumno {
   id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -84,7 +60,6 @@ model alumno {
   activo                    Boolean                     @default(true)
   creado_en                 DateTime                    @default(now()) @db.Timestamptz(6)
   ajuste_dificultad         ajuste_dificultad[]
-  alerta                    alerta[]
   grupo                     grupo                       @relation(fields: [grupo_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   alumno_insignia           alumno_insignia[]
   asignacion_alumno         asignacion_alumno[]
@@ -101,7 +76,6 @@ model alumno {
   resultado_academico       resultado_academico[]
   retroalimentacion         retroalimentacion[]
   sesion_alumno             sesion_alumno[]
-  solicitud_arco            solicitud_arco[]
   uso_rekognition           uso_rekognition[]
 
   @@unique([grupo_id, avatar])
@@ -138,8 +112,8 @@ model asignacion_alumno {
   ayuda_actual         Boolean               @default(false)
   if_consecutivos      Int                   @default(0) @db.SmallInt
   ultimo_if            Decimal?              @db.Decimal(3, 2)
+  ultima_oferta_ayuda  DateTime?             @db.Timestamptz(6)
   ajuste_dificultad    ajuste_dificultad[]
-  alerta               alerta[]
   actividad            actividad             @relation(fields: [actividad_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   alumno               alumno                @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   ejercicio            ejercicio?            @relation(fields: [ejercicio_actual_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -152,57 +126,9 @@ model asignacion_alumno {
   @@index([alumno_id, estado], map: "asignacion_alumno_estado_idx")
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model auditoria_acceso {
-  id         BigInt           @id @default(autoincrement())
-  actor_id   String?          @db.Uuid
-  actor_rol  rol_usuario?
-  accion     accion_auditoria
-  recurso    String?
-  recurso_id String?
-  ip         String?          @db.Inet
-  creado_en  DateTime         @default(now()) @db.Timestamptz(6)
-
-  @@index([creado_en], map: "auditoria_fecha_idx")
-}
-
-model aviso_privacidad {
-  version              String                 @id
-  vigente_desde        DateTime               @default(now()) @db.Timestamptz(6)
-  url                  String
-  consentimiento_tutor consentimiento_tutor[]
-}
-
 model config_adaptativa {
   clave String @id
   valor Json
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model consentimiento_tutor {
-  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  alumno_id           String           @db.Uuid
-  tutor_nombre        String
-  tutor_email         String           @db.Citext
-  parentesco          String?
-  version_aviso       String
-  acepta_plataforma   Boolean          @default(false)
-  acepta_camara       Boolean          @default(false)
-  metodo_verificacion String           @default("email_otp")
-  ip                  String?          @db.Inet
-  aceptado_en         DateTime?        @db.Timestamptz(6)
-  revocado_en         DateTime?        @db.Timestamptz(6)
-  token_hash          String           @unique
-  token_expira_en     DateTime         @db.Timestamptz(6)
-  otp_hash            String?
-  otp_expira_en       DateTime?        @db.Timestamptz(6)
-  creado_en           DateTime         @default(now()) @db.Timestamptz(6)
-  otp_intentos        Int              @default(0)
-  otp_enviado_en      DateTime?        @db.Timestamptz(6)
-  alumno              alumno           @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  aviso_privacidad    aviso_privacidad @relation(fields: [version_aviso], references: [version], onDelete: NoAction, onUpdate: NoAction)
-  solicitud_arco      solicitud_arco[]
 }
 
 model dia_inhabil {
@@ -255,20 +181,18 @@ model diagnostico_mat_resultado {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model docente {
-  id                                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre                              String
-  email                               String                @unique @db.Citext
-  password_hash                       String
-  activo                              Boolean               @default(true)
-  intentos_fallidos                   Int                   @default(0)
-  bloqueado_hasta                     DateTime?             @db.Timestamptz(6)
-  creado_en                           DateTime              @default(now()) @db.Timestamptz(6)
-  actividad                           actividad[]
-  alerta_alerta_atendida_porTodocente alerta[]              @relation("alerta_atendida_porTodocente")
-  alerta_alerta_docente_idTodocente   alerta[]              @relation("alerta_docente_idTodocente")
-  grupo                               grupo[]
-  nota_docente                        nota_docente[]
-  resultado_academico                 resultado_academico[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre              String
+  email               String                @unique @db.Citext
+  password_hash       String
+  activo              Boolean               @default(true)
+  intentos_fallidos   Int                   @default(0)
+  bloqueado_hasta     DateTime?             @db.Timestamptz(6)
+  creado_en           DateTime              @default(now()) @db.Timestamptz(6)
+  actividad           actividad[]
+  grupo               grupo[]
+  nota_docente        nota_docente[]
+  resultado_academico resultado_academico[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -327,17 +251,6 @@ model grupo {
   docente       docente     @relation(fields: [docente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([docente_id], map: "grupo_docente_idx")
-}
-
-model guia_actuacion {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  estado         estado_emocional
-  titulo         String
-  pasos          Json
-  mensaje_alumno String
-  alerta         alerta[]
-
-  @@unique([estado, titulo], map: "guia_actuacion_estado_titulo_uidx")
 }
 
 model insignia {
@@ -557,20 +470,6 @@ model sesion_auth {
   @@index([usuario_id], map: "sesion_auth_usuario_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model solicitud_arco {
-  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  alumno_id            String               @db.Uuid
-  consentimiento_id    String               @db.Uuid
-  tipo                 tipo_arco
-  detalle              String               @default("")
-  creada_en            DateTime             @default(now()) @db.Timestamptz(6)
-  atendida_en          DateTime?            @db.Timestamptz(6)
-  alumno               alumno               @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  consentimiento_tutor consentimiento_tutor @relation(fields: [consentimiento_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
-
 model subtema {
   id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tema_id   String      @db.Uuid
@@ -622,16 +521,37 @@ model uso_rekognition {
   @@id([alumno_id, fecha])
 }
 
-enum accion_auditoria {
-  login
-  login_fallido
-  ver_alumno
-  exportar
-  acceso_denegado
-  consentimiento
-  revocacion
-  arco
-  logout
+model aviso_privacidad {
+  version              String                 @id
+  vigente_desde        DateTime               @default(now()) @db.Timestamptz(6)
+  url                  String
+  consentimiento_tutor consentimiento_tutor[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model consentimiento_tutor {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  alumno_id           String           @db.Uuid
+  tutor_nombre        String
+  tutor_email         String           @db.Citext
+  parentesco          String?
+  version_aviso       String
+  acepta_plataforma   Boolean          @default(false)
+  acepta_camara       Boolean          @default(false)
+  metodo_verificacion String           @default("email_otp")
+  ip                  String?          @db.Inet
+  aceptado_en         DateTime?        @db.Timestamptz(6)
+  revocado_en         DateTime?        @db.Timestamptz(6)
+  token_hash          String           @unique
+  token_expira_en     DateTime         @db.Timestamptz(6)
+  otp_hash            String?
+  otp_expira_en       DateTime?        @db.Timestamptz(6)
+  creado_en           DateTime         @default(now()) @db.Timestamptz(6)
+  otp_intentos        Int              @default(0)
+  otp_enviado_en      DateTime?        @db.Timestamptz(6)
+  alumno              alumno           @relation(fields: [alumno_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  aviso_privacidad    aviso_privacidad @relation(fields: [version_aviso], references: [version], onDelete: NoAction, onUpdate: NoAction)
 }
 
 enum afecto_panas {
@@ -702,14 +622,6 @@ enum rol_usuario {
   docente
   alumno
   admin
-}
-
-enum tipo_arco {
-  acceso
-  rectificacion
-  cancelacion
-  oposicion
-  revocacion
 }
 
 enum tipo_error {

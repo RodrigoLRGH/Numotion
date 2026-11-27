@@ -74,13 +74,13 @@ grep -rIn "AKIA\|sk-[A-Za-z0-9]\{20,\}" --exclude-dir=node_modules .   # secreto
 
 | Expect | Estado | Notas |
 |---|---|---|
-| EXP-01 Base: auth, consentimiento, módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS, cabeceras de seguridad, consentimiento versionado en BD. ✅ Flujo del tutor con OTP, revocación y ARCO (T-03-01-10/15). Correo por Google Workspace (SMTP). ✅ Rol administrador (migración 0013, `npm run admin:crear`, `/admin`) que atiende ARCO y revocaciones en ≤ 20 días hábiles, responde al tutor por correo y anonimiza con `fn_anonimizar_alumno`; todo auditado. ✅ RC-03: el área del alumno exige un dispositivo con cámara y, con la cámara autorizada, la actividad no sigue sin ella. Faltan: lint de límites, logger, rate-limit por IP |
+| EXP-01 Base: auth y módulos | 🟨 En curso | ✅ Acceso docente y alumno (ADR-004) con pantallas, RLS y cabeceras de seguridad. ✅ RC-03: el área del alumno exige un dispositivo con cámara y la actividad no sigue sin ella. ✅ RC-08/RNF-10 (migración 0016, A-44): consentimiento del tutor con enlace y código por correo (SMTP), aviso versionado, revocación y bloqueo del alumno sin consentimiento. ⛔ Fuera del MVP (migración 0015, A-41): administrador y ARCO, auditoría de accesos. Faltan: lint de límites, logger, rate-limit por IP |
 | EXP-02 Diagnósticos PANAS-C y matemático | ✅ Hecho (pendiente validar contenido) | Backend y pantallas; P-E2E-01 y axe verdes en escritorio y tableta. Falta validar contenido: T-01-03, T-01-04, A-22 |
 | EXP-03 Asignación y seguimiento | ✅ Hecho | Asistente de 3 pasos con previsualización, seguimiento con refresco y historial con filtros/cursor. Las asignaciones se completan cuando exista el motor (EXP-04) |
 | EXP-04 Motor de ejercicios y adaptación | ✅ Entrega 2 de 2 | ✅ Motor completo (nivel, puntos, guía, idempotencia, ajuste_dificultad; máximo 3 intentos por ejercicio, RF-11) + Mis actividades + los 7 tipos del catálogo (selección, encuentra el número, completar operación, arrastrar, con letras en serie de 3 números (RF-39), suma con figuras, colorear) + contenido provisional de geometría y fracciones (A-30) + cola sin conexión con IndexedDB (EXP-04.9, P-E2E-05, A-32). Problemas con historia de OpenAI (T-03-04-20) y precarga + code splitting de la pantalla de actividad (T-03-04-21) |
-| EXP-05 Detección emocional y alertas | 🟨 En curso | Rekognition sin persistencia ✔, IF, SSE, límite diario. Guía de actuación solo para desinterés (A-34). La alerta en < 2 s de RF-16 queda fuera de esta versión (A-38) |
+| EXP-05 Detección emocional | 🟨 En curso | Rekognition sin persistencia ✔, IF, límite diario, cámara para todos los alumnos. Al alumno se le pregunta "¿Quieres que te ayude?" con enfriamiento por actividad (RF-27 del alumno). ⛔ Fuera del MVP: alertas al docente (SSE, lista, guías de actuación) y RF-16 (A-34, A-38) |
 | EXP-06 Gamificación | ✅ Hecho | Panel (personaje + accesorios por nivel, mensaje del día sin repetir, racha L–V y mejor racha), perfil sin datos emocionales, insignias del catálogo (0011) evaluadas tras cada ejercicio cerrado/práctica, práctica libre de 5 ejercicios que dispara la racha (temas con dominio ≤ 2 primero, con etiqueta "Recomendado", RF-03), mensaje del día con historial académico (RF-22), celebraciones de insignia y nivel |
-| EXP-07 Dashboard docente, perfil y reportes | ✅ Hecho | Resumen previo por grupo (distribución, AP/AN, dominio, "sin datos hoy"), alertas en vivo, ficha auditada (resumen, perfil estadístico, cruce diagnóstico matemático × PANAS-C por tema (RF-52), resultados con captura y consolidado, notas rápidas), pantalla Retroalimentaciones (registros por alumno y fecha y detalle del diagnóstico matemático por tema con el PANAS-C del día; reemplaza el detalle por alumno del Dashboard), reporte por tema/habilidad (ejercicios, aciertos, errores e índice de error, ordenado por índice; filtro por grupo, alumno y fecha, sin exportación; RF-18). Las habilidades usan tipo de ejercicio + nivel mientras no haya subtemas en el catálogo |
+| EXP-07 Dashboard docente, perfil y reportes | ✅ Hecho | Resumen previo por grupo (distribución, AP/AN, dominio, "sin datos hoy"), ficha (resumen con estado emocional reciente, perfil estadístico, cruce diagnóstico matemático × PANAS-C por tema (RF-52), resultados con captura y consolidado, notas rápidas), pantalla Retroalimentaciones (registros por alumno y fecha y detalle del diagnóstico matemático por tema con el PANAS-C del día), reporte por tema/habilidad (ejercicios, aciertos, errores e índice de error, ordenado por índice; filtro por grupo, alumno y fecha, sin exportación; RF-18). Sin alertas ni auditoría (migración 0015). Las habilidades usan tipo de ejercicio + nivel mientras no haya subtemas en el catálogo |
 
 Leyenda: ⬜ Pendiente · 🟨 En curso · ✅ Hecho · ⛔ Bloqueado
 
@@ -102,11 +102,27 @@ Se revisó el código contra `requerimientos_act.pdf`. Detalle e interpretacione
 
 Retirados de la matriz: RF-35 y RF-44 (su funcionalidad se conserva en la app).
 
+### 5.2 Alcance del MVP (2026-11-26)
+
+Decisiones del equipo. Detalle en `01-analisis/requerimientos.md` (A-19, A-34, A-38, A-41 a A-44). Migraciones `0015_alcance_mvp.sql` (destructiva) y `0016_consentimiento_tutor.sql`.
+
+| Qué | Cambio |
+|---|---|
+| RC-07 | Fuera del MVP. Se retiraron el administrador y ARCO, la auditoría de accesos y la purga de eventos emocionales (`npm run db:purgar`). Tablas borradas: `solicitud_arco`, `administrador`, `auditoria_acceso` |
+| RC-08, RNF-10 | **En el MVP** (2026-11-27, A-44). El alta de alumnos pide nombre y correo del tutor; el tutor autoriza desde su enlace con un código por correo; sin consentimiento vigente el alumno no entra, y revocar cierra sus sesiones. Sin ARCO ni preferencia de cámara |
+| Cámara | Activa para todos los alumnos con consentimiento durante la actividad (RC-03, RI-02). Sin la cámara la actividad se detiene |
+| Alertas (RF-16) | Retiradas por completo: creación, lista, SSE en vivo, «Marcar como atendida» con nota y guías de actuación. Tablas borradas: `alerta`, `guia_actuacion` |
+| RF-27 | Solo la pregunta al alumno "¿Quieres que te ayude?", con enfriamiento (`asignacion_alumno.ultima_oferta_ayuda`). Se retiró la regla R2 del motor |
+| RF-29 | Estado emocional reciente: PANAS-C y lecturas de la última sesión con cámara. Se retiró el histórico por fechas |
+| RF-55 | Diagnóstico completo cada día (sin versión corta) |
+
+Se conserva la página «Aviso de privacidad». **Antes de usar la app con alumnos reales** falta la revisión legal del flujo de consentimiento y del aviso (métrica de RNF-10), y decidir cómo se atienden las peticiones de acceso, corrección o borrado de datos sin ARCO (RC-07).
+
 ### Pendientes fuera del código (2026-11-06)
 - **RC-02** despliegue en AWS (T-03-01-18): requiere cuenta, credenciales y decisión de infraestructura.
 - **RNF-01/RNF-02** medición de latencia con k6 (P-PERF) y **RNF-06** prueba de usabilidad con 10 alumnos.
-- **RNF-10/RC-07/RC-08** revisión legal del aviso de privacidad y del flujo de consentimiento (la atención ARCO por un administrador ya está en la app). Cifrado en reposo: depende de la base gestionada (RDS/KMS, RC-02).
-- **RC-03**: hecho en la app (guarda `RequireCamara` + bloqueo en la actividad). La detección es del navegador: un dispositivo sin cámara no puede comprobarse desde el servidor.
+- **RNF-10/RC-08**: en la app (migración 0016); falta la revisión legal del flujo y del aviso. **RC-07** sigue fuera del MVP (§5.2); el administrador y la auditoría están en el historial de git antes de la migración 0015.
+- **RC-03**: hecho en la app (guarda `RequireCamara` + bloqueo en la actividad, con la cámara activa para todos). La detección es del navegador: un dispositivo sin cámara no puede comprobarse desde el servidor.
 
 ## 6. Pendientes de validación con stakeholders
 Ver `01-analisis/requerimientos.md §3` (ambigüedades A-01 a A-16). Mientras no se validen, el agente aplica la **interpretación adoptada** de esa tabla.

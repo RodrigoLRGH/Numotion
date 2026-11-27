@@ -1,13 +1,10 @@
 -- Datos de DEMOSTRACIÓN para desarrollo local (npm run db:seed). Nunca aplicar en producción.
 -- Docente: demo@numotion.mx / numotion-demo · Grupo 3A, código DEMO42
 -- Alumnos (PIN de íconos):
---   Ana   (gato)   sol-luna-pez-sol           consentimiento con cámara
---   Beto  (perro)  casa-casa-arbol-flor       consentimiento sin cámara
---   Caro  (conejo) estrella-nube-coche-pelota SIN consentimiento (para probar el bloqueo, ADR-009)
-
-
-INSERT INTO aviso_privacidad (version, vigente_desde, url) VALUES ('v1', '2026-01-01', '/privacidad')
-ON CONFLICT DO NOTHING;
+--   Ana   (gato)   sol-luna-pez-sol           consentimiento vigente
+--   Beto  (perro)  casa-casa-arbol-flor       consentimiento vigente
+--   Caro  (conejo) estrella-nube-coche-pelota SIN consentimiento (para probar el bloqueo, RC-08)
+-- La cámara se usa con todos los alumnos con consentimiento (A-41).
 
 -- Temas, PANAS-C y config_adaptativa vienen de db/migrations/0005_catalogos.sql
 
@@ -29,11 +26,12 @@ INSERT INTO alumno (id, grupo_id, nombre, apellidos, avatar, pin_hash) VALUES
    'scrypt$Ge5RP9mxSNIabSMgT1MlWQ==$rqDawPdg5Jyt3OY/YTEjtCWckF33xhk3NRy61h/4zIdf4kfRTPvovSxYrzibWvpndjgGypxxQE7Wv4RWpTJlaw==')
 ON CONFLICT DO NOTHING;
 
+-- El aviso v1 lo crea la migración 0016
 INSERT INTO consentimiento_tutor (alumno_id, tutor_nombre, tutor_email, parentesco, version_aviso,
                                   acepta_plataforma, acepta_camara, aceptado_en, token_hash, token_expira_en) VALUES
   ('b0000000-0000-4000-8000-000000000001', 'Rosa López', 'rosa@ejemplo.mx', 'madre', 'v1', true, true, now(),
    'demo-token-ana', now() + interval '7 days'),
-  ('b0000000-0000-4000-8000-000000000002', 'Jorge Ramírez', 'jorge@ejemplo.mx', 'padre', 'v1', true, false, now(),
+  ('b0000000-0000-4000-8000-000000000002', 'Jorge Ramírez', 'jorge@ejemplo.mx', 'padre', 'v1', true, true, now(),
    'demo-token-beto', now() + interval '7 days'),
   ('b0000000-0000-4000-8000-000000000003', 'Marta Núñez', 'marta@ejemplo.mx', 'madre', 'v1', false, false, NULL,
    'demo-token-caro', now() + interval '7 days')

@@ -1,4 +1,4 @@
-// Grupos y alumnos del docente (RNF-04, ADR-004, ADR-009). RLS ya limita todo a los grupos
+// Grupos y alumnos del docente (RNF-04, RC-08, ADR-004, ADR-009). RLS ya limita todo a los grupos
 // del docente en contexto; un grupo ajeno simplemente "no existe" (404).
 import { avatarDisponible, esAvatar, generarCodigoAcceso, pinAleatorio, pinATexto } from "@numotion/core/dominio/acceso";
 import type { EstadoConsentimiento } from "@numotion/core/dominio/consentimiento";
@@ -59,7 +59,6 @@ export interface AlumnoDeGrupo {
     avatar: string;
     activo: boolean;
     estadoConsentimiento: EstadoConsentimiento;
-    aceptaCamara: boolean;
 }
 
 /** null si el grupo no existe o es de otro docente. */
@@ -73,10 +72,9 @@ export async function alumnosDelGrupo(tx: Tx, grupoId: string): Promise<AlumnoDe
                     WHEN c.id IS NULL OR (c.aceptado_en IS NULL AND c.token_expira_en > now()) THEN 'pendiente'
                     WHEN c.aceptado_en IS NULL THEN 'vencido'
                     WHEN c.version_aviso <> v.version THEN 'por_renovar'
-                    ELSE 'vigente' END AS "estadoConsentimiento",
-               coalesce(c.acepta_camara AND c.revocado_en IS NULL, false) AS "aceptaCamara"
+                    ELSE 'vigente' END AS "estadoConsentimiento"
           FROM alumno a
-          LEFT JOIN LATERAL (SELECT ct.id, ct.aceptado_en, ct.revocado_en, ct.version_aviso, ct.acepta_camara, ct.token_expira_en
+          LEFT JOIN LATERAL (SELECT ct.id, ct.aceptado_en, ct.revocado_en, ct.version_aviso, ct.token_expira_en
                                FROM consentimiento_tutor ct WHERE ct.alumno_id = a.id
                               ORDER BY ct.creado_en DESC LIMIT 1) c ON true
           LEFT JOIN LATERAL (SELECT version FROM aviso_privacidad WHERE vigente_desde <= now()

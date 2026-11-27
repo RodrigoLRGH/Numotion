@@ -19,7 +19,6 @@ export interface EntradaAdaptativa {
     indiceFrustracion: number;
     erroresConsecutivos: number;
     ejerciciosDesdeUltimoCambio: number;
-    aceptoAyuda: boolean;
     umbralAlerta?: number;
 }
 
@@ -37,7 +36,8 @@ function mediana(v: number[]): number {
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** Tabla 02-…§3.4, en orden. R3–R5 exigen 3 ejercicios cerrados (A-26). */
+/** Tabla 02-…§3.4, en orden. R3–R5 exigen 3 ejercicios cerrados (A-26). R2 (bajar al aceptar ayuda)
+ *  se retiró junto con las alertas (migración 0015). */
 export function decidirNivel(e: EntradaAdaptativa): DecisionNivel {
     const umbral = e.umbralAlerta ?? 0.6;
     const cambiar = (delta: number, motivo: MotivoAjuste, regla: string): DecisionNivel => {
@@ -48,7 +48,6 @@ export function decidirNivel(e: EntradaAdaptativa): DecisionNivel {
     if (e.indiceFrustracion >= umbral || (e.estadoVentana === "frustracion" && e.erroresConsecutivos >= 2)) {
         return cambiar(-1, e.erroresConsecutivos >= 2 ? "combinado" : "emocion", "R1");
     }
-    if (e.aceptoAyuda) return cambiar(-1, "solicitud_ayuda", "R2");
     if (e.ejerciciosDesdeUltimoCambio < 2) return { nivelNuevo: e.nivelActual, motivo: null, reglas: ["R0"] };
     if (e.ultimos3.length < 3) return { nivelNuevo: e.nivelActual, motivo: null, reglas: [] };
 

@@ -1,9 +1,9 @@
 // Contenido de las actividades a partir del generador determinista (A-17): qué combinaciones
 // (tema, tipo) se pueden servir, cómo se representa cada ejercicio y cómo se clasifica un error.
-import type { Rng } from "./aleatorio";
 import { tiposDeTema, type TipoInteraccionActividad } from "./catalogo";
 import { escrituraLegible, evaluarEscritura } from "./numeros";
-import { generarEjercicio, generarIncompleta, type Ejercicio, type Operacion, type TemaGenerador } from "./ejercicios";
+import { barajar, type Rng } from "./aleatorio";
+import { generarEjercicio, generarIdentificar, generarIncompleta, type Ejercicio, type Operacion, type TemaGenerador } from "./ejercicios";
 import { generarFraccion } from "./fracciones";
 import { errorColoreo, evaluarColoreo, generarColorear, generarGeometria, leerColoreo } from "./geometria";
 import { normalizarRespuesta } from "./respuesta";
@@ -34,6 +34,21 @@ export function generarParaActividad(temaClave: string, tipo: TipoInteraccionAct
     if (tipo === "suma_figuras") return generarEjercicio("suma_figuras", nivel, "numero", rng);
     if (tipo === "completar_operacion") return generarIncompleta(nivel, "seleccion_multiple", rng, temaClave, ["a", "b", "r"]);
     return generarEjercicio(temaClave, nivel, modo, rng);
+}
+
+export const OPCIONES_DIAGNOSTICO = 4;
+
+/**
+ * Pregunta del diagnóstico matemático: selección múltiple con exactamente 4 opciones (la correcta y 3
+ * distractores). «Encuentra el número» usa 4 opciones en lugar de su cuadrícula de 6 a 12.
+ */
+export function generarParaDiagnostico(temaClave: string, nivel: number, rng: Rng): Ejercicio | null {
+    const e = temaClave === "numeros"
+        ? generarIdentificar(nivel, rng, OPCIONES_DIAGNOSTICO)
+        : generarParaActividad(temaClave, "seleccion_multiple", nivel, rng);
+    if (!e?.opciones || e.opciones.length <= OPCIONES_DIAGNOSTICO) return e;
+    const distractores = barajar(rng, e.opciones.filter((o) => o !== e.respuesta)).slice(0, OPCIONES_DIAGNOSTICO - 1);
+    return { ...e, opciones: barajar(rng, [e.respuesta, ...distractores]) };
 }
 
 /**

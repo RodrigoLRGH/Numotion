@@ -2,7 +2,7 @@
 // resultados, cruce) y P-SEC-01 (aislamiento entre docentes + auditoría) de EXP-07.
 import { describe, expect, it } from "vitest";
 import {
-    auditarVista, borrarNota, capturarResultado, consolidar, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteTemas, resultados, resumenGrupo,
+    borrarNota, capturarResultado, consolidar, crearNota, cruce, editarNota, ficha, notas, perfilEstadistico, reporteTemas, resultados, resumenGrupo,
 } from "../../apps/api/src/modules/docente/seguimiento";
 import { escenarioCompleto, responderActividad } from "./escenario";
 import { sql } from "./fixture";
@@ -33,23 +33,17 @@ describe("resumen previo (RF-14, RF-62)", () => {
     });
 });
 
-describe("ficha, notas y auditoría (RF-29, RF-50, RC-07)", () => {
-    it("ficha con desempeño, estado reciente, serie y últimas 3 notas; abrirla queda auditado", async () => {
+describe("ficha y notas (RF-29, RF-50)", () => {
+    it("ficha con desempeño, estado emocional reciente y últimas 3 notas", async () => {
         const e = await escenarioCompleto();
         await sql`INSERT INTO evento_emocional (alumno_id, sesion_id, emocion, confianza, estado_derivado) VALUES
             (${e.alumnos[0]}, ${e.sesiones[0]}, 'CALM', 80, 'neutral'), (${e.alumnos[0]}, ${e.sesiones[0]}, 'SAD', 90, 'frustracion')`;
         for (const t of ["uno", "dos", "tres", "cuatro"]) await e.comoDocente((tx) => crearNota(tx, e.docenteId, e.alumnos[0], { texto: t, etiqueta: "academico" }));
         await responderActividad(e, true);
-        const f = await e.comoDocente(async (tx) => {
-            const r = await ficha(tx, e.alumnos[0]);
-            await auditarVista(tx, e.docenteId, "ver_alumno", "alumno", e.alumnos[0], "127.0.0.1");
-            return r;
-        });
+        const f = await e.comoDocente((tx) => ficha(tx, e.alumnos[0]));
         expect(f?.ultimasNotas.map((n) => n.texto)).toEqual(["cuatro", "tres", "dos"]);
         expect(f?.estadoEmocionalReciente.serie.map((s) => s.estado)).toEqual(["neutral", "frustracion"]);
         expect(f?.resumenDesempeno).toMatchObject({ enCurso: 1, puntos: 10 });
-        expect(f?.datos.camara).toBe(true);
-        expect(await sql`SELECT accion, recurso_id FROM auditoria_acceso WHERE actor_id = ${e.docenteId} AND accion = 'ver_alumno'`).toEqual([{ accion: "ver_alumno", recurso_id: e.alumnos[0] }]);
         expect(await e.comoDocente((tx) => notas(tx, e.alumnos[0]))).toHaveLength(4);
     });
 

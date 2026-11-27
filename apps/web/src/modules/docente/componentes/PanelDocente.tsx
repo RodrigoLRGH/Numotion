@@ -24,7 +24,6 @@ interface AlumnoResumen {
     observaciones: string[];
     fechaDato: string | null;
     sinDatosHoy: boolean;
-    camara: boolean;
 }
 interface Resumen {
     fecha: string;

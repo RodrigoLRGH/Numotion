@@ -38,8 +38,6 @@ export interface AlumnoResumen {
     observaciones: string[];
     fechaDato: string | null;
     sinDatosHoy: boolean;
-    alertasPendientes: number;
-    camara: boolean;
 }
 
 export interface ResumenGrupo {
@@ -67,13 +65,10 @@ export async function resumenGrupo(tx: Tx, grupoId: string, fecha?: string): Pro
     // Último dato de cada alumno hasta la fecha (A-09: "sin datos hoy" con la fecha del último)
     const filas = await tx.$queryRaw<{
         alumno_id: string; nombre: string; avatar: string; estado: string | null; ap: Prisma.Decimal | null; an: Prisma.Decimal | null;
-        dominio: unknown; observaciones: string[] | null; fecha: string | null; alertas: number; camara: boolean;
+        dominio: unknown; observaciones: string[] | null; fecha: string | null;
     }[]>`
         SELECT a.id AS alumno_id, trim(a.nombre || ' ' || a.apellidos) AS nombre, a.avatar,
-               u.estado_inicial::text AS estado, u.ap, u.an, u.dominio_por_tema AS dominio, u.observaciones, u.fecha,
-               (SELECT count(*)::int FROM alerta al WHERE al.alumno_id = a.id AND al.atendida_en IS NULL) AS alertas,
-               EXISTS (SELECT 1 FROM consentimiento_tutor c WHERE c.alumno_id = a.id AND c.aceptado_en IS NOT NULL
-                        AND c.revocado_en IS NULL AND c.acepta_camara) AS camara
+               u.estado_inicial::text AS estado, u.ap, u.an, u.dominio_por_tema AS dominio, u.observaciones, u.fecha
           FROM alumno a
           LEFT JOIN LATERAL (
             SELECT r.estado_inicial, p.afecto_positivo AS ap, p.afecto_negativo AS an, r.dominio_por_tema, r.observaciones,
@@ -95,8 +90,6 @@ export async function resumenGrupo(tx: Tx, grupoId: string, fecha?: string): Pro
         observaciones: f.observaciones ?? [],
         fechaDato: f.fecha,
         sinDatosHoy: f.fecha !== dia,
-        alertasPendientes: f.alertas,
-        camara: f.camara,
     }));
     const deHoy = alumnos.filter((a) => !a.sinDatosHoy);
     const distribucion = { positivo: 0, neutral: 0, frustracion: 0, desinteres: 0, sinDatos: alumnos.length - deHoy.length };
@@ -127,14 +120,14 @@ export async function resumenGrupo(tx: Tx, grupoId: string, fecha?: string): Pro
 // ───────────── Ficha del alumno (RF-29, EXP-07.2) ─────────────
 
 export interface Ficha {
-    datos: { id: string; nombre: string; apellidos: string; avatar: string; grupoId: string; grupo: string; grado: number; camara: boolean };
+    datos: { id: string; nombre: string; apellidos: string; avatar: string; grupoId: string; grupo: string; grado: number };
     estadoEmocionalReciente: {
         estadoInicial: string | null;
         afectoPositivo: number | null;
         afectoNegativo: number | null;
         fecha: string | null;
         observaciones: string[];
-        /** Serie de la última sesión con cámara: solo estados derivados, nunca imágenes */
+        /** Estado reciente (RF-29): lecturas de la última sesión con cámara, solo estados derivados, nunca imágenes */
         serie: { capturadoEn: string; estado: string }[];
     };
     ultimasNotas: Nota[];
@@ -146,7 +139,6 @@ export interface Ficha {
         puntos: number;
         nivelGamificacion: number;
         racha: { actual: number; mejor: number };
-        alertasPendientes: number;
     };
 }
 
@@ -165,19 +157,16 @@ export async function ficha(tx: Tx, alumnoId: string): Promise<Ficha | null> {
          WHERE e.alumno_id = ${alumnoId}::uuid
            AND e.sesion_id = (SELECT e2.sesion_id FROM evento_emocional e2 WHERE e2.alumno_id = ${alumnoId}::uuid ORDER BY e2.capturado_en DESC LIMIT 1)
          ORDER BY e.capturado_en LIMIT 500`;
-    const [d] = await tx.$queryRaw<{ completadas: number; en_curso: number; pendientes: number; promedio: Prisma.Decimal | null; alertas: number; camara: boolean }[]>`
+    const [d] = await tx.$queryRaw<{ completadas: number; en_curso: number; pendientes: number; promedio: Prisma.Decimal | null }[]>`
         SELECT count(*) FILTER (WHERE s.estado = 'completada')::int AS completadas,
                count(*) FILTER (WHERE s.estado = 'en_curso')::int AS en_curso,
                count(*) FILTER (WHERE s.estado = 'pendiente')::int AS pendientes,
-               avg(s.resultado_final) FILTER (WHERE s.estado = 'completada') AS promedio,
-               (SELECT count(*)::int FROM alerta al WHERE al.alumno_id = ${alumnoId}::uuid AND al.atendida_en IS NULL) AS alertas,
-               EXISTS (SELECT 1 FROM consentimiento_tutor c WHERE c.alumno_id = ${alumnoId}::uuid AND c.aceptado_en IS NOT NULL
-                        AND c.revocado_en IS NULL AND c.acepta_camara) AS camara
+               avg(s.resultado_final) FILTER (WHERE s.estado = 'completada') AS promedio
           FROM asignacion_alumno s WHERE s.alumno_id = ${alumnoId}::uuid`;
     const perfil = await tx.perfil_gamificacion.findUnique({ where: { alumno_id: alumnoId }, select: { puntos_totales: true, nivel_gamificacion: true } });
     const [racha] = await tx.$queryRaw<{ actual: number; mejor: number }[]>`SELECT racha_actual AS actual, mejor_racha AS mejor FROM fn_racha_vigente(${alumnoId}::uuid)`;
     return {
-        datos: { id: a.id, nombre: a.nombre, apellidos: a.apellidos, avatar: a.avatar, grupoId: a.grupo.id, grupo: a.grupo.nombre, grado: a.grupo.grado, camara: d.camara },
+        datos: { id: a.id, nombre: a.nombre, apellidos: a.apellidos, avatar: a.avatar, grupoId: a.grupo.id, grupo: a.grupo.nombre, grado: a.grupo.grado },
         estadoEmocionalReciente: {
             estadoInicial: r?.estado ?? null,
             afectoPositivo: num(r?.ap),
@@ -195,13 +184,8 @@ export async function ficha(tx: Tx, alumnoId: string): Promise<Ficha | null> {
             puntos: perfil?.puntos_totales ?? 0,
             nivelGamificacion: perfil?.nivel_gamificacion ?? 1,
             racha: racha ?? { actual: 0, mejor: 0 },
-            alertasPendientes: d.alertas,
         },
     };
-}
-
-export async function auditarVista(tx: Tx, docenteId: string, accion: "ver_alumno" | "exportar", recurso: string, recursoId: string, ip: string | null): Promise<void> {
-    await tx.$executeRaw`SELECT fn_auditar(${docenteId}::uuid, 'docente'::rol_usuario, ${accion}::accion_auditoria, ${recurso}, ${recursoId}, ${ip}::inet)`;
 }
 
 // ───────────── Perfil estadístico (RF-19, EXP-07.3) ─────────────
@@ -458,18 +442,6 @@ export async function cruce(tx: Tx, alumnoId: string): Promise<CruceTema[] | nul
             coincidencia: ultima.nivelDominio <= UMBRAL_DOMINIO_BAJO && ultima.afectoNegativo >= UMBRAL_AN_ALTO,
         };
     });
-}
-
-/** Serie temporal de estados derivados (sin imágenes) para la ficha. */
-export async function serieEmocional(tx: Tx, alumnoId: string, desde?: string, hasta?: string): Promise<{ capturadoEn: string; estado: string; asignacionId: string | null }[] | null> {
-    if (!(await tx.alumno.findUnique({ where: { id: alumnoId }, select: { id: true } }))) return null;
-    const filas = await tx.$queryRaw<{ capturadoEn: Date; estado: string; asignacionId: string | null }[]>`
-        SELECT capturado_en AS "capturadoEn", estado_derivado::text AS estado, asignacion_id AS "asignacionId" FROM evento_emocional
-         WHERE alumno_id = ${alumnoId}::uuid
-           ${desde ? Prisma.sql`AND (capturado_en AT TIME ZONE 'America/Tijuana')::date >= ${desde}::text::date` : Prisma.empty}
-           ${hasta ? Prisma.sql`AND (capturado_en AT TIME ZONE 'America/Tijuana')::date <= ${hasta}::text::date` : Prisma.empty}
-         ORDER BY capturado_en DESC LIMIT 1000`;
-    return filas.map((f) => ({ capturadoEn: f.capturadoEn.toISOString(), estado: f.estado, asignacionId: f.asignacionId }));
 }
 
 // ───────────── Reporte grupal por tema (RF-18, EXP-07.6) ─────────────
